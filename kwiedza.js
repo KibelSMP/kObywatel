@@ -41,21 +41,34 @@ function renderTiles(docs){
 }
 
 async function fetchList(){
-  // Lista dokumentów pobierana dynamicznie z GitHub API
+  // Lista dokumentów pobierana dynamicznie z GitHub API, z tytułami z plików .md
   try {
     const response = await fetch('https://api.github.com/repos/KibelSMP/kObywatel/contents/assets/docs');
     if (!response.ok) throw new Error('Nie udało się pobrać listy dokumentów');
     const files = await response.json();
-    return files
+    const docs = await Promise.all(files
       .filter(f => f.name.endsWith('.md'))
-      .map(f => {
+      .map(async f => {
         const slug = f.name.replace('.md', '');
-        const title = slug.replace(/_/g, ' '); // Prosta konwersja tytułu z nazwy pliku
-        return { slug, title, meta: {} };
-      });
+        const url = `https://raw.githubusercontent.com/KibelSMP/kObywatel/main/assets/docs/${encodeURI(slug)}.md`;
+        try {
+          const r = await fetch(url);
+          if (!r.ok) throw new Error();
+          const fullContent = await r.text();
+          const { meta, content: rawContent } = parseFrontmatter(fullContent);
+          let title = meta.title || slug.replace(/_/g, ' ');
+          const lines = rawContent.split('\n');
+          if (lines[0] && lines[0].startsWith('# ')) {
+            title = lines[0].substring(2).trim();
+          }
+          return { slug, title, meta };
+        } catch (e) {
+          return { slug, title: slug.replace(/_/g, ' '), meta: {} };
+        }
+      }));
+    return docs;
   } catch (e) {
     console.warn('Błąd pobierania listy z GitHub:', e);
-    // Fallback do pustej listy lub lokalnej
     return [];
   }
 }
