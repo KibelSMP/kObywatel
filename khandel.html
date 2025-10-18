@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>kHandel – Lista produktów</title>
+  <link rel="icon" type="image/png" href="/favicon.png" />
+  <link rel="stylesheet" href="/style.css" />
+  <style>
+    :root { --ench-glow:#8057ff; }
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#0d1117;color:#e6edf3;}
+    header{display:flex;align-items:center;justify-content:space-between;padding:.75rem 1rem;border-bottom:1px solid #26313d;background:#121c1f;position:sticky;top:0;z-index:50;}
+    header h1{margin:0;font-size:1rem;letter-spacing:.6px;font-weight:600;display:flex;gap:.55rem;align-items:center;}
+    main{max-width:1200px;margin:1.2rem auto;padding:0 1rem;}
+    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:1rem;}
+    .card{position:relative;background:linear-gradient(145deg,#16212b,#0f161d);border:1px solid #26313d;border-radius:18px;padding:.9rem .9rem 1rem;display:flex;flex-direction:column;gap:.6rem;box-shadow:0 4px 18px -6px rgba(0,0,0,.55);overflow:hidden;min-height:170px;}
+    .card::after{content:"";position:absolute;inset:0;pointer-events:none;border-radius:inherit;box-shadow:0 0 0 1px rgba(255,255,255,.05) inset,0 0 70px -35px rgba(128,87,255,.45) inset;opacity:0;transition:.35s ease;}
+    .card:hover::after{opacity:.9;}
+    .item-icon{width:48px;height:48px;position:relative;image-rendering:pixelated;flex:0 0 auto;border-radius:4px;overflow:hidden;}
+    .item-icon img{width:100%;height:100%;display:block;image-rendering:pixelated;}
+    /* Skeleton loader */
+    .item-icon.loading{background:#1f2a35;}
+    .item-icon.loading::before{content:"";position:absolute;inset:0;background:linear-gradient(110deg,#1f2a35 15%,#263341 35%,#1f2a35 55%);background-size:200% 100%;animation:skeleton 1.2s linear infinite;}
+    @keyframes skeleton{0%{background-position:0 0;}100%{background-position:200% 0;}}
+    /* Natywniejszy efekt enchant – dwa pryzmatyczne gradienty przesuwane diagonalnie + lekki puls koloru */
+    .item-icon.enchanted::after{content:"";position:absolute;inset:0;pointer-events:none;mix-blend-mode:screen;animation:glintShift 4.2s linear infinite,glintPulse 2.8s ease-in-out infinite;opacity:.85;}
+    .item-icon.enchanted::before{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(circle at 30% 25%,rgba(180,90,255,.35),transparent 70%);mix-blend-mode:color-dodge;animation:glintDrift 6s linear infinite;}
+  /* Gdy mamy maskę (nowy tryb), pseudo-elementy wyłączamy */
+  .item-icon.enchanted.masked::before,
+  .item-icon.enchanted.masked::after{display:none;}
+  /* Warstwa zglintowana z maską alfa ikonki */
+  .item-icon.enchanted .ench-overlay{position:absolute;inset:0;pointer-events:none;mix-blend-mode:screen;animation:glintShift 4.2s linear infinite,glintPulse 2.8s ease-in-out infinite;opacity:.9;}
+  .item-icon.enchanted .ench-overlay::before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 30% 25%,rgba(180,90,255,.35),transparent 68%);mix-blend-mode:color-dodge;animation:glintDrift 6s linear infinite;}
+  /* Maskowanie (alpha) – ustawiane inline w JS po załadowaniu obrazka */
+  .item-icon.enchanted.masked .ench-overlay{-webkit-mask-size:100% 100%;mask-size:100% 100%;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;}
+    @keyframes glintShift{0%{background:
+      repeating-linear-gradient(55deg,rgba(90,50,200,.0)0,rgba(90,50,200,.0)8px,rgba(140,80,255,.35)8px,rgba(140,80,255,.35)12px,rgba(30,170,255,.25)12px,rgba(30,170,255,.25)16px);
+      background-position:0 0;}
+      100%{background:
+      repeating-linear-gradient(55deg,rgba(90,50,200,.0)0,rgba(90,50,200,.0)8px,rgba(140,80,255,.35)8px,rgba(140,80,255,.35)12px,rgba(30,170,255,.25)12px,rgba(30,170,255,.25)16px);
+      background-position:256px 256px;}}
+    @keyframes glintPulse{0%,100%{filter:hue-rotate(0deg) brightness(1);}50%{filter:hue-rotate(25deg) brightness(1.25);}}
+    @keyframes glintDrift{0%{transform:translate(0,0);}50%{transform:translate(-4px,3px);}100%{transform:translate(0,0);}}
+    @media (prefers-reduced-motion:reduce){
+      .item-icon.enchanted::after{animation:none;}
+      .item-icon.enchanted::before{animation:none;}
+      .item-icon.loading::before{animation:none;}
+    }
+    .row{display:flex;align-items:flex-start;gap:.8rem;}
+    .title{font-size:.9rem;font-weight:600;line-height:1.2;margin:0;}
+    .subtitle{margin:0;font-size:.55rem;color:#94a3b8;letter-spacing:.4px;}
+    .prices{display:flex;flex-wrap:wrap;gap:.45rem;margin-top:.4rem;font-size:.65rem;}
+    .price-chip{display:inline-flex;align-items:center;gap:.35rem;padding:.35rem .55rem;border:1px solid #26313d;background:#1a2632;border-radius:999px;font-weight:600;letter-spacing:.4px;}
+    .price-chip .item-icon{width:22px;height:22px;}
+    .ench-badge{position:absolute;top:6px;right:6px;background:linear-gradient(135deg,#8057ff,#5b21b6);color:#fff;font-size:.55rem;padding:4px 8px;border-radius:999px;letter-spacing:.6px;font-weight:600;box-shadow:0 4px 10px -4px rgba(0,0,0,.5);}
+    .empty{opacity:.5;font-style:italic;text-align:center;padding:2rem 0;}
+    .toolbar{display:flex;flex-wrap:wrap;gap:.55rem;margin:0 0 1rem;}
+    .toolbar a{background:#1a2632;border:1px solid #26313d;color:#e6edf3;text-decoration:none;font-size:.65rem;font-weight:600;padding:.55rem .85rem;border-radius:10px;letter-spacing:.45px;display:inline-flex;align-items:center;gap:.45rem;transition:.25s;}
+    .toolbar a:hover{background:#8057ff;border-color:#8057ff;color:#fff;}
+    .toolbar button{background:#1a2632;border:1px solid #26313d;color:#e6edf3;font-size:.65rem;font-weight:600;padding:.55rem .85rem;border-radius:10px;letter-spacing:.45px;cursor:pointer;display:inline-flex;align-items:center;gap:.45rem;transition:.25s;}
+    .toolbar button:hover{background:#8057ff;border-color:#8057ff;color:#fff;}
+    /* Grid dla listy lokalizacji / sklepów */
+    .khandel-grid{display:grid;grid-template-columns:repeat(3,minmax(180px,1fr));gap:.8rem;margin:0 0 1.2rem;padding:0;list-style:none;}
+    .khandel-grid-btn{background:linear-gradient(145deg,#1a2632,#121b24);border:1px solid #26313d;color:#e6edf3;padding:.75rem .85rem;border-radius:14px;font-size:.7rem;font-weight:600;letter-spacing:.55px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:.6rem;transition:.3s;border-inline:1px solid #26313d;box-shadow:0 4px 14px -6px rgba(0,0,0,.55);}
+    .khandel-grid-btn:hover{border-color:#8057ff;background:linear-gradient(145deg,#2a3656,#192332);color:#fff;}
+    .khandel-grid-btn:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(128,87,255,.4);}
+    .khandel-badge{display:inline-block;background:#1e2a36;border:1px solid #2a3a47;padding:2px 6px;border-radius:999px;font-size:.55rem;font-weight:700;letter-spacing:.5px;color:#cbd5e1;}
+    @media (max-width:640px){
+      .khandel-grid{grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:.65rem;}
+      .khandel-grid-btn{font-size:.65rem;padding:.65rem .7rem;}
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell" data-state="khandel">
+    <header class="app-header">
+      <button type="button" id="back-btn" class="back-btn" aria-label="Powrót" title="Powrót">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <a class="brand" href="/" aria-label="Strona główna">
+        <img src="/logo.png" alt="Logo kObywatel" class="logo no-bg" />
+        <span class="brand-name">kObywatel</span>
+      </a>
+    </header>
+    <main class="app-main">
+      <nav id="khandel-breadcrumb" class="khandel-breadcrumb" aria-label="Ścieżka nawigacyjna"></nav>
+      <section id="khandel-toolbar" class="khandel-toolbar">
+        <button id="lang-toggle" class="mini-btn">PL / EN</button>
+        <input id="khandel-search" class="mini-input" type="text" placeholder="Szukaj przedmiotu..." aria-label="Szukaj przedmiotu" />
+        <select id="khandel-filter-location" class="mini-select" aria-label="Filtruj po lokalizacji"><option value="">Wszystkie lokalizacje</option></select>
+        <select id="khandel-filter-store" class="mini-select" aria-label="Filtruj po sklepie"><option value="">Wszystkie sklepy</option></select>
+  <button id="khandel-clear-filters" class="mini-btn" title="Wyczyść filtry i wyszukiwanie">✕</button>
+      </section>
+      <section id="khandel-hierarchy">
+        <div id="khandel-locations" class="khandel-list"></div>
+        <div id="khandel-stores" class="khandel-list" hidden></div>
+        <div id="khandel-products" class="grid" hidden></div>
+        <div id="empty" class="empty" hidden>Brak ofert do wyświetlenia.</div>
+      </section>
+    </main>
+  </div>
+      <script src="/db-adapter.js"></script>
+      <script>window.__db && window.__db.loadConfig && window.__db.loadConfig().catch(()=>{});</script>
+      <script type="module" src="/khandel.js"></script>
+</body>
+</html>

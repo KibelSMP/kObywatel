@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>kObywatel</title>
+  <link rel="icon" type="image/png" href="/favicon.png" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="app-shell" data-state="intro">
+    <header class="app-header">
+      <button type="button" id="back-btn" class="back-btn" aria-label="Powrót" title="Powrót">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <a class="brand" href="/" aria-label="Strona główna">
+        <img src="/logo.png" alt="Logo kObywatel" class="logo no-bg" />
+        <span class="brand-name">kObywatel</span>
+      </a>
+    <nav class="main-nav" aria-label="Nawigacja"></nav>
+    </header>
+    <main class="app-main">
+      <div id="global-alert-container" class="global-alert-host" aria-live="polite"></div>
+      <div class="hero" id="hero-block">
+        <h1 class="hero-title">Szukaj</h1>
+        <form id="search-form" autocomplete="off" role="search" aria-label="Wyszukiwarka graczy">
+          <div class="search-bar">
+            <div class="input-wrapper">
+              <input type="text" id="query" placeholder="Wyszukaj miasto, stację..." aria-label="Pole wyszukiwania" />
+            </div>
+            <button type="submit" id="search-btn" class="icon-circle-btn" aria-label="Szukaj">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            </button>
+          </div>
+        </form>
+        <div class="home-tiles" aria-label="Główne funkcje">
+          <div class="tile tile-wnioski tile-disabled" id="tile-wnioski" role="button" tabindex="0" aria-expanded="false">
+            <div class="tile-head">
+              <img src="/icns_ui/document.svg" alt="" aria-hidden="true" class="tile-icon" />
+              <h2 class="tile-title">kWnioski</h2>
+            </div>
+            <p class="tile-desc">Złóż wniosek na wybrany poniżej temat.</p>
+          </div>
+          <div class="tile tile-kdonos tile-disabled" id="btn-kdonos" role="button" tabindex="0">
+            <div class="tile-head">
+              <img src="/icns_ui/photo.svg" alt="" aria-hidden="true" class="tile-icon" />
+              <h2 class="tile-title">kDonos</h2>
+            </div>
+            <p class="tile-desc">Zgłoś zdarzenie lub problem do CBŚ.</p>
+          </div>
+          <a class="tile tile-khandel" href="/khandel" id="tile-khandel">
+            <!-- <span class="tile-badge soon" aria-hidden="true">Wkrótce</span> -->
+            <div class="tile-head">
+              <img src="/icns_ui/storefront.svg" alt="" aria-hidden="true" class="tile-icon" />
+              <h2 class="tile-title">kHandel</h2>
+            </div>
+            <p class="tile-desc">Sprawdź co gdzie kupisz – od bazarków po AdminShopy.</p>
+          </a>
+          <a class="tile tile-kwiedza" href="/kwiedza" id="tile-kwiedza">
+            <div class="tile-head">
+              <img src="/icns_ui/book.svg" alt="" aria-hidden="true" class="tile-icon" />
+              <h2 class="tile-title">kWiedza</h2>
+            </div>
+            <p class="tile-desc">Przeglądaj dokumenty i poradniki dotyczące serwera.</p>
+          </a>
+          <a class="tile tile-mapa" href="/map" id="tile-mapa">
+            <div class="tile-head">
+              <img src="/icns_ui/map.svg" alt="" aria-hidden="true" class="tile-icon" />
+              <h2 class="tile-title">Mapa</h2>
+            </div>
+            <p class="tile-desc">Przeglądaj punkty, linie i wyszukuj miejsca.</p>
+          </a>
+          <a class="tile tile-creators" href="/creators" id="tile-creators">
+            <div class="tile-head">
+              <img src="/icns_ui/people.svg" alt="" aria-hidden="true" class="tile-icon" />
+              <h2 class="tile-title">Twórcy</h2>
+            </div>
+            <p class="tile-desc">Poznaj osoby, które tworzą i rozwijają kObywatel.</p>
+          </a>
+        </div>
+      </div>
+      <section id="results-section" aria-live="polite">
+        <div id="results" class="results-grid"></div>
+        <div id="form-browser" class="form-browser" hidden>
+          <div class="form-list" id="form-list" aria-live="polite"></div>
+          <div class="form-view" id="form-view"></div>
+        </div>
+        <div id="skeleton" class="skeleton hidden" aria-hidden="true">
+          <div class="player-sheet skeleton-shell">
+            <div class="sheet-grid">
+              <div class="sheet-cols">
+                <div class="field"><div class="label shimmer w-l1"></div><div class="value shimmer w-v1"></div></div>
+                <div class="field"><div class="label shimmer w-l2"></div><div class="value shimmer w-v2"></div></div>
+                <div class="field"><div class="label shimmer w-l3"></div><div class="value shimmer w-v3"></div></div>
+                <div class="field"><div class="label shimmer w-l4"></div><div class="value shimmer w-v4"></div></div>
+                <div class="field"><div class="label shimmer w-l5"></div><div class="value shimmer w-v5"></div></div>
+                <div class="field"><div class="label shimmer w-l6"></div><div class="value shimmer w-v6"></div></div>
+                <div class="field"><div class="label shimmer w-l7"></div><div class="value shimmer w-v7"></div></div>
+              </div>
+              <div class="sheet-avatar-wrap">
+                <div class="skin-frame shimmer"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+      <script src="/db-adapter.js"></script>
+      <script>
+        window.__db && window.__db.loadConfig && window.__db.loadConfig().catch(()=>{});
+      </script>
+      <script src="/app.js"></script>
+</body>
+</html>
+
+
+<!-- NOTE: Dane są pobierane z repo 'db' (patrz db.config.json). -->

@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Mapa świata • kObywatel</title>
+  <link rel="icon" type="image/png" href="/favicon.png" />
+  <link rel="stylesheet" href="/map.css" />
+</head>
+<body>
+  <div id="map-app" class="map-app" data-theme="auto">
+    <div class="map-toolbar" role="toolbar" aria-label="Narzędzia mapy">
+      <div class="group">
+        <button id="btn-zoom-in" aria-label="Powiększ (+)">＋</button>
+        <button id="btn-zoom-out" aria-label="Pomniejsz (−)">−</button>
+        <button id="btn-zoom-reset" aria-label="Reset (0)"><img src="/icns_ui/reset.svg" alt="" aria-hidden="true" /></button>
+      </div>
+      <div class="group" id="theme-toggle-group">
+        <button id="btn-theme" aria-label="Przełącz motyw"><img src="/icns_ui/light_dark_mode.svg" alt="" aria-hidden="true" /></button>
+        <button id="btn-copy-focus" aria-label="Kopiuj link do celu" title="Kopiuj link do celu"><img src="/icns_ui/link.svg" alt="" aria-hidden="true" /></button>
+      </div>
+      <div class="group" id="mode-toggle" role="group" aria-label="Tryb mapy">
+        <button id="mode-general" class="mode-btn" data-mode="general" aria-pressed="true">Ogólne</button>
+        <button id="mode-transport" class="mode-btn" data-mode="transport" aria-pressed="false">Transport</button>
+      </div>
+    </div>
+    <!-- Panel filtrów (przeniesiony wyżej w DOM przed wyszukiwarką / logo) -->
+    <div class="map-sidepanel" aria-label="Filtry" id="filters-panel">
+      <div class="legend-group" id="legend"></div>
+      <!-- Pozycja kursora usuwamy z mobile i niewymagana tutaj -->
+    </div>
+  <!-- Bąbelek wyszukiwania (dynamiczna zawartość w zależności od trybu) -->
+    <div id="search-bubble" class="search-bubble" aria-label="Wyszukiwanie">
+      <div class="point-search-section" id="point-search-section">
+        <div class="point-search-row">
+          <input id="point-search" type="text" placeholder="Szukaj punktu" aria-label="Szukaj punktu" />
+          <button id="point-search-clear" class="point-search-clear" aria-label="Wyczyść wyszukiwanie" title="Wyczyść">✕</button>
+        </div>
+  <div id="point-search-results" class="point-results" aria-live="polite" aria-label="Wyniki wyszukiwania punktów" hidden></div>
+        <div id="point-search-detail" class="point-detail" aria-live="polite" aria-label="Szczegóły punktu" hidden></div>
+      </div>
+      <div class="route-search-section" id="route-search-section" hidden>
+        <datalist id="stations-list"></datalist>
+        <div class="route-row route-stations" aria-label="Wybór stacji">
+          <div class="field">
+            <label for="route-from">Skąd</label>
+            <input id="route-from" list="stations-list" placeholder="Stacja początkowa" />
+          </div>
+          <button id="route-swap" class="swap-btn" title="Zamień" aria-label="Zamień">⇄</button>
+          <div class="field">
+            <label for="route-to">Dokąd</label>
+            <input id="route-to" list="stations-list" placeholder="Stacja docelowa" />
+          </div>
+          <button id="route-clear" class="clear-btn" title="Wyczyść" aria-label="Wyczyść">✕</button>
+          <button id="route-search" class="search-btn" aria-label="Szukaj trasy">Szukaj</button>
+        </div>
+        <details class="filters-box" id="route-type-filters" aria-label="Filtr typów linii">
+          <summary><span>Typy</span><span class="value" id="type-filters-summary">Wszystkie</span></summary>
+          <div class="filters-grid">
+            <label><input type="checkbox" data-type="IC" checked /> IC</label>
+            <label><input type="checkbox" data-type="REGIO" checked /> REGIO</label>
+            <label><input type="checkbox" data-type="METRO" checked /> METRO</label>
+            <label><input type="checkbox" data-type="ON" checked /> NŻ</label>
+            <label><input type="checkbox" data-type="FLIGHT" checked /> LOT</label>
+          </div>
+        </details>
+        <details class="filters-box" id="route-priority-box" aria-label="Priorytet wyszukiwania">
+          <summary><span>Priorytet</span><span class="value" id="priority-summary">Mniej przesiadek</span></summary>
+          <div class="filters-grid priority-grid">
+            <label><input type="radio" name="route-priority" value="transfers" checked /> Mniej przesiadek</label>
+            <label><input type="radio" name="route-priority" value="stops" /> Mniej przystanków</label>
+          </div>
+        </details>
+        <div id="route-results" class="route-results" aria-live="polite"></div>
+      </div>
+    </div>
+    <!-- Usunięto oryginalny panel boczny (zastąpiony przez #filters-panel powyżej). Pozycja kursora zbędna w widoku mobilnym / uproszczonym. -->
+    <div id="map-viewport" class="map-viewport" tabindex="0" aria-label="Mapa świata">
+      <div id="map-canvas" class="map-canvas">
+        <img id="map-image" alt="Mapa świata" draggable="false" />
+        <canvas id="lines-layer" class="lines-layer" aria-hidden="true"></canvas>
+        <div id="markers-layer" class="markers-layer" aria-hidden="false"></div>
+        <!-- Nowa warstwa polityczna (SVG) -->
+        <div id="political-layer" class="political-layer" aria-hidden="true"></div>
+      </div>
+      <div class="loading" id="loading">Ładowanie mapy…</div>
+      <a href="/" id="map-brand" class="map-brand" aria-label="kObywatel – strona główna">
+        <img src="/logo.png" alt="kObywatel" />
+      </a>
+      <button id="btn-filters" class="filters-fab" aria-label="Filtry" aria-pressed="false" hidden></button>
+    </div>
+    <div id="point-panel" class="point-panel" hidden>
+      <button class="close-panel" id="close-panel" aria-label="Zamknij panel">×</button>
+  <button class="pin-panel" id="pin-panel" aria-label="Przypnij panel" title="Przypnij panel"><img id="pin-panel-icon" src="/icns_ui/pin.svg" alt="" aria-hidden="true" /></button>
+      <div class="point-content" id="point-content"></div>
+    </div>
+    <!-- Panel wyszukiwania tras (aktywny tylko w trybie Transport) -->
+    <!-- Rozwijana legenda linii (nowa) -->
+    <div id="lines-legend" class="lines-legend collapsed" aria-label="Legenda linii kolejowych i metra">
+      <div class="lines-legend-header">
+        <button id="lines-legend-toggle" type="button" aria-expanded="false" aria-controls="lines-legend-body" title="Pokaż / ukryj legendę linii">Linie ▼</button>
+        <div class="lines-legend-status" id="lines-legend-status" aria-live="polite"></div>
+      </div>
+      <div class="lines-legend-body" id="lines-legend-body" hidden></div>
+    </div>
+  </div>
+  <script src="/db-adapter.js"></script>
+  <script>window.__db && window.__db.loadConfig && window.__db.loadConfig().catch(()=>{});</script>
+  <script src="/map.js" type="module"></script>
+  <script src="/route-search.js" type="module"></script>
+</body>
+</html>
