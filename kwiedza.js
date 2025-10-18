@@ -41,23 +41,29 @@ function renderTiles(docs){
 }
 
 async function fetchList(){
-  // Lista dokumentów na podstawie lokalnych plików .md w assets/docs/
-  return [
-    { slug: 'Dokumentacja_algorytmów_generowania_kodów KESEL_i_KNIP', title: 'Dokumentacja algorytmów generowania kodów KESEL i KNIP', meta: { tagi: ['kObywatel'], autor: 'Miersetnik' } },
-    { slug: 'Obwieszczenie ZTK', title: 'Obwieszczenie publiczne od Zarządu Transportu Kolejowego', meta: { tagi: ['ZTK', 'RolePlay'], autor: 'NKacz' } },
-    { slug: 'poradnik-allay-expiarka', title: 'Poradnik: Expiarka Allay\'ów', meta: { tagi: ['Poradniki'], autor: 'Ketrab' } },
-    { slug: 'poradnik-farma-slajmów', title: 'Poradnik: Farma Slajmów', meta: { tagi: ['Poradniki'], autor: 'Ketrab' } },
-    { slug: 'poradnik-kekałtów', title: 'Poradnik: Kopalnia piachu "Kekałtów"', meta: { tagi: ['Poradniki'], autor: 'Ketrab' } },
-    { slug: 'poradnik-loty-samolotami', title: 'Poradnik: Loty samolotami', meta: { tagi: ['Poradniki'], autor: 'Ketrab' } },
-    { slug: 'Rozporządzenie MI w sprawie szczegółowych warunków technicznych dla wskaźników kolejowych i znaków drogowych oraz warunków ich umieszczania', title: 'Rozporządzenie MI w sprawie szczegółowych warunków technicznych dla wskaźników kolejowych i znaków drogowych oraz warunków ich umieszczania', meta: {} },
-    { slug: 'Rozporządzenie MI w sprawie szczegółowych warunków technicznych, jakim powinny odpowiadać budowle kolejowe i ich usytuowanie', title: 'Rozporządzenie MI w sprawie szczegółowych warunków technicznych, jakim powinny odpowiadać budowle kolejowe i ich usytuowanie.', meta: {} }
-  ];
+  // Lista dokumentów pobierana dynamicznie z GitHub API
+  try {
+    const response = await fetch('https://api.github.com/repos/KibelSMP/kObywatel/contents/assets/docs');
+    if (!response.ok) throw new Error('Nie udało się pobrać listy dokumentów');
+    const files = await response.json();
+    return files
+      .filter(f => f.name.endsWith('.md'))
+      .map(f => {
+        const slug = f.name.replace('.md', '');
+        const title = slug.replace(/_/g, ' '); // Prosta konwersja tytułu z nazwy pliku
+        return { slug, title, meta: {} };
+      });
+  } catch (e) {
+    console.warn('Błąd pobierania listy z GitHub:', e);
+    // Fallback do pustej listy lub lokalnej
+    return [];
+  }
 }
 async function fetchDoc(slug){
   // Pobierz Markdown bezpośrednio z lokalnego folderu assets/docs/
   const list = await fetchList();
   const entry = list.find(d => d.slug === slug);
-  const url = `/assets/docs/${encodeURI(slug)}.md`;
+  const url = `https://raw.githubusercontent.com/KibelSMP/kObywatel/main/assets/docs/${encodeURI(slug)}.md`;
   const r = await fetch(url, { cache: 'no-store' });
   if(!r.ok) throw new Error('HTTP '+r.status);
   const fullContent = await r.text();
