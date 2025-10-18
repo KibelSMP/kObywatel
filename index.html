@@ -6,6 +6,16 @@
   <title>kObywatel</title>
   <link rel="icon" type="image/png" href="/favicon.png" />
   <link rel="stylesheet" href="/style.css" />
+  <!-- OpenGraph meta tags -->
+  <meta property="og:title" content="kObywatel" />
+  <meta property="og:description" content="Aplikacja dla obywateli - wyszukaj miasta, stacje i skorzystaj z usług publicznych." />
+  <meta property="og:image" content="/assets/og/OG-Standard-Index.png" />
+  <meta property="og:url" content="/" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="kObywatel" />
+  <!-- Twitter Card meta tags -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:image" content="/assets/og/OG-Twitter-Index.png" />
 </head>
 <body>
   <div class="app-shell" data-state="intro">
@@ -35,6 +45,7 @@
         </form>
         <div class="home-tiles" aria-label="Główne funkcje">
           <div class="tile tile-wnioski tile-disabled" id="tile-wnioski" role="button" tabindex="0" aria-expanded="false">
+            <span class="tile-badge soon" aria-hidden="true">Wkrótce</span>
             <div class="tile-head">
               <img src="/icns_ui/document.svg" alt="" aria-hidden="true" class="tile-icon" />
               <h2 class="tile-title">kWnioski</h2>
@@ -42,6 +53,7 @@
             <p class="tile-desc">Złóż wniosek na wybrany poniżej temat.</p>
           </div>
           <div class="tile tile-kdonos tile-disabled" id="btn-kdonos" role="button" tabindex="0">
+            <span class="tile-badge soon" aria-hidden="true">Wkrótce</span>
             <div class="tile-head">
               <img src="/icns_ui/photo.svg" alt="" aria-hidden="true" class="tile-icon" />
               <h2 class="tile-title">kDonos</h2>
@@ -49,7 +61,6 @@
             <p class="tile-desc">Zgłoś zdarzenie lub problem do CBŚ.</p>
           </div>
           <a class="tile tile-khandel" href="/khandel" id="tile-khandel">
-            <!-- <span class="tile-badge soon" aria-hidden="true">Wkrótce</span> -->
             <div class="tile-head">
               <img src="/icns_ui/storefront.svg" alt="" aria-hidden="true" class="tile-icon" />
               <h2 class="tile-title">kHandel</h2>

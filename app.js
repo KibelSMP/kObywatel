@@ -141,7 +141,6 @@ const formListEl = document.getElementById('form-list');
 const formViewEl = document.getElementById('form-view');
 const btnObywatel = document.getElementById('btn-obywatel');
 const btnFirma = document.getElementById('btn-firma');
-// kDonos teraz kafelek tile-kdonos / id btn-kdonos
 const btnKDonos = document.getElementById('btn-kdonos');
 const tileWnioski = document.getElementById('tile-wnioski');
 const homeTiles = document.querySelector('.home-tiles');
@@ -535,25 +534,25 @@ function handleCategoryClick(cat){
 }
 
 // Przyciski w kafelku Wnioski
-if(btnObywatel){ btnObywatel.addEventListener('click', ()=> handleCategoryClick('citizen')); }
+// if(btnObywatel){ btnObywatel.addEventListener('click', ()=> handleCategoryClick('citizen')); }
 if(btnFirma){ btnFirma.addEventListener('click', ()=> handleCategoryClick('company')); }
-if(btnKDonos){ btnKDonos.addEventListener('click', (e)=>{ e.preventDefault(); handleCategoryClick('cbs'); hideHomeTiles(); }); }
+// if(btnKDonos){ btnKDonos.addEventListener('click', (e)=>{ e.preventDefault(); handleCategoryClick('cbs'); hideHomeTiles(); }); }
 
 // Toggle rozkładania kafelka "Wnioski"
-if(tileWnioski){
-  const actions = tileWnioski.querySelector('.tile-wnioski-actions');
-  function toggle(open){
-    const isOpen = open!==undefined ? open : tileWnioski.getAttribute('aria-expanded') !== 'true';
-    tileWnioski.setAttribute('aria-expanded', String(isOpen));
-    if(actions){ actions.hidden = !isOpen; }
-  }
-  tileWnioski.addEventListener('click', (e)=>{
-    // jeżeli klik był na przycisku w środku – nie toggluj dwukrotnie
-    if(e.target.closest('.app-btn')) return;
-    toggle();
-  });
-  tileWnioski.addEventListener('keydown', e=>{ if(e.key==='Enter' || e.key===' '){ e.preventDefault(); toggle(); } });
-}
+// if(tileWnioski){
+//   const actions = tileWnioski.querySelector('.tile-wnioski-actions');
+//   function toggle(open){
+//     const isOpen = open!==undefined ? open : tileWnioski.getAttribute('aria-expanded') !== 'true';
+//     tileWnioski.setAttribute('aria-expanded', String(isOpen));
+//     if(actions){ actions.hidden = !isOpen; }
+//   }
+//   tileWnioski.addEventListener('click', (e)=>{
+//     // jeżeli klik był na przycisku w środku – nie toggluj dwukrotnie
+//     if(e.target.closest('.app-btn')) return;
+//     toggle();
+//   });
+//   tileWnioski.addEventListener('keydown', e=>{ if(e.key==='Enter' || e.key===' '){ e.preventDefault(); toggle(); } });
+// }
 
 function buildCard(p){
   const nickMC = p.nickMinecraft || 'Nieznany';
