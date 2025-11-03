@@ -54,7 +54,7 @@ const MC_ASSETS_BASE = `https://cdn.jsdelivr.net/gh/InventivetalentDev/minecraft
 const PATH_ITEM = MC_ASSETS_BASE + '/item';
 const PATH_BLOCK = MC_ASSETS_BASE + '/block';
 const FALLBACK_ICON = PATH_ITEM + '/barrier.png';
-const LOCAL_ICON_BASE = '/mc-items'; // lokalne nadpisania (priorytet #1)
+const LOCAL_ICON_BASE = '/mc-items';
 
 function localIconPath(key){ return `${LOCAL_ICON_BASE}/${encodeURIComponent(key)}.png`; }
 function itemIconPath(key){ return `${PATH_ITEM}/${encodeURIComponent(key)}.png`; }
@@ -155,19 +155,6 @@ function createNotesElement(text){
   return wrap;
 }
 
-// --- User menu (avatar + nazwa) tylko dla kHandel (wyciągnięte z app.js) ---
-// Statyczny tryb: brak backendu – ukryj menu użytkownika
-(function initUserMenuKhandel(){
-  const avatarEl = document.getElementById('user-avatar');
-  const nameEl = document.getElementById('user-name');
-  const toggle = document.getElementById('user-toggle');
-  const dropdown = document.getElementById('user-dropdown');
-  if(avatarEl) avatarEl.hidden = true;
-  if(nameEl) nameEl.hidden = true;
-  if(toggle) toggle.hidden = true;
-  if(dropdown) dropdown.hidden = true;
-})();
-
 // --- FILTRY I WYSZUKIWANIE ---
 function updateLocationFilter() {
   const locations = getLocations(allProducts);
@@ -221,7 +208,7 @@ function renderFilteredProducts() {
     const textBox = document.createElement('div');
     const title = document.createElement('h2'); title.className='title';
     const baseTitle = pickRootName(p) || (p.product?.item);
-    title.textContent = baseTitle + (p.product.qty>1? ` x${p.product.qty}`:'');
+    title.textContent = baseTitle;
     const sub = document.createElement('p'); sub.className='subtitle';
     sub.textContent = (p.product.qty>1? ` ×${p.product.qty}`:'');
     textBox.appendChild(title); textBox.appendChild(sub);
@@ -434,7 +421,7 @@ function renderHierarchy(){
     const textBox = document.createElement('div');
     const title = document.createElement('h2'); title.className='title';
     const baseTitle = pickRootName(p) || (p.product?.item);
-    title.textContent = baseTitle + (p.product.qty>1? ` x${p.product.qty}`:'');
+    title.textContent = baseTitle;
     const sub = document.createElement('p'); sub.className='subtitle';
     sub.textContent = (p.product.qty>1? ` ×${p.product.qty}`:'');
     textBox.appendChild(title); textBox.appendChild(sub);
