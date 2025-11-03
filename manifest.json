@@ -5,8 +5,31 @@
     "start_url": "/",
     "scope": "/",
     "display": "standalone",
+    "orientation": "any", 
     "background_color": "#0d1117",
     "theme_color": "#AC1943",
+    "shortcuts": [
+      {
+        "name": "kHandel",
+        "url": "/khandel",
+        "description": "Sprawdź co gdzie kupisz – od bazarków po AdminShopy."
+      },
+      {
+        "name": "kWiedza",
+        "url": "/kwiedza",
+        "description": "Przeglądaj dokumenty i poradniki dotyczące serwera."
+      },
+      {
+        "name": "Mapa",
+        "url": "/map",
+        "description": "Przeglądaj punkty, linie i wyszukuj miejsca."
+      },
+      {
+        "name": "Twórcy",
+        "url": "/creators",
+        "description": "Poznaj osoby, które tworzą i rozwijają kObywatel."
+      }
+    ],
     "icons": [
     {
       "src": "/assets/AppImages/windows11/SmallTile.scale-100.png",
