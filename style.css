@@ -367,9 +367,21 @@ body[data-mode="condensed"] .back-btn{display:inline-flex;animation:backIn .55s 
 .subs-item .mini-btn{flex:1;}
 .brand{display:flex;align-items:center;gap:.65rem;font-weight:600;font-size:1.05rem;letter-spacing:.5px;color:var(--text);} 
 .brand{margin-right:.5rem;}
-.brand .logo{width:40px;height:40px;border-radius:12px;object-fit:cover;box-shadow:0 4px 12px -2px rgba(0,0,0,.4);border:1px solid var(--border);background:transparent;}
+.brand .logo{width:40px;height:40px;object-fit:cover;box-shadow:0 4px 12px -2px rgba(0,0,0,.4);border:1px solid var(--border);background:transparent;}
 .brand .logo.no-bg{background:transparent;box-shadow:none;border:none;}
 .brand-name{background:linear-gradient(90deg,var(--accent),#6366f1);-webkit-background-clip:text;background-clip:text;color:transparent;}
+
+/* SR-only util */
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;}
+
+/* Minimalistyczny badge trybu otwierania */
+.ext-badge{display:inline-flex;align-items:center;gap:.25rem;margin-left:.5ch;padding:.12em .5em;border-radius:999px;border:1px solid var(--border);background:var(--bg-elev);color:var(--text-dim);font-size:.62rem;line-height:1.2;font-weight:700;letter-spacing:.5px;vertical-align:middle;}
+.tile-title .ext-badge{margin-left:.6ch}
+/* Gdy badge jest bezpośrednim dzieckiem kafelka — przyklej w prawym dolnym rogu */
+.home-tiles .tile > .ext-badge{position:absolute;right:.8rem;bottom:.75rem;margin:0;pointer-events:none;z-index:2;}
+@media (max-width:640px){
+	.home-tiles .tile > .ext-badge{right:.65rem;bottom:.65rem;font-size:.58rem;padding:.1em .5em}
+}
 
 /* Link brandu: bez podkreślenia we wszystkich stanach */
 a.brand{ text-decoration:none; color:var(--text); }

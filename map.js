@@ -3,6 +3,9 @@ const imgEl = document.getElementById('map-image');
 const canvas = document.getElementById('map-canvas');
 const viewport = document.getElementById('map-viewport');
 const markersLayer = document.getElementById('markers-layer');
+// Podwarstwy markerów
+let markersMainLayer = null; // standardowe punkty mapy
+let markersShopsLayer = null; // sklepy kHandel
 const linesCanvas = document.getElementById('lines-layer');
 const linesCtx = linesCanvas ? linesCanvas.getContext('2d') : null;
 const loadingEl = document.getElementById('loading');
@@ -139,6 +142,13 @@ let lastClusteringActive = false;
 let lastScaleForClusterEval = scale;
 let clusterPopoverEl = null; // aktualnie otwarty popover listy punktów w klastrze
 
+// --- Sklepy kHandel ---
+let shopsData = null; // Array<{ id,name,location,owner?,x,y,z,offers:[] }>
+let showShops = false; // domyślnie wyłączone; kontrolowane z legendy
+let currentShopContextId = null; // aktywny sklep do wyświetlania ofert w wynikach wyszukiwania
+let lastShopClusteringActive = false;
+let lastShopScaleForEval = scale;
+
 // Snapshot poprzedniego stanu dla animacji
 let previousClusterSnapshot = {
   clusters: new Map(), // key -> { cx, cy, count, members:Set }
@@ -149,6 +159,20 @@ let previousClusterSnapshot = {
 function closeClusterPopover(){
   if(clusterPopoverEl && clusterPopoverEl.isConnected){ clusterPopoverEl.remove(); }
   clusterPopoverEl = null;
+}
+
+function ensureMarkerSublayers(){
+  if(!markersLayer) return;
+  if(!markersMainLayer){
+    markersMainLayer = document.createElement('div');
+    markersMainLayer.className = 'markers-sub markers-main';
+    markersLayer.appendChild(markersMainLayer);
+  }
+  if(!markersShopsLayer){
+    markersShopsLayer = document.createElement('div');
+    markersShopsLayer.className = 'markers-sub markers-shops';
+    markersLayer.appendChild(markersShopsLayer);
+  }
 }
 
 function clusteringCurrentlyEnabled(){
@@ -187,6 +211,7 @@ function saveLegendState(){
     if(linesLegendEl){
       localStorage.setItem('map.legend.linesLegendCollapsed', JSON.stringify(linesLegendEl.classList.contains('collapsed')));
     }
+    localStorage.setItem('map.legend.showShops', JSON.stringify(!!showShops));
   } catch(_) {}
 }
 
@@ -233,6 +258,8 @@ function loadLegendState(){
       if(linesLegendToggleBtn){ linesLegendToggleBtn.setAttribute('aria-expanded', (!collapsed).toString()); }
       if(linesLegendBodyEl){ linesLegendBodyEl.hidden = collapsed; }
     }
+    const ss = localStorage.getItem('map.legend.showShops');
+    if(ss !== null){ showShops = !!JSON.parse(ss); found = true; }
   } catch(_) {}
   hasLoadedLegendState = found;
   // Ustal pochodną scaloną
@@ -306,6 +333,8 @@ function applyTransform(){
   maybeUpgradeToHiRes();
   updateVisibleTiles();
   if(__lastPointerPos){ updateCursorCoords(__lastPointerPos.x, __lastPointerPos.y); }
+  // Aktualizacja klastrów sklepów przy zmianach transformacji
+  try { maybeUpdateShopClusters(); } catch(_){ }
 }
 // Progi dla podbijania rozdzielczości (wartość scale*dpr)
 const HI_RES_THRESHOLD_2X = 1.15;
@@ -440,6 +469,7 @@ function buildLegend(){
     if(transportCatKeys.includes(key)) return; // pomiń transport tutaj
     const div = document.createElement('label');
     div.className = 'legend-item';
+    div.setAttribute('data-cat-key', key);
     const dot = document.createElement('span'); dot.className='legend-dot'; dot.style.background = val.color || '#888';
     const cb = document.createElement('input'); cb.type='checkbox'; cb.style.marginRight='.35rem';
     cb.checked = !activeCategories.has(key);
@@ -453,6 +483,29 @@ function buildLegend(){
     const lab = document.createElement('span'); lab.className='legend-label'; lab.textContent = val.label || key; div.appendChild(lab);
     legendEl.appendChild(div);
   });
+  try {
+    const after = legendEl.querySelector('[data-cat-key="miasto_male"]');
+    if(after){
+      const row = document.createElement('label'); row.className='legend-item'; row.setAttribute('data-legend-shops','1');
+      const cb = document.createElement('input'); cb.type='checkbox'; cb.style.marginRight='.35rem'; cb.checked = !!showShops;
+      cb.addEventListener('change', async ()=>{ 
+        showShops = cb.checked; 
+        saveLegendState(); 
+        if(showShops){ 
+          await ensureShopsLoaded(); 
+        } else {
+          // Wyłączenie warstwy sklepów – wyczyść kontekst i wyniki ofert
+          currentShopContextId = null; 
+          if(pointResultsEl){ pointResultsEl.innerHTML=''; pointResultsEl.hidden = true; }
+        }
+        buildShopMarkers(); 
+      });
+      const dot = document.createElement('span'); dot.className='legend-dot'; dot.style.background = '#0ea5e9';
+      const lab = document.createElement('span'); lab.className='legend-label'; lab.textContent = 'Sklep';
+      row.appendChild(cb); row.appendChild(dot); row.appendChild(lab);
+      after.insertAdjacentElement('afterend', row);
+    }
+  } catch(_){ }
   // Separator między punktami a sekcją transportową
   const sepTop = document.createElement('div'); sepTop.className='legend-sep'; legendEl.appendChild(sepTop);
 
@@ -543,9 +596,318 @@ function renderLegendCursor(){
   } catch(_) { legendCursorEl = null; legendCursorRowEl = null; }
 }
 
+// --- Sklepy kHandel: legenda, ładowanie i render ---
+function addShopsLegendEntry(){
+  if(!legendEl) return;
+  // Jeśli już istnieje, tylko zaktualizuj checkbox
+  const existing = legendEl.querySelector('[data-legend-shops] input[type="checkbox"]');
+  if(existing){ existing.checked = !!showShops; return; }
+  // Upewnij się, że mamy nagłówek WARSTWY (używany też przez mapę polityczną)
+  if(!legendEl.querySelector('[data-legend-political-heading]') && !legendEl.querySelector('[data-legend-layers-heading]')){
+    const sep = document.createElement('div'); sep.className='legend-sep'; legendEl.appendChild(sep);
+    const heading = document.createElement('div'); heading.className='legend-heading'; heading.textContent='WARSTWY'; heading.setAttribute('data-legend-layers-heading','1'); legendEl.appendChild(heading);
+  }
+  const row = document.createElement('label'); row.className='legend-item'; row.setAttribute('data-legend-shops','1');
+  const cb = document.createElement('input'); cb.type='checkbox'; cb.style.marginRight='.35rem'; cb.checked = !!showShops;
+  const dot = document.createElement('span'); dot.className='legend-dot'; dot.style.background = '#0ea5e9';
+  const lab = document.createElement('span'); lab.className='legend-label'; lab.textContent = 'Sklep';
+  row.appendChild(cb); row.appendChild(dot); row.appendChild(lab);
+  legendEl.appendChild(row);
+  cb.addEventListener('change', async ()=>{
+    showShops = cb.checked;
+    saveLegendState();
+    if(showShops){ await ensureShopsLoaded(); }
+    buildShopMarkers();
+  });
+}
+
+async function ensureShopsLoaded(){
+  if(shopsData !== null) return shopsData;
+  try {
+    const arr = await window.__db.fetchJson('data/khandel-products.json');
+    if(!Array.isArray(arr)){ shopsData = []; return shopsData; }
+    // Grupuj po lokalizacja+sklep
+    const map = new Map(); // key -> { id,name,location,owner,x,y,z,offers:[] }
+    for(const p of arr){
+      const loc = p.storeLocation || '';
+      const name = p.storeName || 'Sklep';
+      const key = `${loc}||${name}`;
+      let rec = map.get(key);
+      if(!rec){
+        // Koordynaty: bierz pierwsze dostępne
+        const x = Number(p.x); const y = Number(p.y); const z = Number(p.z);
+        rec = {
+          id: key,
+          name,
+          location: loc,
+          owner: p.storeOwner || '',
+          x: Number.isFinite(x)? x : undefined,
+          y: Number.isFinite(y)? y : undefined,
+          z: Number.isFinite(z)? z : undefined,
+          offers: []
+        };
+        map.set(key, rec);
+      } else {
+        // Jeśli nie było koordynatów, a teraz są – uzupełnij
+        if((rec.x===undefined || rec.z===undefined) && Number.isFinite(p.x) && Number.isFinite(p.z)){
+          rec.x = p.x; rec.z = p.z; rec.y = Number.isFinite(p.y)? p.y : rec.y;
+        }
+      }
+      rec.offers.push(p);
+    }
+    shopsData = Array.from(map.values()).filter(s=> Number.isFinite(s.x) && Number.isFinite(s.z));
+  } catch(e){ shopsData = []; }
+  return shopsData;
+}
+
+function logicalToPx(x,z){
+  if(!mapData || !imgWidth || !imgHeight) return { x:0, y:0 };
+  const meta = mapData.meta || {}; const unitsPerPixel = meta.unitsPerPixel || 4; const originMode = meta.origin || 'top-left';
+  if(originMode === 'center'){
+    return { x: (imgWidth/2) + (x/unitsPerPixel), y: (imgHeight/2) + (z/unitsPerPixel) };
+  }
+  return { x, y: z };
+}
+
+function buildShopMarkers(){
+  ensureMarkerSublayers();
+  if(!markersShopsLayer) return;
+  markersShopsLayer.innerHTML = '';
+  if(!showShops) return;
+  if(!mapData || !imgWidth || !imgHeight) return;
+  if(!Array.isArray(shopsData) || shopsData.length===0) return;
+  const enriched = shopsData.map(s=>{
+    const pos = logicalToPx(s.x, s.z);
+    const screenX = originX + pos.x * scale;
+    const screenY = originY + pos.y * scale;
+    return { s, pxX: pos.x, pxY: pos.y, screenX, screenY };
+  });
+  const clusters=[]; const taken=new Set();
+  if(shopsClusteringCurrentlyEnabled()){
+    const threshold = CLUSTER_SCREEN_DISTANCE;
+    for(let i=0;i<enriched.length;i++){
+      if(taken.has(i)) continue;
+      const a = enriched[i]; const group=[i];
+      for(let j=i+1;j<enriched.length;j++){
+        if(taken.has(j)) continue; const b=enriched[j]; const dx=a.screenX-b.screenX, dy=a.screenY-b.screenY; if(dx*dx+dy*dy<=threshold*threshold){ group.push(j); taken.add(j); }
+      }
+      taken.add(i);
+      const members = group.map(k=> enriched[k]);
+      const cx = members.reduce((sum,m)=>sum+m.pxX,0)/members.length;
+      const cy = members.reduce((sum,m)=>sum+m.pxY,0)/members.length;
+      clusters.push({ members, cx, cy });
+    }
+  } else {
+    clusters.push(...enriched.map(m=> ({ members:[m], cx:m.pxX, cy:m.pxY })));
+  }
+  for(const cl of clusters){
+    if(cl.members.length === 1){
+      const m = cl.members[0]; const s = m.s;
+      const wrap = document.createElement('div');
+      wrap.className = 'marker shop-marker';
+      wrap.style.left = m.pxX + 'px'; wrap.style.top = m.pxY + 'px';
+      wrap.dataset.shopId = s.id; wrap.dataset.px = String(m.pxX); wrap.dataset.py = String(m.pxY);
+  const btn = document.createElement('button'); btn.className='marker-btn';
+  const icon = document.createElement('img'); icon.src='/icns_ui/storefront.svg'; icon.style.width='16px'; icon.alt=''; icon.setAttribute('aria-hidden','true');
+  btn.appendChild(icon);
+      btn.addEventListener('click', (e)=>{ e.stopPropagation(); openShopInSearch(s.id); });
+      const label = document.createElement('div'); label.className='marker-label'; label.textContent = `${s.name}`;
+      wrap.appendChild(btn); wrap.appendChild(label); markersShopsLayer.appendChild(wrap);
+    } else {
+      const wrap = document.createElement('div');
+      wrap.className = 'marker cluster-marker'; wrap.style.left = cl.cx + 'px'; wrap.style.top = cl.cy + 'px';
+      const btn = document.createElement('button'); btn.className='marker-btn cluster-btn'; btn.textContent = cl.members.length>99? '99+': String(cl.members.length);
+      btn.addEventListener('click', (e)=>{
+        e.stopPropagation();
+        const sX = originX + cl.cx * scale; const sY = originY + cl.cy * scale;
+        setScale(scale*1.35, sX, sY);
+      });
+      wrap.appendChild(btn); markersShopsLayer.appendChild(wrap);
+    }
+  }
+}
+
+function shopsClusteringCurrentlyEnabled(){
+  return scale < CLUSTER_ZOOM_THRESHOLD;
+}
+
+function maybeUpdateShopClusters(){
+  const active = shopsClusteringCurrentlyEnabled();
+  const delta = Math.abs(scale - lastShopScaleForEval);
+  if(active !== lastShopClusteringActive || delta > 0.02){
+    lastShopScaleForEval = scale; lastShopClusteringActive = active;
+    try { buildShopMarkers(); } catch(_){ }
+  }
+}
+
+const __MC_VER = '1.20.4';
+const __MC_BASE = `https://cdn.jsdelivr.net/gh/InventivetalentDev/minecraft-assets@${__MC_VER}/assets/minecraft/textures`;
+function createPriceIcon(item, size=18){
+  const safe = String(item||'').toLowerCase();
+  const stages = [ `/mc-items/${encodeURIComponent(safe)}.png`, `${__MC_BASE}/item/${encodeURIComponent(safe)}.png`, `${__MC_BASE}/block/${encodeURIComponent(safe)}.png`, `${__MC_BASE}/item/barrier.png` ];
+  const img = document.createElement('img'); img.width=size; img.height=size; img.alt=''; img.loading='lazy'; img.decoding='async';
+  let i=0; img.src = stages[i];
+  img.onerror = ()=>{ if(i < stages.length-1){ i++; img.src = stages[i]; } };
+  return img;
+}
+
+function pickPriceDisplayName(price){
+  try {
+    const lang = (localStorage.getItem('khandelLang') || 'pl');
+    if(lang === 'en') return price?.nameEn || price?.name || price?.item || '';
+    return price?.name || price?.nameEn || price?.item || '';
+  } catch(_) { return price?.name || price?.nameEn || price?.item || ''; }
+}
+
+function getKhandelLang(){
+  try { return localStorage.getItem('khandelLang') || 'pl'; } catch(_){ return 'pl'; }
+}
+function setKhandelLang(v){
+  try { localStorage.setItem('khandelLang', v); } catch(_){ }
+}
+function pickProductDisplayName(entry){
+  const lang = getKhandelLang();
+  if(lang === 'en'){
+    return entry.productNameEn || entry.productName || entry.product?.nameEn || entry.product?.name || entry.product?.item || 'Item';
+  }
+  return entry.productName || entry.productNameEn || entry.product?.name || entry.product?.nameEn || entry.product?.item || 'Przedmiot';
+}
+
+function openShopPanel(shopId){
+  try {
+    const s = Array.isArray(shopsData) ? shopsData.find(x=> x.id===shopId) : null;
+    if(!s) return;
+    if(!panel || !panelContent) return;
+    panel.hidden = false;
+    panel.classList.remove('pinned');
+    const offers = Array.isArray(s.offers) ? s.offers : [];
+    const header = document.createElement('div');
+    const h2 = document.createElement('h2'); h2.textContent = `${s.name}` + (s.location? ` @ ${s.location}`:''); header.appendChild(h2);
+    const meta = document.createElement('div'); meta.className='point-meta'; meta.innerHTML = [
+      Number.isFinite(s.x)&&Number.isFinite(s.z)? `X:${s.x}`:'',
+      Number.isFinite(s.z)? `Z:${s.z}`:'',
+      s.owner? `Właściciel: ${s.owner}`:''
+    ].filter(Boolean).map(t=> `<span>${t}</span>`).join('');
+    header.appendChild(meta);
+    const list = document.createElement('div'); list.style.display='flex'; list.style.flexDirection='column'; list.style.gap='.4rem';
+    offers.slice(0,80).forEach(p =>{
+      const row = document.createElement('div'); row.className='shop-offer';
+      const title = document.createElement('div'); title.className='title';
+      const name = pickProductDisplayName(p);
+      title.textContent = name;
+      const qty = document.createElement('div'); qty.className='qty'; qty.textContent = (p.product?.qty>1? `×${p.product.qty}`:'');
+      row.appendChild(title); row.appendChild(qty);
+      const prices = document.createElement('div'); prices.className='prices';
+      function addPrice(label, price){
+        if(!price || !price.item) return;
+        const chip = document.createElement('div'); chip.className='price-chip';
+        const img = createPriceIcon(price.item, 18);
+        const span = document.createElement('span');
+        const displayName = pickPriceDisplayName(price);
+        span.textContent = `${displayName} ×${price.qty||1}`;
+        chip.title = `${label}: ${displayName} ×${price.qty||1}`;
+        chip.appendChild(img); chip.appendChild(span);
+        prices.appendChild(chip);
+      }
+      addPrice('Cena 1', p.price1); addPrice('Cena 2', p.price2);
+      row.appendChild(prices);
+      list.appendChild(row);
+    });
+    const actions = document.createElement('div'); actions.className='shop-panel-actions';
+    const openMap = document.createElement('a'); openMap.href = `?focus=${s.x},${s.z}&label=${encodeURIComponent(s.name)}`; openMap.textContent='Pokaż tutaj'; openMap.addEventListener('click', (e)=>{ e.preventDefault(); focusLogicalPoint(s.x, s.z, { pulse:true, label:s.name }); });
+    const openKhandel = document.createElement('a'); openKhandel.href='/khandel.html'; openKhandel.target='_blank'; openKhandel.rel='noopener'; openKhandel.textContent='Otwórz kHandel';
+    actions.appendChild(openMap); actions.appendChild(openKhandel);
+    panelContent.innerHTML = '';
+    panelContent.appendChild(header);
+    if(offers.length===0){ const empty = document.createElement('div'); empty.className='empty'; empty.textContent='Brak ofert.'; panelContent.appendChild(empty); }
+    else { panelContent.appendChild(list); }
+    panelContent.appendChild(actions);
+  } catch(_){ }
+}
+
+// Render ofert sklepu w obszarze wyników wyszukiwania
+function renderShopOffersInResults(shop, query){
+  if(!pointResultsEl || !shop) return;
+  const offers = Array.isArray(shop.offers) ? shop.offers : [];
+  const q = (query||'').trim().toLowerCase();
+  const filtered = q ? offers.filter(p => {
+    const namePl = (p.productName || p.product?.name || '').toLowerCase();
+    const nameEn = (p.productNameEn || p.product?.nameEn || '').toLowerCase();
+    const notes = (p.notes||'').toLowerCase();
+    return namePl.includes(q) || nameEn.includes(q) || notes.includes(q);
+  }) : offers;
+  pointResultsEl.innerHTML = '';
+  const headerWrap = document.createElement('div'); headerWrap.style.display='flex'; headerWrap.style.alignItems='center'; headerWrap.style.justifyContent='space-between'; headerWrap.style.gap='.5rem';
+  const heading = document.createElement('div'); heading.className='legend-heading'; heading.style.margin='.2rem 0'; heading.textContent = `Oferty: ${shop.name}${shop.location? ' @ '+shop.location:''}`;
+  const langBtn = document.createElement('button'); langBtn.type='button';
+  langBtn.textContent = (getKhandelLang()==='en'?'EN 🇬🇧':'PL 🇵🇱');
+  langBtn.title = 'Przełącz język nazw przedmiotów';
+  langBtn.style.fontSize='.55rem'; langBtn.style.fontWeight='600'; langBtn.style.letterSpacing='.4px'; langBtn.style.padding='.25rem .5rem'; langBtn.style.borderRadius='999px';
+  langBtn.style.background='linear-gradient(145deg,#202832,#161b22)'; langBtn.style.border='1px solid #2d3542'; langBtn.style.color='inherit'; langBtn.style.cursor='pointer';
+  langBtn.addEventListener('click', ()=>{ const cur=getKhandelLang(); const next = (cur==='pl'?'en':'pl'); setKhandelLang(next); langBtn.textContent = (next==='en'?'EN 🇬🇧':'PL 🇵🇱'); renderShopOffersInResults(shop, query); });
+  headerWrap.appendChild(heading); headerWrap.appendChild(langBtn); pointResultsEl.appendChild(headerWrap);
+  if(!filtered.length){ const empty = document.createElement('div'); empty.className='empty'; empty.style.padding='.2rem .1rem'; empty.textContent='Brak ofert w tym sklepie.'; pointResultsEl.appendChild(empty); pointResultsEl.hidden=false; return; }
+  filtered.slice(0,100).forEach(p=>{
+    const item = document.createElement('div'); item.className='point-result-item shop-offer-item'; item.setAttribute('data-shop-id', shop.id);
+    const productRow = document.createElement('div'); productRow.className='product-line';
+    const prodKey = (p.product?.item || p.product?.name || p.productName || p.productNameEn || '').toLowerCase();
+    if(prodKey){ const prodIcon = createPriceIcon(prodKey, 18); prodIcon.className = 'product-icon'; productRow.appendChild(prodIcon); }
+    const title = document.createElement('div'); title.className='point-result-name';
+    const name = pickProductDisplayName(p);
+    const qtyTxt = p.product?.qty>1? ` ×${p.product.qty}`:'';
+    title.textContent = name + qtyTxt;
+    productRow.appendChild(title);
+    item.appendChild(productRow);
+    const prices = document.createElement('div'); prices.className='prices';
+    [p.price1, p.price2].filter(Boolean).forEach(price=>{
+      const chip = document.createElement('div'); chip.className='price-chip';
+      const img = createPriceIcon(price.item, 18);
+      const span = document.createElement('span');
+      const displayName = pickPriceDisplayName(price);
+      span.textContent = `${displayName} ×${price.qty||1}`;
+      chip.appendChild(img); chip.appendChild(span); prices.appendChild(chip);
+    });
+    item.appendChild(prices);
+    pointResultsEl.appendChild(item);
+    // Po wstawieniu do DOM zmierz liczbę linii nazwy i ewentualnie ustaw pionowe pigułki
+    try {
+      requestAnimationFrame(()=>{
+        try {
+          const nameEl = item.querySelector('.point-result-name');
+          if(!nameEl) return;
+          const cs = getComputedStyle(nameEl);
+          let lh = parseFloat(cs.lineHeight);
+          if(!lh || isNaN(lh)){
+            const fs = parseFloat(cs.fontSize) || 12;
+            lh = fs * 1.25; // fallback do line-height:1.25
+          }
+          const h = nameEl.getBoundingClientRect().height;
+          const lines = Math.round(h / lh + 0.2);
+          if(lines >= 3){ item.classList.add('stack-prices-vert'); }
+        } catch(_){ }
+      });
+    } catch(_){ }
+  });
+  pointResultsEl.hidden = false;
+}
+
+function openShopInSearch(shopId){
+  try {
+    if(!shopsData) return; const s = shopsData.find(x=> x.id===shopId); if(!s) return;
+    currentShopContextId = s.id;
+    // Skup mapę na sklepie i pokaż oferty w wynikach
+    focusLogicalPoint(s.x, s.z, { pulse:false });
+    // Wejście w kontekst sklepu – schowaj szczegóły punktu oraz wyczyść wyniki punktów
+    if(pointDetailEl){ pointDetailEl.hidden = true; pointDetailEl.innerHTML=''; }
+    if(pointResultsEl){ pointResultsEl.innerHTML=''; }
+    renderShopOffersInResults(s, (searchInput && searchInput.value)||'');
+  } catch(_){ }
+}
+
 function buildMarkers(){
   closeClusterPopover();
-  markersLayer.innerHTML = '';
+  ensureMarkerSublayers();
+  if(markersMainLayer) markersMainLayer.innerHTML = '';
   if(!mapData?.points) return;
   const meta = mapData.meta || {};
   const unitsPerPixel = meta.unitsPerPixel || 4; // 1px = X metrów
@@ -671,7 +1033,7 @@ function buildMarkers(){
       const count = info.count || (info.members ? info.members.size : 0) || 1;
       btn.textContent = count > 99 ? '99+' : String(count);
       ghost.appendChild(btn);
-      markersLayer.appendChild(ghost);
+  markersMainLayer.appendChild(ghost);
       setTimeout(()=> ghost.remove(), 420); // po animacji usuń
     }
   });
@@ -705,7 +1067,7 @@ function renderSingleMarker(pt, pxX, pxY){
   label.className = 'marker-label';
   label.textContent = pt.name;
   wrap.appendChild(btn); wrap.appendChild(label);
-  markersLayer.appendChild(wrap);
+  markersMainLayer.appendChild(wrap);
   return wrap;
 }
 
@@ -725,7 +1087,7 @@ function renderClusterMarker(cluster, key){
   btn.className = 'marker-btn cluster-btn';
   btn.textContent = count > 99 ? '99+' : String(count); // liczba jako label (prostota)
   wrap.appendChild(btn);
-  markersLayer.appendChild(wrap);
+  markersMainLayer.appendChild(wrap);
   btn.addEventListener('click', (e)=>{
     e.stopPropagation();
     toggleClusterPopover(wrap, cluster);
@@ -749,7 +1111,7 @@ function toggleClusterPopover(anchorEl, cluster){
   clusterPopoverEl.innerHTML = `<div class="cp-header">${cluster.members.length} punktów</div><div class="cp-list">${list}</div>`;
   clusterPopoverEl.style.left = anchorEl.style.left;
   clusterPopoverEl.style.top = anchorEl.style.top;
-  markersLayer.appendChild(clusterPopoverEl);
+  markersMainLayer.appendChild(clusterPopoverEl);
   clusterPopoverEl.querySelectorAll('.cp-item').forEach(el=>{
     el.addEventListener('click', (ev)=>{
       ev.stopPropagation();
@@ -773,6 +1135,18 @@ function toggleClusterPopover(anchorEl, cluster){
 function openPoint(id){
   const pt = mapData.points.find(p=>p.id===id);
   if(!pt) return;
+  // Wejście w kontekst punktu: wyczyść kontekst sklepu i dopasuj widok wyników
+  try {
+    currentShopContextId = null;
+    if(searchInput && searchInput.value && searchInput.value.trim()){
+      // Jeśli użytkownik ma wpisane zapytanie – odśwież klasyczne wyniki
+      handleSearch();
+    } else if(pointResultsEl){
+      // Brak zapytania – schowaj obszar wyników
+      pointResultsEl.innerHTML = '';
+      pointResultsEl.hidden = true;
+    }
+  } catch(_){}
   renderPointDetail(pt);
 }
 
@@ -791,7 +1165,13 @@ function handleSearch(){
     if(pointResultsEl){ pointResultsEl.innerHTML=''; pointResultsEl.hidden = true; }
     if(pointDetailEl) pointDetailEl.hidden = true;
     if(suppressClustering){ suppressClustering=false; buildMarkers(); }
+    if(currentShopContextId && shopsData){ const s = shopsData.find(x=> x.id===currentShopContextId); if(s){ renderShopOffersInResults(s, ''); } }
     return;
+  }
+  // Jeśli jesteśmy w kontekście sklepu – pokazuj wyłącznie oferty tego sklepu (filtrowane po q)
+  if(currentShopContextId && shopsData){
+    const s = shopsData.find(x=> x.id===currentShopContextId);
+    if(s){ renderShopOffersInResults(s, q); return; }
   }
   // W trybie wyszukiwania wyłącz klastrowanie (aby użytkownik mógł kliknąć pojedynczy punkt)
   if(!suppressClustering && clusteringCurrentlyEnabled()){
@@ -809,13 +1189,48 @@ function handleSearch(){
       else matched.push(pt);
     }
   });
+  // Wyniki punktów
   renderPointSearchResults(matched, q);
+  // Oferty aktywnego sklepu (kontekst) – jeśli ustawiony
+  if(currentShopContextId && shopsData){ const s = shopsData.find(x=> x.id===currentShopContextId); if(s){ renderShopOffersInResults(s, q); return; } }
+  // Dodatkowo dopasuj sklepy globalnie (jeżeli warstwa sklepów aktywna)
+  (async ()=>{
+    try {
+      if(!showShops){
+        // Warstwa sklepów wyłączona – jeśli brak punktów, pokaż brak wyników
+        if(matched.length === 0){ pointResultsEl.innerHTML = '<div class="empty" style="padding:.2rem .1rem;">Brak wyników.</div>'; pointResultsEl.hidden=false; }
+        return;
+      }
+      if(shopsData===null) await ensureShopsLoaded(); if(!Array.isArray(shopsData)) return;
+      const qn = q;
+      const shopMatches = shopsData.filter(s=>{
+        const base = `${s.name} ${s.location||''} ${s.owner||''}`.toLowerCase();
+        const offersTxt = (s.offers||[]).slice(0,200).map(p=> (p.productName||p.product?.name||p.productNameEn||p.product?.nameEn||p.product?.item||'').toLowerCase()).join(' ');
+        return base.includes(qn) || offersTxt.includes(qn);
+      }).slice(0,30);
+      if(shopMatches.length){
+        const html = '<div class="legend-heading" style="margin:.3rem 0 .2rem;">Sklepy</div>' + shopMatches.map(s=>{
+          const label = `${s.name}${s.location? ' @ '+s.location:''}`;
+          return `<div class=\"point-result-item shop-result-item\" data-shop-id=\"${s.id}\"><div class=\"point-result-name\">${label}</div></div>`;
+        }).join('');
+        pointResultsEl.innerHTML = (pointResultsEl.innerHTML||'') + html; pointResultsEl.hidden=false;
+        pointResultsEl.querySelectorAll('.shop-result-item').forEach(el=>{
+          el.addEventListener('click', ()=>{ const id=el.getAttribute('data-shop-id'); openShopInSearch(id); });
+        });
+      } else if(matched.length === 0) {
+        // Brak punktów i brak sklepów – pokaż komunikat
+        pointResultsEl.innerHTML = '<div class="empty" style="padding:.2rem .1rem;">Brak wyników.</div>';
+        pointResultsEl.hidden = false;
+      }
+    } catch(_){ }
+  })();
 }
 
 function renderPointSearchResults(points, query){
   if(!pointResultsEl) return;
   if(currentMode==='transport'){ pointResultsEl.innerHTML=''; return; }
-  if(!points.length){ pointResultsEl.innerHTML='<div class="empty" style="padding:.2rem .1rem;">Brak wyników.</div>'; pointResultsEl.hidden=false; return; }
+  // Jeśli brak punktów, nie pokazuj od razu komunikatu – decyzja o "Brak wyników" zapadnie w handleSearch po sprawdzeniu sklepów
+  if(!points.length){ pointResultsEl.innerHTML=''; return; }
   const norm = s=> s.toLowerCase();
   const qNorm = norm(query);
   const html = points.slice(0,100).map(pt=>{
@@ -849,6 +1264,16 @@ function focusPointById(id){
   originX = (viewport.clientWidth/2) - pxX * scale;
   originY = (viewport.clientHeight/2) - pxY * scale;
   applyTransform();
+  // Fokus na punkt – wyczyść kontekst sklepu i dopasuj wyniki
+  try {
+    currentShopContextId = null;
+    if(searchInput && searchInput.value && searchInput.value.trim()){
+      handleSearch();
+    } else if(pointResultsEl){
+      pointResultsEl.innerHTML='';
+      pointResultsEl.hidden = true;
+    }
+  } catch(_){}
   renderPointDetail(pt);
 }
 
@@ -868,6 +1293,7 @@ if(pointSearchClearBtn){
     if(searchInput){ searchInput.value=''; }
     if(pointResultsEl){ pointResultsEl.innerHTML=''; pointResultsEl.hidden = true; }
     if(pointDetailEl){ pointDetailEl.innerHTML=''; pointDetailEl.hidden = true; }
+    currentShopContextId = null;
     // Przywróć pełną widoczność markerów
     const all = markersLayer.querySelectorAll('.marker');
     all.forEach(m=>{ m.style.opacity = 1; m.style.filter=''; });
@@ -1283,6 +1709,7 @@ async function load(){
     }
     markersLayer.style.width = imgWidth + 'px';
     markersLayer.style.height = imgHeight + 'px';
+  ensureMarkerSublayers();
   ensureTilesContainer();
     // Dopiero teraz budujemy warstwy (znamy środek)
     await fetchLinesData(false);
@@ -1291,6 +1718,8 @@ async function load(){
   buildLinesLegend();
     drawLines();
     buildMarkers();
+  // Sklepy kHandel (jeśli włączone)
+  try { if(showShops){ await ensureShopsLoaded(); buildShopMarkers(); } } catch(_){ }
     // Fallback gdy viewport ma 0 wysokości (np. brak rozciągnięcia rodzica)
     requestAnimationFrame(()=>{
       const rect = viewport.getBoundingClientRect();
@@ -1397,6 +1826,31 @@ window.addEventListener('mouseup', () => { if(isPanning) isPanning=false; pinchA
 // --- Focus helpers (naprawiona sekcja) ---
 function applyFocusFromSearchParams(){
   const params = new URLSearchParams(window.location.search);
+  // 0) shop=ID – otwarcie ofert sklepu w wynikach + fokus na jego pozycję
+  const shopParam = params.get('shop');
+  if(shopParam){
+    try {
+      (async ()=>{
+        try { if(shopsData===null) await ensureShopsLoaded(); } catch(_){}
+        const s = Array.isArray(shopsData) ? shopsData.find(x=> x.id === shopParam) : null;
+        if(s){
+          // Upewnij się, że warstwa sklepów jest włączona
+          if(!showShops){ showShops = true; saveLegendState(); buildLegend(); }
+          try { buildShopMarkers(); } catch(_){ }
+          openShopInSearch(s.id);
+        }
+      })();
+    } catch(_){}
+    return true;
+  }
+  // 0b) point=ID – fokus na punkt po ID i pokazanie jego szczegółów
+  const pointParam = params.get('point');
+  if(pointParam){
+    try {
+      const pt = mapData?.points?.find(p=> p.id === pointParam);
+      if(pt){ focusPointById(pt.id); return true; }
+    } catch(_){}
+  }
   // 1) focus=x,y,z lub focus=x,z – centrowanie i tymczasowy marker
   const focusRaw = params.get('focus');
   if(focusRaw){
@@ -1555,11 +2009,12 @@ viewport.addEventListener('wheel', e=>{
   const sX = e.clientX - rect.left; const sY = e.clientY - rect.top;
   setScale(scale * delta, sX, sY);
   maybeUpdateClusters();
+  try { maybeUpdateShopClusters(); } catch(_){ }
 }, { passive:false });
 
 // Zoom buttons (zapewnienie pojedynczych listenerów)
 if(btnZoomIn) btnZoomIn.addEventListener('click', ()=>{ const cx=viewport.clientWidth/2, cy=viewport.clientHeight/2; setScale(scale*1.25, cx, cy); });
-if(btnZoomOut) btnZoomOut.addEventListener('click', ()=>{ const cx=viewport.clientWidth/2, cy=viewport.clientHeight/2; setScale(scale*0.8, cx, cy); maybeUpdateClusters(); });
+if(btnZoomOut) btnZoomOut.addEventListener('click', ()=>{ const cx=viewport.clientWidth/2, cy=viewport.clientHeight/2; setScale(scale*0.8, cx, cy); maybeUpdateClusters(); try { maybeUpdateShopClusters(); } catch(_){ } });
 if(btnZoomReset) btnZoomReset.addEventListener('click', ()=>{ scale=1; originX=0; originY=0; applyTransform(); centerOnSpawn(); });
 if (closePanelBtn) closePanelBtn.addEventListener('click', closePanel);
 if (pinPanelBtn) pinPanelBtn.addEventListener('click', ()=>{ panel?.classList.toggle('pinned'); const img=document.getElementById('pin-panel-icon'); if(img){ if(panel.classList.contains('pinned')){ img.src='/icns_ui/unpin.svg'; } else { img.src='/icns_ui/pin.svg'; } }});
@@ -1672,6 +2127,7 @@ window.addEventListener('keydown', e=>{
 
 // Reaguj na zmianę rozmiaru – odrysuj linie w przestrzeni ekranu
 window.addEventListener('resize', ()=>{ drawLines(); });
+window.addEventListener('resize', ()=>{ try { buildShopMarkers(); } catch(_){ } });
 
 // --- Kafelki hi-res ---
 function ensureTilesContainer(){
@@ -2343,6 +2799,7 @@ applyTransform = function(){
   origApplyTransform();
   positionRouteEndpointMarkers();
   maybeUpdateClusters();
+  // Po transformie markery sklepów skalowane są przez transform rodzica – pozycje bazowe w px mapy pozostają.
 };
 
 // Udostępnij prosty interfejs dla panelu admina (live-reload markerów po zapisie)
@@ -2412,6 +2869,7 @@ if(linesLegendToggleBtn && linesLegendEl && linesLegendBodyEl){
 
 // Odbuduj listę po zmianie motywu (kolory różne w jasnym/ciemnym)
 document.addEventListener('visibilitychange', ()=> { if(!document.hidden) buildLinesLegend(); });
+window.addEventListener('theme-change', ()=>{ try { buildShopMarkers(); } catch(_){ } });
 
 // --- Tryb mobilny lite (wydajność) ---
 const isMobileDevice = (()=> {
