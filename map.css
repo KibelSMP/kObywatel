@@ -71,6 +71,8 @@ body.light{--scrollbar-track:rgba(0,0,0,.08);--scrollbar-thumb:rgba(100,116,139,
 .hires-tiles .tile img.loaded{opacity:1;}
 .lines-layer{position:absolute;top:0;left:0;inset:0;pointer-events:none;}
 .markers-layer{position:absolute;top:0;left:0;inset:0;pointer-events:none;}
+.markers-layer .markers-sub{position:absolute;inset:0;pointer-events:none;}
+.markers-layer .markers-sub > *{pointer-events:auto;}
 .political-layer{position:absolute;top:0;left:0;inset:0;pointer-events:none;mix-blend-mode:normal;opacity:.5;transition:opacity .3s ease;}
 .political-layer svg{width:100%;height:100%;display:block;}
 .marker{position:absolute;transform:translate(-50%, -50%) scale(var(--ui-scale,1));transform-origin:center center;display:block;cursor:pointer;pointer-events:auto;}
@@ -78,8 +80,22 @@ body.light{--scrollbar-track:rgba(0,0,0,.08);--scrollbar-thumb:rgba(100,116,139,
 .marker-btn:hover{transform:scale(1.15);filter:brightness(1.1);} 
 .marker-label{position:absolute;top:calc(100% + 2px);left:50%;transform:translateX(-50%);background:rgba(0,0,0,.55);color:#fff;padding:.25rem .45rem;font-size:.55rem;font-weight:600;letter-spacing:.4px;border-radius:8px;white-space:nowrap;-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);max-width:140px;text-overflow:ellipsis;overflow:hidden;}
 body.light .marker-label{background:rgba(255,255,255,.65);color:#111;}
-/* Ukryte markery (widoczne tylko w adminie) z niższą widocznością */
 .marker.is-hidden{opacity:.35;filter:grayscale(.6);}
+
+/* Sklepy kHandel */
+.shop-marker .marker-btn{background:linear-gradient(135deg,#0ea5e9,#0369a1);} /* niebieski akcent dla sklepów */
+body.light .shop-marker .marker-btn{color:#111;}
+.shop-offer{display:grid;grid-template-columns:1fr auto;align-items:center;gap:.35rem;padding:.35rem .5rem;border:1px solid #2d3542;background:rgba(255,255,255,.05);border-radius:10px;}
+body.light .shop-offer{background:rgba(0,0,0,.05);}
+.shop-offer .title{font-size:.62rem;font-weight:700;letter-spacing:.35px;}
+.shop-offer .qty{font-size:.55rem;opacity:.8;font-weight:600;}
+.shop-offer .prices{display:flex;flex-wrap:wrap;gap:.3rem;grid-column:1/-1;}
+.shop-offer .price-chip{display:inline-flex;align-items:center;gap:.35rem;background:rgba(255,255,255,.06);border:1px solid #2d3542;border-radius:999px;padding:.2rem .45rem;font-size:.53rem;font-weight:600;}
+body.light .shop-offer .price-chip{background:rgba(0,0,0,.06);} 
+.shop-offer .price-chip img{width:18px;height:18px;display:block;image-rendering:crisp-edges;}
+.shop-panel-actions{display:flex;gap:.4rem;justify-content:flex-end;margin-top:.35rem;}
+.shop-panel-actions a{background:linear-gradient(145deg,#202832,#161b22);color:#e6edf3;border:1px solid #2d3542;padding:.35rem .6rem;font-size:.55rem;font-weight:600;border-radius:8px;text-decoration:none;}
+.shop-panel-actions a:hover{border-color:var(--accent);} 
 
 /* --- Klastrowanie punktów --- */
 .cluster-marker .cluster-btn{background:linear-gradient(145deg,#363f4c,#1c232c);font-size:.55rem;width:26px;height:26px;border-radius:50%;font-weight:700;letter-spacing:.3px;box-shadow:0 4px 12px -4px rgba(0,0,0,.55),0 0 0 2px rgba(0,0,0,.35);}
@@ -168,7 +184,7 @@ body.light .loading{background:rgba(255,255,255,.75);color:#111;}
 
 /* Logo w lewym dolnym rogu */
 .map-brand{position:absolute;left:.75rem;bottom:.75rem;z-index:32;display:inline-flex;align-items:center;justify-content:center;background:var(--panel-bg);-webkit-backdrop-filter:blur(12px) saturate(160%);backdrop-filter:blur(12px) saturate(160%);border:1px solid var(--panel-border);padding:.4rem .5rem;border-radius:12px;box-shadow:var(--shadow);text-decoration:none;}
-.map-brand img{width:34px;height:34px;border-radius:10px;display:block;}
+.map-brand img{width:34px;height:34px;display:block;}
 
 /* Rozwijana legenda linii (prawy dolny róg) */
 .lines-legend{position:absolute;right:.75rem;bottom:.75rem;z-index:33;display:flex;flex-direction:column;gap:.4rem;min-width:220px;max-width:460px;background:var(--panel-bg);-webkit-backdrop-filter:blur(14px) saturate(160%);backdrop-filter:blur(14px) saturate(160%);border:1px solid var(--panel-border);padding:.55rem .6rem .65rem;border-radius:14px;box-shadow:var(--shadow);font-size:.6rem;line-height:1.15;}
@@ -202,11 +218,35 @@ body.light .line-category-badge{background:rgba(0,0,0,.08);}
 .point-search-clear:hover{border-color:var(--accent);color:#fff;}
 .point-detail[hidden]{display:none !important;}
 .point-results{display:flex;flex-direction:column;gap:.3rem;max-height:150px;overflow:auto;margin-top:.1rem;}
-.point-result-item{background:rgba(255,255,255,.05);border:1px solid #2d3542;padding:.4rem .5rem;border-radius:10px;font-size:.55rem;line-height:1.2;cursor:pointer;display:flex;flex-direction:column;gap:.2rem;}
+@media (min-width:861px){
+  .point-results{max-height:80vh;}
+}
+.point-result-item{position:relative;background:rgba(255,255,255,.05);border:1px solid #2d3542;padding:.6rem .5rem .4rem;border-radius:10px;font-size:.55rem;line-height:1.2;cursor:pointer;display:flex;flex-direction:column;gap:.2rem;}
 .point-result-item:hover{background:rgba(255,255,255,.08);border-color:var(--accent);} 
 .point-result-name{font-weight:600;letter-spacing:.4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .point-result-tags{display:flex;flex-wrap:wrap;gap:.25rem;}
 .point-result-tag{background:rgba(255,255,255,.08);padding:.15rem .45rem;border-radius:40px;font-size:.47rem;font-weight:600;letter-spacing:.4px;}
+/* Pigułki cen w wynikach */
+.point-result-item .prices{position:absolute;top:.35rem;right:.4rem;display:flex;flex-wrap:wrap;gap:.3rem;justify-content:flex-end;}
+.point-result-item .price-chip{display:inline-flex;align-items:center;gap:.35rem;background:rgba(255,255,255,.06);border:1px solid #2d3542;border-radius:999px;padding:.2rem .45rem;font-size:.53rem;font-weight:600;}
+.point-result-item .price-chip img{width:18px;height:18px;display:block;image-rendering:crisp-edges;}
+/* Ikona produktu w wynikach ofert sklepu */
+.shop-offer-item .product-line{display:flex;align-items:center;gap:.35rem;min-width:0;}
+.shop-offer-item .product-icon{width:18px;height:18px;display:block;}
+/* Pozwól długim nazwom produktu (oferty sklepu) przejść do kolejnej linijki i nie zachodzić na pigułki cen */
+.shop-offer-item .point-result-name{white-space:normal;overflow:visible;text-overflow:clip;line-height:1.25;overflow-wrap:anywhere;word-break:break-word;}
+/* Układ ofert sklepu: dwa słupki – lewy (ikona+tytuł), prawy (pigułki cen) */
+.shop-offer-item{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:.6rem;padding-right:.5rem;padding-top:.6rem;padding-bottom:.6rem;}
+.shop-offer-item .product-line{align-self:center;}
+.shop-offer-item .prices{align-self:center;}
+/* W ofertach sklepu pigułki nie są pozycjonowane absolutnie – reset i ustawienie do prawej kolumny */
+.shop-offer-item .prices{position:static;top:auto;right:auto;justify-content:flex-end;}
+/* Gdy nazwa zajmuje ≥3 linie – układaj pigułki cen pionowo dla czytelności */
+.shop-offer-item.stack-prices-vert{grid-template-columns:1fr auto;align-items:flex-start;}
+.shop-offer-item.stack-prices-vert .prices{flex-direction:column;align-items:flex-end;gap:.25rem;}
+@media (max-width:860px){
+  .shop-offer-item{gap:.5rem;padding-top:.55rem;}
+}
 body.light .point-result-item{background:rgba(0,0,0,.05);} body.light .point-result-item:hover{background:rgba(0,0,0,.08);} body.light .point-result-tag{background:rgba(0,0,0,.08);} 
 .point-detail{margin-top:.4rem;display:flex;flex-direction:column;gap:.45rem;background:rgba(255,255,255,.05);border:1px solid #2d3542;padding:.55rem .65rem .6rem;border-radius:14px;font-size:.55rem;line-height:1.35;}
 .point-detail h4{font-size:.7rem;margin:0 0 .3rem;font-weight:600;letter-spacing:.4px;}

@@ -102,7 +102,8 @@
   }
 
   function setup(){
-    if (!isSupportedBrowser() || isStandalone() || shouldHide()) return;
+    // Nie pokazuj banera, jeśli aplikacja jest uruchomiona jako PWA (standalone)
+    if (isStandalone() || !isSupportedBrowser() || shouldHide()) return;
     let deferredPrompt = null;
   const ui = renderBanner();
   applyUltraSmallMode(ui);

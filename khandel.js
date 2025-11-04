@@ -245,7 +245,8 @@ function renderFilteredProducts() {
       const x = p.x, y = p.y, z = p.z;
       const btn = document.createElement('button');
       btn.type='button';
-      btn.textContent = `📍 ${x},${y},${z}`;
+  // Ikona zamiast emoji
+  btn.innerHTML = `<img src="/icns_ui/map_search.svg" alt="" aria-hidden="true" style="width:16px;height:16px;vertical-align:middle;margin-right:.4rem;filter:drop-shadow(0 0 1px rgba(0,0,0,.4));"/> ${x},${y},${z}`;
       btn.style.marginTop='.3rem';
       btn.style.fontSize='.55rem';
       btn.style.background='#1a2632';
@@ -256,8 +257,9 @@ function renderFilteredProducts() {
       btn.style.cursor='pointer';
       btn.style.fontWeight='600';
       btn.addEventListener('click', ()=>{
-        const label = encodeURIComponent(p.storeName || 'Sklep');
-        const url = `/map.html?focus=${x},${y},${z}&label=${label}`;
+        // Przekieruj do konkretnego sklepu na mapie (nie do tymczasowego punktu)
+          const shopId = `${p.storeLocation || ''}||${selectedStore || p.storeName || 'Sklep'}`;
+          const url = `/map/?shop=${encodeURIComponent(shopId)}`;
         window.open(url,'_blank','noopener');
       });
       textBox.appendChild(btn);
@@ -447,7 +449,8 @@ function renderHierarchy(){
       const x = p.x, y = p.y, z = p.z;
       const btn = document.createElement('button');
       btn.type='button';
-      btn.textContent = `📍 ${x},${y},${z}`;
+  // Ikona zamiast emoji
+  btn.innerHTML = `<img src="/icns_ui/map_search.svg" alt="" aria-hidden="true" style="width:16px;height:16px;vertical-align:middle;margin-right:.4rem;filter:drop-shadow(0 0 1px rgba(0,0,0,.4));"/> ${x},${y},${z}`;
       btn.style.marginTop='.3rem';
       btn.style.fontSize='.55rem';
       btn.style.background='#1a2632';
@@ -458,8 +461,8 @@ function renderHierarchy(){
       btn.style.cursor='pointer';
       btn.style.fontWeight='600';
       btn.addEventListener('click', ()=>{
-        const label = encodeURIComponent(selectedStore || p.storeName || 'Sklep');
-        const url = `/map.html?focus=${x},${y},${z}&label=${label}`;
+        const shopId = `${p.storeLocation || ''}||${selectedStore || p.storeName || 'Sklep'}`;
+        const url = `/map/?shop=${encodeURIComponent(shopId)}`;
         window.open(url,'_blank','noopener');
       });
       textBox.appendChild(btn);
