@@ -17,7 +17,11 @@
   <link rel="icon" type="image/png" href="/favicon.png" />
   <link rel="stylesheet" href="/style.css" />
   <style>
-    :root { --ench-glow:#8057ff; }
+    :root { 
+      --ench-glow:#8057ff; 
+      /* Kolory dla tytułów customowych (dobry kontrast na ciemnym tle) */
+      --custom:#FC54FC; /* bardzo jasny fiolet */
+    }
     body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#0d1117;color:#e6edf3;}
     header{display:flex;align-items:center;justify-content:space-between;padding:.75rem 1rem;border-bottom:1px solid #26313d;background:#121c1f;position:sticky;top:0;z-index:50;}
     header h1{margin:0;font-size:1rem;letter-spacing:.6px;font-weight:600;display:flex;gap:.55rem;align-items:center;}
@@ -58,6 +62,20 @@
     }
     .row{display:flex;align-items:flex-start;gap:.8rem;}
     .title{font-size:.9rem;font-weight:600;line-height:1.2;margin:0;}
+    .title.title--custom{ 
+        background: none; 
+        -webkit-text-fill-color: initial; 
+        color: var(--custom);
+        text-shadow: 0 1px 2px rgba(0,0,0,.7);
+      letter-spacing:.3px;
+      }
+    @media (forced-colors: active){
+      .title.title--custom{ 
+        background: none; 
+        -webkit-text-fill-color: initial; 
+        color: Highlight;
+      }
+    }
     .subtitle{margin:0;font-size:.55rem;color:#94a3b8;letter-spacing:.4px;}
     .prices{display:flex;flex-wrap:wrap;gap:.45rem;margin-top:.4rem;font-size:.65rem;}
     .price-chip{display:inline-flex;align-items:center;gap:.35rem;padding:.35rem .55rem;border:1px solid #26313d;background:#1a2632;border-radius:999px;font-weight:600;letter-spacing:.4px;}

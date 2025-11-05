@@ -206,9 +206,10 @@ function renderFilteredProducts() {
     const icon = createIcon(p.product.item, 48, !!p.product.enchanted);
     row.appendChild(icon);
     const textBox = document.createElement('div');
-    const title = document.createElement('h2'); title.className='title';
+  const title = document.createElement('h2'); title.className='title';
     const baseTitle = pickRootName(p) || (p.product?.item);
     title.textContent = baseTitle;
+  if(p?.product?.customItem === true){ title.classList.add('title--custom'); }
     const sub = document.createElement('p'); sub.className='subtitle';
     sub.textContent = (p.product.qty>1? ` ×${p.product.qty}`:'');
     textBox.appendChild(title); textBox.appendChild(sub);
@@ -421,9 +422,10 @@ function renderHierarchy(){
     const icon = createIcon(p.product.item, 48, !!p.product.enchanted);
     row.appendChild(icon);
     const textBox = document.createElement('div');
-    const title = document.createElement('h2'); title.className='title';
+  const title = document.createElement('h2'); title.className='title';
     const baseTitle = pickRootName(p) || (p.product?.item);
     title.textContent = baseTitle;
+  if(p?.product?.customItem === true){ title.classList.add('title--custom'); }
     const sub = document.createElement('p'); sub.className='subtitle';
     sub.textContent = (p.product.qty>1? ` ×${p.product.qty}`:'');
     textBox.appendChild(title); textBox.appendChild(sub);
