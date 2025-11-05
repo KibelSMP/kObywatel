@@ -135,8 +135,8 @@ let __MOBILE_LITE_FORCE_DPR1 = false;
 // Przy mniejszym powiększeniu wiele punktów nachodzi na siebie – grupujemy je.
 // Prosty algorytm O(n^2) wystarczający dla kilkuset punktów (można później zopt. siatką).
 // (tuning) większy próg zoom -> klastruj częściej oraz większy promień łączenia
-const CLUSTER_ZOOM_THRESHOLD = 1.2; // poniżej tego scale aktywuj klastrowanie (wcześniej 0.9)
-const CLUSTER_SCREEN_DISTANCE = 52; // odległość w px przy scale=1 (wcześniej 34) – większy zasięg łączenia
+const CLUSTER_ZOOM_THRESHOLD = 1.5; // poniżej tego scale aktywuj klastrowanie
+const CLUSTER_SCREEN_DISTANCE = 64; // odległość w px przy scale=1 – większy zasięg łączenia
 let suppressClustering = false; // tymczasowe wyłączenie (np. aktywne wyszukiwanie)
 let lastClusteringActive = false;
 let lastScaleForClusterEval = scale;
@@ -795,6 +795,7 @@ function openShopPanel(shopId){
       const title = document.createElement('div'); title.className='title';
       const name = pickProductDisplayName(p);
       title.textContent = name;
+      if(p?.product?.customItem === true){ title.classList.add('title--custom'); }
       const qty = document.createElement('div'); qty.className='qty'; qty.textContent = (p.product?.qty>1? `×${p.product.qty}`:'');
       row.appendChild(title); row.appendChild(qty);
       const prices = document.createElement('div'); prices.className='prices';
@@ -852,11 +853,18 @@ function renderShopOffersInResults(shop, query){
     const productRow = document.createElement('div'); productRow.className='product-line';
     const prodKey = (p.product?.item || p.product?.name || p.productName || p.productNameEn || '').toLowerCase();
     if(prodKey){ const prodIcon = createPriceIcon(prodKey, 18); prodIcon.className = 'product-icon'; productRow.appendChild(prodIcon); }
-    const title = document.createElement('div'); title.className='point-result-name';
+  const title = document.createElement('div'); title.className='point-result-name';
     const name = pickProductDisplayName(p);
-    const qtyTxt = p.product?.qty>1? ` ×${p.product.qty}`:'';
-    title.textContent = name + qtyTxt;
+    title.textContent = name;
+  if(p?.product?.customItem === true){ title.classList.add('title--custom'); }
     productRow.appendChild(title);
+    if(p?.product?.qty > 1){
+      const qtyPill = document.createElement('span');
+      qtyPill.className = 'qty-pill';
+      qtyPill.textContent = `×${p.product.qty}`;
+      qtyPill.title = 'Ilość';
+      productRow.appendChild(qtyPill);
+    }
     item.appendChild(productRow);
     const prices = document.createElement('div'); prices.className='prices';
     [p.price1, p.price2].filter(Boolean).forEach(price=>{
