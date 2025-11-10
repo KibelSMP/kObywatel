@@ -25,12 +25,10 @@
 #khandel-clear-filters.active {
 	display: inline-flex;
 }
-@media (min-width: 700px) {
-	#khandel-products.grid {
-		display: grid;
-		grid-template-columns: repeat(3, 1fr);
-		gap: 1.1rem;
-	}
+/* Uniwersalna siatka ofert – używana w trybie Wszystkie / Miasta / Sklepy */
+.offers-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:1.1rem;}
+@media (min-width:700px){
+  .offers-grid{grid-template-columns:repeat(3,1fr);}
 }
 /* Stylowanie breadcrumb (ścieżki nawigacyjnej) */
 .khandel-breadcrumb {
@@ -75,11 +73,9 @@ main.app-main {
 	display: none !important;
 }
 /* kHandel grid: lokalizacje i sklepy */
-.khandel-grid {
-	/* display: grid; */
-	/* grid-template-columns: 1fr; */
-	gap: 1.1rem;
-	margin-bottom: 1.2rem;
+.khandel-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:1.1rem;margin-bottom:1.2rem;}
+@media (min-width:700px){
+  .khandel-grid{grid-template-columns:repeat(3,1fr);}
 }
 /* @media (min-width: 700px) {
 	.khandel-grid {

@@ -19,8 +19,7 @@
   <style>
     :root { 
       --ench-glow:#8057ff; 
-      /* Kolory dla tytułów customowych (dobry kontrast na ciemnym tle) */
-      --custom:#FC54FC; /* bardzo jasny fiolet */
+      --custom:#FC54FC;
     }
     body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#0d1117;color:#e6edf3;}
     header{display:flex;align-items:center;justify-content:space-between;padding:.75rem 1rem;border-bottom:1px solid #26313d;background:#121c1f;position:sticky;top:0;z-index:50;}
@@ -32,20 +31,18 @@
     .card:hover::after{opacity:.9;}
     .item-icon{width:48px;height:48px;position:relative;image-rendering:pixelated;flex:0 0 auto;border-radius:4px;overflow:hidden;}
     .item-icon img{width:100%;height:100%;display:block;image-rendering:pixelated;}
-    /* Skeleton loader */
     .item-icon.loading{background:#1f2a35;}
     .item-icon.loading::before{content:"";position:absolute;inset:0;background:linear-gradient(110deg,#1f2a35 15%,#263341 35%,#1f2a35 55%);background-size:200% 100%;animation:skeleton 1.2s linear infinite;}
     @keyframes skeleton{0%{background-position:0 0;}100%{background-position:200% 0;}}
-    /* Natywniejszy efekt enchant – dwa pryzmatyczne gradienty przesuwane diagonalnie + lekki puls koloru */
     .item-icon.enchanted::after{content:"";position:absolute;inset:0;pointer-events:none;mix-blend-mode:screen;animation:glintShift 4.2s linear infinite,glintPulse 2.8s ease-in-out infinite;opacity:.85;}
     .item-icon.enchanted::before{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(circle at 30% 25%,rgba(180,90,255,.35),transparent 70%);mix-blend-mode:color-dodge;animation:glintDrift 6s linear infinite;}
-  /* Gdy mamy maskę (nowy tryb), pseudo-elementy wyłączamy */
+  
   .item-icon.enchanted.masked::before,
   .item-icon.enchanted.masked::after{display:none;}
-  /* Warstwa zglintowana z maską alfa ikonki */
+  
   .item-icon.enchanted .ench-overlay{position:absolute;inset:0;pointer-events:none;mix-blend-mode:screen;animation:glintShift 4.2s linear infinite,glintPulse 2.8s ease-in-out infinite;opacity:.9;}
   .item-icon.enchanted .ench-overlay::before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 30% 25%,rgba(180,90,255,.35),transparent 68%);mix-blend-mode:color-dodge;animation:glintDrift 6s linear infinite;}
-  /* Maskowanie (alpha) – ustawiane inline w JS po załadowaniu obrazka */
+  
   .item-icon.enchanted.masked .ench-overlay{-webkit-mask-size:100% 100%;mask-size:100% 100%;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;}
     @keyframes glintShift{0%{background:
       repeating-linear-gradient(55deg,rgba(90,50,200,.0)0,rgba(90,50,200,.0)8px,rgba(140,80,255,.35)8px,rgba(140,80,255,.35)12px,rgba(30,170,255,.25)12px,rgba(30,170,255,.25)16px);
@@ -80,19 +77,91 @@
     .prices{display:flex;flex-wrap:wrap;gap:.45rem;margin-top:.4rem;font-size:.65rem;}
     .price-chip{display:inline-flex;align-items:center;gap:.35rem;padding:.35rem .55rem;border:1px solid #26313d;background:#1a2632;border-radius:999px;font-weight:600;letter-spacing:.4px;}
     .price-chip .item-icon{width:22px;height:22px;}
-    .ench-badge{position:absolute;top:6px;right:6px;background:linear-gradient(135deg,#8057ff,#5b21b6);color:#fff;font-size:.55rem;padding:4px 8px;border-radius:999px;letter-spacing:.6px;font-weight:600;box-shadow:0 4px 10px -4px rgba(0,0,0,.5);}
+  .ench-badge{position:absolute;top:6px;right:6px;background:linear-gradient(135deg,var(--accent),#5b21b6);color:#fff;font-size:.55rem;padding:4px 8px;border-radius:999px;letter-spacing:.6px;font-weight:600;box-shadow:0 4px 10px -4px rgba(0,0,0,.5);}
     .empty{opacity:.5;font-style:italic;text-align:center;padding:2rem 0;}
     .toolbar{display:flex;flex-wrap:wrap;gap:.55rem;margin:0 0 1rem;}
     .toolbar a{background:#1a2632;border:1px solid #26313d;color:#e6edf3;text-decoration:none;font-size:.65rem;font-weight:600;padding:.55rem .85rem;border-radius:10px;letter-spacing:.45px;display:inline-flex;align-items:center;gap:.45rem;transition:.25s;}
-    .toolbar a:hover{background:#8057ff;border-color:#8057ff;color:#fff;}
+  .toolbar a:hover{background:var(--accent);border-color:var(--accent);color:#fff;}
     .toolbar button{background:#1a2632;border:1px solid #26313d;color:#e6edf3;font-size:.65rem;font-weight:600;padding:.55rem .85rem;border-radius:10px;letter-spacing:.45px;cursor:pointer;display:inline-flex;align-items:center;gap:.45rem;transition:.25s;}
-    .toolbar button:hover{background:#8057ff;border-color:#8057ff;color:#fff;}
-    /* Grid dla listy lokalizacji / sklepów */
+  .toolbar button:hover{background:var(--accent);border-color:var(--accent);color:#fff;}
+    .khandel-toolbar{display:grid;grid-template-columns:1fr auto auto auto auto auto;gap:.55rem;align-items:stretch;margin:0 0 1rem}
+    .khandel-toolbar .mini-input{min-width:210px}
+    .khandel-toolbar .mini-select{min-width:180px}
+    .khandel-toolbar .segmented{display:inline-flex;align-items:stretch;border:1px solid #26313d;border-radius:12px;overflow:hidden;background:#121b24}
+    .khandel-toolbar .segmented .mini-btn{border:0;border-right:1px solid #26313d;border-radius:0;padding:.55rem .85rem;background:transparent;flex:1 1 0;position:relative;line-height:1}
+    .khandel-toolbar .segmented .mini-btn:last-child{border-right:0}
+    .khandel-toolbar .segmented .mini-btn:hover{background:rgba(255,255,255,.06)}
+    .khandel-toolbar .segmented .mini-btn:focus-visible{outline:none;box-shadow:0 0 0 2px var(--accent) inset,0 0 0 3px var(--accent-glow)}
+    .khandel-toolbar .mini-btn[aria-pressed="true"],
+    .khandel-toolbar .mini-btn[aria-selected="true"],
+    .khandel-toolbar .mini-btn.active{background:var(--accent);border-color:var(--accent);color:#fff;box-shadow:0 0 0 3px var(--accent-glow) inset}
+    .khandel-toolbar .segmented .mini-btn[aria-selected="true"]::after{content:"";position:absolute;left:0;right:0;bottom:0;height:2px;background:#fff;opacity:.85}
+    .khandel-toolbar .end{justify-self:end}
+    @media (max-width:980px){
+      .khandel-toolbar{grid-template-columns:1fr 1fr 1fr;}
+      .khandel-toolbar .end{justify-self:stretch}
+    }
+    @media (max-width:640px){
+      .khandel-toolbar{grid-template-columns:1fr 1fr;}
+      .khandel-toolbar .mini-select{min-width:unset}
+    }
     .khandel-grid{display:grid;grid-template-columns:repeat(3,minmax(180px,1fr));gap:.8rem;margin:0 0 1.2rem;padding:0;list-style:none;}
     .khandel-grid-btn{background:linear-gradient(145deg,#1a2632,#121b24);border:1px solid #26313d;color:#e6edf3;padding:.75rem .85rem;border-radius:14px;font-size:.7rem;font-weight:600;letter-spacing:.55px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:.6rem;transition:.3s;border-inline:1px solid #26313d;box-shadow:0 4px 14px -6px rgba(0,0,0,.55);}
-    .khandel-grid-btn:hover{border-color:#8057ff;background:linear-gradient(145deg,#2a3656,#192332);color:#fff;}
+  .khandel-grid-btn:hover{border-color:var(--accent);background:linear-gradient(145deg,#2a3656,#192332);color:#fff;}
     .khandel-grid-btn:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(128,87,255,.4);}
     .khandel-badge{display:inline-block;background:#1e2a36;border:1px solid #2a3a47;padding:2px 6px;border-radius:999px;font-size:.55rem;font-weight:700;letter-spacing:.5px;color:#cbd5e1;}
+  .khandel-grid-btn:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-glow);}
+  .grid-switch-back{background:#1a2632;border:1px solid #26313d;color:#e6edf3;border-radius:10px;padding:.45rem .7rem;font-weight:700;letter-spacing:.4px;}
+  .grid-switch-back:hover{background:var(--accent);border-color:var(--accent);color:#fff;}
+  .offers-topbar{display:flex;align-items:center;gap:.65rem;margin:0 0 .9rem;}
+  .offers-topbar h3{margin:0;font-size:.8rem;letter-spacing:.5px;opacity:.85;font-weight:600;}
+  /* Accordion miasta */
+  .city-accordion-btn{width:100%;display:flex;align-items:center;justify-content:space-between;gap:.75rem;background:#1a2632;border:1px solid #26313d;color:#e6edf3;padding:.75rem 1rem;border-radius:14px;font-size:.75rem;font-weight:600;letter-spacing:.5px;cursor:pointer;transition:.25s;text-align:left;position:relative;}
+  .city-accordion-btn:hover{background:var(--accent);border-color:var(--accent);color:#fff;}
+  .city-accordion-btn:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-glow);}
+  .city-accordion-btn .count{display:inline-block;min-width:42px;text-align:center;background:#1e2a36;border:1px solid #2a3a47;padding:4px 8px;border-radius:999px;font-size:.55rem;font-weight:700;letter-spacing:.5px;color:#cbd5e1;}
+  .city-accordion-btn[aria-expanded="true"] .arrow{transform:rotate(90deg);}
+  .city-accordion-btn .arrow{transition:.25s;font-size:.9rem;line-height:1;}
+  .city-accordion-btn[aria-pressed="true"], .city-accordion-btn.is-active{background:var(--accent);border-color:var(--accent);color:#fff;}
+  .city-accordion-btn[aria-pressed="true"] .count, .city-accordion-btn.is-active .count{background:rgba(255,255,255,.18);border-color:rgba(255,255,255,.25);color:#fff}
+  .city-accordion-btn:active{transform:translateY(1px)}
+  .search-group{display:flex;flex-wrap:wrap;align-items:stretch;gap:.55rem;flex:1;min-width:280px;}
+  .search-group #khandel-search{flex:1;min-width:160px;}
+  .search-group .mini-btn{display:inline-flex;align-items:center;gap:.4rem;white-space:nowrap;}
+  .search-group .mini-btn .icon{display:inline-flex;align-items:center;justify-content:center;}
+  .search-group .icon-btn{min-width:44px;padding:.45rem .55rem;display:inline-flex;align-items:center;justify-content:center;}
+  .search-group .icon-btn svg{display:block;}
+  .search-combo{display:flex;align-items:stretch;background:var(--bg-elev);border:1px solid var(--border);border-radius:10px;overflow:hidden;}
+  .search-combo:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow);}
+  .search-combo #khandel-search{border:0;background:transparent;box-shadow:none;padding:.45rem .7rem;font-size:.8rem;}
+  .search-combo #khandel-search:focus{outline:none;}
+  .search-combo #khandel-do-search{border:0;border-left:1px solid var(--border);background:var(--bg-alt);border-radius:0;min-width:42px;}
+  .search-combo #khandel-do-search:hover{background:var(--accent);color:#fff;border-left:1px solid var(--accent);}
+  #khandel-clear-search{display:none;}
+  #khandel-clear-search.active{display:inline-flex;}
+  @media (max-width:860px){
+    .search-group{flex-direction:column;align-items:stretch;}
+    .search-group #khandel-search{width:100%;}
+    .search-group .mini-btn{width:100%;justify-content:center;}
+    .search-combo{width:100%;}
+  }
+  .khandel-bottom-tabs{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(.75rem + env(safe-area-inset-bottom, 0px));z-index:120;background:var(--bg-elev);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow);-webkit-backdrop-filter:blur(16px) saturate(170%);backdrop-filter:blur(16px) saturate(170%);display:flex;gap:0;overflow:hidden;padding:.3rem .35rem;}
+  .khandel-bottom-tabs .mini-btn{border:0;border-right:1px solid var(--border);border-radius:10px;min-width:130px;justify-content:center;text-align:center;padding:.7rem 1rem;font-size:.98rem;font-weight:600;letter-spacing:.4px;background:transparent;}
+  .khandel-bottom-tabs .mini-btn:hover{background:color-mix(in lab, var(--accent) 18%, transparent);}
+  .khandel-bottom-tabs .mini-btn:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-glow);}  
+  .khandel-bottom-tabs .mini-btn:last-child{border-right:0}
+  .khandel-bottom-tabs .mini-btn[aria-selected="true"],
+  .khandel-bottom-tabs .mini-btn[aria-pressed="true"]{background:var(--accent);color:#fff;}
+  @media (max-width:860px){
+    .khandel-bottom-tabs{width:calc(100% - 1.5rem);padding:.35rem .45rem;border-radius:14px;}
+    .khandel-bottom-tabs .mini-btn{min-width:110px;padding:.65rem .85rem;font-size:.95rem;}
+  }
+  @media (max-width:520px){
+    .khandel-bottom-tabs{left:0;right:0;transform:none;bottom:0;border-radius:0;border-left:0;border-right:0;width:100%;
+      padding:.25rem calc(.5rem + env(safe-area-inset-right, 0px)) calc(.25rem + env(safe-area-inset-bottom, 0px)) calc(.5rem + env(safe-area-inset-left, 0px));} 
+    .khandel-bottom-tabs .mini-btn{flex:1 1 0;min-width:0;border-radius:8px;padding:.6rem .75rem;font-size:.9rem;}
+  }
+  .app-main{padding-bottom:5.2rem;}
     @media (max-width:640px){
       .khandel-grid{grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:.65rem;}
       .khandel-grid-btn{font-size:.65rem;padding:.65rem .7rem;}
@@ -121,18 +190,32 @@
       </a>
     </header>
     <main class="app-main">
-      <nav id="khandel-breadcrumb" class="khandel-breadcrumb" aria-label="Ścieżka nawigacyjna"></nav>
+  <!-- Usunięto breadcrumb zgodnie z wymaganiem -->
       <section id="khandel-toolbar" class="khandel-toolbar">
-        <button id="lang-toggle" class="mini-btn">PL / EN</button>
-        <input id="khandel-search" class="mini-input" type="text" placeholder="Szukaj przedmiotu..." aria-label="Szukaj przedmiotu" />
-        <select id="khandel-filter-location" class="mini-select" aria-label="Filtruj po lokalizacji"><option value="">Wszystkie lokalizacje</option></select>
-        <select id="khandel-filter-store" class="mini-select" aria-label="Filtruj po sklepie"><option value="">Wszystkie sklepy</option></select>
-  <button id="khandel-clear-filters" class="mini-btn" title="Wyczyść filtry i wyszukiwanie">✕</button>
+        <div class="search-group" role="search">
+          <input id="khandel-search" class="mini-input" type="text" placeholder="Szukaj przedmiotu…" aria-label="Szukaj przedmiotu" />
+          <button id="khandel-do-search" class="mini-btn icon-btn" aria-label="Szukaj" title="Szukaj">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 -960 960 960" fill="currentColor"><path d="M784-120 532-372q-30 24-69 38t-83 14q-109 0-184.5-75.5T120-580q0-109 75.5-184.5T380-840q109 0 184.5 75.5T640-580q0 44-14 83t-38 69l252 252-56 56ZM380-400q75 0 127.5-52.5T560-580q0-75-52.5-127.5T380-760q-75 0-127.5 52.5T200-580q0 75 52.5 127.5T380-400Z"/></svg>
+          </button>
+          <button id="khandel-clear-search" class="mini-btn icon-btn" aria-label="Wyczyść wyszukiwanie" title="Wyczyść wyszukiwanie">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 -960 960 960" fill="currentColor"><path d="m256-200-56-56 224-224-224-224 56-56 224 224 224-224 56 56-224 224 224 224-56 56-224-224-224 224Z"/></svg>
+          </button>
+          <label for="khandel-price-toggle" class="mini-btn" id="khandel-price-toggle-label" title="Uwzględnij nazwy walut w wyszukiwaniu" aria-pressed="false">
+            <input type="checkbox" id="khandel-price-toggle" style="margin-right:.4rem;accent-color:var(--accent)"> Szukaj w cenach
+          </label>
+        </div>
+        <button id="lang-toggle" class="mini-btn" title="Zmień język">PL / EN</button>
       </section>
+      <!-- Pływające dolne menu sekcji -->
+      <nav class="khandel-bottom-tabs" role="tablist" aria-label="Wybór sekcji">
+        <button id="group-none-bottom" class="mini-btn" aria-pressed="true" role="tab" aria-selected="true">Wszystkie</button>
+        <button id="group-city-bottom" class="mini-btn" aria-pressed="false" role="tab" aria-selected="false">Miasta</button>
+        <button id="group-store-bottom" class="mini-btn" aria-pressed="false" role="tab" aria-selected="false">Sklepy</button>
+      </nav>
       <section id="khandel-hierarchy">
         <div id="khandel-locations" class="khandel-list"></div>
         <div id="khandel-stores" class="khandel-list" hidden></div>
-        <div id="khandel-products" class="grid" hidden></div>
+  <div id="khandel-products" hidden></div>
         <div id="empty" class="empty" hidden>Brak ofert do wyświetlenia.</div>
       </section>
     </main>
