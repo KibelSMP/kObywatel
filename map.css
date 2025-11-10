@@ -248,6 +248,13 @@ body.light .line-category-badge{background:rgba(0,0,0,.08);}
 .point-result-item .prices{position:absolute;top:.35rem;right:.4rem;display:flex;flex-wrap:wrap;gap:.3rem;justify-content:flex-end;}
 .point-result-item .price-chip{display:inline-flex;align-items:center;gap:.35rem;background:rgba(255,255,255,.06);border:1px solid #2d3542;border-radius:999px;padding:.2rem .45rem;font-size:.53rem;font-weight:600;}
 .point-result-item .price-chip img{width:18px;height:18px;display:block;image-rendering:crisp-edges;}
+/* Subtelny gradient dla wyników ofert z niestandardowym produktem */
+.point-results .shop-offer-item.is-custom-product{position:relative;}
+.point-results .shop-offer-item.is-custom-product::before{content:"";position:absolute;inset:0;border-radius:10px;pointer-events:none;background:linear-gradient(135deg,rgba(252,84,252,.06),rgba(252,84,252,.03));}
+
+/* Niestandardowe przedmioty – pigułki cen (fiolet jak tytuł) */
+.map-app .price-chip--custom{background:linear-gradient(135deg,rgba(252,84,252,.18),rgba(180,40,180,.12)); box-shadow:none;}
+.map-app .price-chip--custom span{color:#FC54FC;}
 /* Ikona produktu w wynikach ofert sklepu */
 .shop-offer-item .product-line{display:flex;align-items:center;gap:.35rem;min-width:0;}
 .shop-offer-item .product-icon{width:18px;height:18px;display:block;}
@@ -257,7 +264,7 @@ body.light .shop-offer-item .qty-pill{background:rgba(0,0,0,.08);}
 /* Pozwól długim nazwom produktu (oferty sklepu) przejść do kolejnej linijki i nie zachodzić na pigułki cen */
 .shop-offer-item .point-result-name{white-space:normal;overflow:visible;text-overflow:clip;line-height:1.25;overflow-wrap:anywhere;word-break:break-word;}
 /* Układ ofert sklepu: dwa słupki – lewy (ikona+tytuł), prawy (pigułki cen) */
-.shop-offer-item{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:.6rem;padding-right:.5rem;padding-top:.6rem;padding-bottom:.6rem;}
+.shop-offer-item{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:.6rem;padding-right:.5rem;padding-top:.6rem;padding-bottom:.6rem;margin-bottom:6px;}
 .shop-offer-item .product-line{align-self:center;}
 .shop-offer-item .prices{align-self:center;}
 /* W ofertach sklepu pigułki nie są pozycjonowane absolutnie – reset i ustawienie do prawej kolumny */

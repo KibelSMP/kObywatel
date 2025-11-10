@@ -790,39 +790,69 @@ function openShopPanel(shopId){
     ].filter(Boolean).map(t=> `<span>${t}</span>`).join('');
     header.appendChild(meta);
     const list = document.createElement('div'); list.style.display='flex'; list.style.flexDirection='column'; list.style.gap='.4rem';
-    offers.slice(0,80).forEach(p =>{
-      const row = document.createElement('div'); row.className='shop-offer';
-      const title = document.createElement('div'); title.className='title';
-      const name = pickProductDisplayName(p);
-      title.textContent = name;
-      if(p?.product?.customItem === true){ title.classList.add('title--custom'); }
-      const qty = document.createElement('div'); qty.className='qty'; qty.textContent = (p.product?.qty>1? `×${p.product.qty}`:'');
-      row.appendChild(title); row.appendChild(qty);
-      const prices = document.createElement('div'); prices.className='prices';
-      function addPrice(label, price){
-        if(!price || !price.item) return;
-        const chip = document.createElement('div'); chip.className='price-chip';
-        const img = createPriceIcon(price.item, 18);
-        const span = document.createElement('span');
-        const displayName = pickPriceDisplayName(price);
-        span.textContent = `${displayName} ×${price.qty||1}`;
-        chip.title = `${label}: ${displayName} ×${price.qty||1}`;
-        chip.appendChild(img); chip.appendChild(span);
-        prices.appendChild(chip);
+    // Render w partiach, by nie blokować UI przy dużej liczbie ofert
+    const PAGE_PANEL = 100; let panelOffset = 0;
+    function renderPanelBatch(){
+      const end = Math.min(panelOffset + PAGE_PANEL, offers.length);
+      for(let i=panelOffset;i<end;i++){
+        const p = offers[i];
+        const row = document.createElement('div'); row.className='shop-offer-row';
+        const product = document.createElement('div'); product.className='product';
+        const prodIconKey = (p.product?.item || p.product?.name || p.productName || p.productNameEn || '').toLowerCase();
+        if(prodIconKey){ const icon = createPriceIcon(prodIconKey, 18); icon.className='product-icon'; product.appendChild(icon); }
+        const title = document.createElement('div'); title.className='title';
+        const name = pickProductDisplayName(p); title.textContent = name;
+        if(p?.product?.customItem === true){ title.classList.add('title--custom'); }
+        const qty = document.createElement('div'); qty.className='qty'; qty.textContent = (p.product?.qty>1? `×${p.product.qty}`:'');
+        product.appendChild(title); product.appendChild(qty); row.appendChild(product);
+        const prices = document.createElement('div'); prices.className='prices';
+        function addPrice(label, price){
+          if(!price || !price.item) return;
+          const chip = document.createElement('div'); chip.className='price-chip';
+          const img = createPriceIcon(price.item, 18);
+          const span = document.createElement('span');
+          const displayName = pickPriceDisplayName(price);
+          span.textContent = `${displayName} ×${price.qty||1}`;
+          chip.title = `${label}: ${displayName} ×${price.qty||1}`;
+          chip.appendChild(img); chip.appendChild(span); prices.appendChild(chip);
+          // Fioletowa cena tylko gdy sama cena (price) jest niestandardowa, nie gdy cały produkt jest custom
+          if(price?.customItem === true){ chip.classList.add('price-chip--custom'); }
+        }
+        addPrice('Cena 1', p.price1); addPrice('Cena 2', p.price2);
+        row.appendChild(prices);
+        list.appendChild(row);
       }
-      addPrice('Cena 1', p.price1); addPrice('Cena 2', p.price2);
-      row.appendChild(prices);
-      list.appendChild(row);
-    });
+      panelOffset = end; return panelOffset < offers.length;
+    }
     const actions = document.createElement('div'); actions.className='shop-panel-actions';
     const openMap = document.createElement('a'); openMap.href = `?focus=${s.x},${s.z}&label=${encodeURIComponent(s.name)}`; openMap.textContent='Pokaż tutaj'; openMap.addEventListener('click', (e)=>{ e.preventDefault(); focusLogicalPoint(s.x, s.z, { pulse:true, label:s.name }); });
     const openKhandel = document.createElement('a'); openKhandel.href='/khandel.html'; openKhandel.target='_blank'; openKhandel.rel='noopener'; openKhandel.textContent='Otwórz kHandel';
     actions.appendChild(openMap); actions.appendChild(openKhandel);
+    // Przyciski paginacji jeśli jest więcej ofert
+    const hasMorePanel = renderPanelBatch();
+    if(hasMorePanel){
+      const moreBtn = document.createElement('button'); moreBtn.type='button'; moreBtn.className='mini-btn'; moreBtn.textContent='Pokaż więcej';
+      moreBtn.addEventListener('click', ()=>{ const more = renderPanelBatch(); if(!more){ moreBtn.disabled = true; } });
+      actions.appendChild(moreBtn);
+    }
     panelContent.innerHTML = '';
     panelContent.appendChild(header);
     if(offers.length===0){ const empty = document.createElement('div'); empty.className='empty'; empty.textContent='Brak ofert.'; panelContent.appendChild(empty); }
     else { panelContent.appendChild(list); }
     panelContent.appendChild(actions);
+  } catch(_){ }
+}
+
+function openShopInSearch(shopId){
+  try {
+    if(!shopsData) return; const s = shopsData.find(x=> x.id===shopId); if(!s) return;
+    currentShopContextId = s.id;
+    // Skup mapę na sklepie i pokaż oferty w wynikach
+    focusLogicalPoint(s.x, s.z, { pulse:false });
+    // Wejście w kontekst sklepu – schowaj szczegóły punktu oraz wyczyść wyniki punktów
+    if(pointDetailEl){ pointDetailEl.hidden = true; pointDetailEl.innerHTML=''; }
+    if(pointResultsEl){ pointResultsEl.innerHTML=''; }
+    renderShopOffersInResults(s, (searchInput && searchInput.value)||'');
   } catch(_){ }
 }
 
@@ -848,68 +878,60 @@ function renderShopOffersInResults(shop, query){
   langBtn.addEventListener('click', ()=>{ const cur=getKhandelLang(); const next = (cur==='pl'?'en':'pl'); setKhandelLang(next); langBtn.textContent = (next==='en'?'EN 🇬🇧':'PL 🇵🇱'); renderShopOffersInResults(shop, query); });
   headerWrap.appendChild(heading); headerWrap.appendChild(langBtn); pointResultsEl.appendChild(headerWrap);
   if(!filtered.length){ const empty = document.createElement('div'); empty.className='empty'; empty.style.padding='.2rem .1rem'; empty.textContent='Brak ofert w tym sklepie.'; pointResultsEl.appendChild(empty); pointResultsEl.hidden=false; return; }
-  filtered.slice(0,100).forEach(p=>{
-    const item = document.createElement('div'); item.className='point-result-item shop-offer-item'; item.setAttribute('data-shop-id', shop.id);
-    const productRow = document.createElement('div'); productRow.className='product-line';
-    const prodKey = (p.product?.item || p.product?.name || p.productName || p.productNameEn || '').toLowerCase();
-    if(prodKey){ const prodIcon = createPriceIcon(prodKey, 18); prodIcon.className = 'product-icon'; productRow.appendChild(prodIcon); }
-  const title = document.createElement('div'); title.className='point-result-name';
-    const name = pickProductDisplayName(p);
-    title.textContent = name;
-  if(p?.product?.customItem === true){ title.classList.add('title--custom'); }
-    productRow.appendChild(title);
-    if(p?.product?.qty > 1){
-      const qtyPill = document.createElement('span');
-      qtyPill.className = 'qty-pill';
-      qtyPill.textContent = `×${p.product.qty}`;
-      qtyPill.title = 'Ilość';
-      productRow.appendChild(qtyPill);
-    }
-    item.appendChild(productRow);
-    const prices = document.createElement('div'); prices.className='prices';
-    [p.price1, p.price2].filter(Boolean).forEach(price=>{
-      const chip = document.createElement('div'); chip.className='price-chip';
-      const img = createPriceIcon(price.item, 18);
-      const span = document.createElement('span');
-      const displayName = pickPriceDisplayName(price);
-      span.textContent = `${displayName} ×${price.qty||1}`;
-      chip.appendChild(img); chip.appendChild(span); prices.appendChild(chip);
-    });
-    item.appendChild(prices);
-    pointResultsEl.appendChild(item);
-    // Po wstawieniu do DOM zmierz liczbę linii nazwy i ewentualnie ustaw pionowe pigułki
-    try {
-      requestAnimationFrame(()=>{
-        try {
-          const nameEl = item.querySelector('.point-result-name');
-          if(!nameEl) return;
-          const cs = getComputedStyle(nameEl);
-          let lh = parseFloat(cs.lineHeight);
-          if(!lh || isNaN(lh)){
-            const fs = parseFloat(cs.fontSize) || 12;
-            lh = fs * 1.25; // fallback do line-height:1.25
-          }
-          const h = nameEl.getBoundingClientRect().height;
-          const lines = Math.round(h / lh + 0.2);
-          if(lines >= 3){ item.classList.add('stack-prices-vert'); }
-        } catch(_){ }
+  const listWrap = document.createElement('div'); listWrap.className='shop-offers-results-list';
+  let resOffset = 0; const PAGE_RESULTS = 150;
+  function renderResultsBatch(){
+    const start = resOffset; const end = Math.min(start + PAGE_RESULTS, filtered.length);
+    for(let i=start;i<end;i++){
+      const p = filtered[i];
+  const item = document.createElement('div'); item.className='point-result-item shop-offer-item'; item.setAttribute('data-shop-id', shop.id);
+  if(p?.product?.customItem === true){ item.classList.add('is-custom-product'); }
+      const productRow = document.createElement('div'); productRow.className='product-line';
+      const prodKey = (p.product?.item || p.product?.name || p.productName || p.productNameEn || '').toLowerCase();
+      if(prodKey){ const prodIcon = createPriceIcon(prodKey, 18); prodIcon.className = 'product-icon'; productRow.appendChild(prodIcon); }
+      const title = document.createElement('div'); title.className='point-result-name';
+      const name = pickProductDisplayName(p);
+      title.textContent = name;
+      if(p?.product?.customItem === true){ title.classList.add('title--custom'); }
+      productRow.appendChild(title);
+      if(p?.product?.qty > 1){ const qtyPill = document.createElement('span'); qtyPill.className='qty-pill'; qtyPill.textContent = `×${p.product.qty}`; qtyPill.title='Ilość'; productRow.appendChild(qtyPill); }
+      item.appendChild(productRow);
+      const prices = document.createElement('div'); prices.className='prices';
+      [p.price1, p.price2].filter(Boolean).forEach(price=>{
+        const chip = document.createElement('div'); chip.className='price-chip';
+        const img = createPriceIcon(price.item, 18);
+        const span = document.createElement('span');
+        const displayName = pickPriceDisplayName(price);
+        span.textContent = `${displayName} ×${price.qty||1}`;
+        chip.appendChild(img); chip.appendChild(span); prices.appendChild(chip);
+  // W wynikach wyszukiwania: kolor ceny tylko jeśli price.customItem === true
+  if(price?.customItem === true){ chip.classList.add('price-chip--custom'); }
       });
-    } catch(_){ }
-  });
+      item.appendChild(prices);
+      listWrap.appendChild(item);
+      try {
+        requestAnimationFrame(()=>{
+          try {
+            const nameEl = item.querySelector('.point-result-name'); if(!nameEl) return;
+            const cs = getComputedStyle(nameEl); let lh = parseFloat(cs.lineHeight);
+            if(!lh || isNaN(lh)){ const fs = parseFloat(cs.fontSize) || 12; lh = fs * 1.25; }
+            const h = nameEl.getBoundingClientRect().height; const lines = Math.round(h / lh + 0.2);
+            if(lines >= 3){ item.classList.add('stack-prices-vert'); }
+          } catch(_){ }
+        });
+      } catch(_){ }
+    }
+    resOffset = end; return resOffset < filtered.length;
+  }
+  const hasMore = renderResultsBatch();
+  pointResultsEl.appendChild(listWrap);
+  if(hasMore){
+    const actions = document.createElement('div'); actions.className='shop-results-actions';
+    const moreBtn = document.createElement('button'); moreBtn.type='button'; moreBtn.className='mini-btn'; moreBtn.textContent='Pokaż więcej';
+    moreBtn.addEventListener('click', ()=>{ const more = renderResultsBatch(); if(!more){ moreBtn.disabled = true; } });
+    actions.appendChild(moreBtn); pointResultsEl.appendChild(actions);
+  }
   pointResultsEl.hidden = false;
-}
-
-function openShopInSearch(shopId){
-  try {
-    if(!shopsData) return; const s = shopsData.find(x=> x.id===shopId); if(!s) return;
-    currentShopContextId = s.id;
-    // Skup mapę na sklepie i pokaż oferty w wynikach
-    focusLogicalPoint(s.x, s.z, { pulse:false });
-    // Wejście w kontekst sklepu – schowaj szczegóły punktu oraz wyczyść wyniki punktów
-    if(pointDetailEl){ pointDetailEl.hidden = true; pointDetailEl.innerHTML=''; }
-    if(pointResultsEl){ pointResultsEl.innerHTML=''; }
-    renderShopOffersInResults(s, (searchInput && searchInput.value)||'');
-  } catch(_){ }
 }
 
 function buildMarkers(){
@@ -1213,9 +1235,9 @@ function handleSearch(){
       const qn = q;
       const shopMatches = shopsData.filter(s=>{
         const base = `${s.name} ${s.location||''} ${s.owner||''}`.toLowerCase();
-        const offersTxt = (s.offers||[]).slice(0,200).map(p=> (p.productName||p.product?.name||p.productNameEn||p.product?.nameEn||p.product?.item||'').toLowerCase()).join(' ');
+        const offersTxt = (s.offers||[]).map(p=> (p.productName||p.product?.name||p.productNameEn||p.product?.nameEn||p.product?.item||'').toLowerCase()).join(' ');
         return base.includes(qn) || offersTxt.includes(qn);
-      }).slice(0,30);
+      });
       if(shopMatches.length){
         const html = '<div class="legend-heading" style="margin:.3rem 0 .2rem;">Sklepy</div>' + shopMatches.map(s=>{
           const label = `${s.name}${s.location? ' @ '+s.location:''}`;

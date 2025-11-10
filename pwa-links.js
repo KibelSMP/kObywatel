@@ -46,6 +46,6 @@
 		} else if (mq && 'addListener' in mq) {
 			mq.addListener(applyBadges);
 		}
-	}catch(_){/* no-op */}
+	}catch(_){}
 })();
 
