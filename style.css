@@ -199,6 +199,9 @@ main.app-main {
 	gap: .7rem;
 	margin-bottom: 1.2rem;
 }
+/* Subtelny gradient dla kart kHandel, gdy produkt jest niestandardowy */
+.card.custom-prod{position:relative;}
+.card.custom-prod::before{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;background:linear-gradient(135deg,rgba(252,84,252,.06),rgba(252,84,252,.03));}
 .khandel-list .form-item-btn {
 	width: 100%;
 	text-align: left;
@@ -239,6 +242,12 @@ input[readonly]:focus, textarea[readonly]:focus {
 *,*::before,*::after{box-sizing:border-box;}
 html{font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Arial,sans-serif;font-size:16px;-webkit-font-smoothing:antialiased;}
 body{margin:0;min-height:100dvh;display:flex;flex-direction:column;background:var(--bg);color:var(--text);transition:background .5s,color .5s;}
+
+/* Niestandardowe przedmioty (custom item) – fioletowy akcent */
+.title--custom{color:#FC54FC !important; text-shadow:0 0 4px rgba(252,84,252,.35);} 
+.price-chip--custom span{color:#FC54FC;}
+.price-chip--custom{background:linear-gradient(135deg,rgba(252,84,252,.18),rgba(180,40,180,.12)); box-shadow:none;}
+
 
 /* PWA install banner */
 .pwa-banner{position:fixed;left:50%;right:auto;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 12px);z-index:60;display:none;align-items:center;gap:.8rem;border:1px solid var(--border);border-radius:16px;background:linear-gradient(145deg,var(--bg-elev),var(--bg-alt));box-shadow:var(--shadow);padding:.7rem .8rem;backdrop-filter:saturate(140%) blur(8px);-webkit-backdrop-filter:saturate(140%) blur(8px);width:min(760px,calc(100% - 24px));} 

@@ -815,6 +815,8 @@ function openShopPanel(shopId){
           span.textContent = `${displayName} ×${price.qty||1}`;
           chip.title = `${label}: ${displayName} ×${price.qty||1}`;
           chip.appendChild(img); chip.appendChild(span); prices.appendChild(chip);
+          // Fioletowa cena tylko gdy sama cena (price) jest niestandardowa, nie gdy cały produkt jest custom
+          if(price?.customItem === true){ chip.classList.add('price-chip--custom'); }
         }
         addPrice('Cena 1', p.price1); addPrice('Cena 2', p.price2);
         row.appendChild(prices);
@@ -882,7 +884,8 @@ function renderShopOffersInResults(shop, query){
     const start = resOffset; const end = Math.min(start + PAGE_RESULTS, filtered.length);
     for(let i=start;i<end;i++){
       const p = filtered[i];
-      const item = document.createElement('div'); item.className='point-result-item shop-offer-item'; item.setAttribute('data-shop-id', shop.id);
+  const item = document.createElement('div'); item.className='point-result-item shop-offer-item'; item.setAttribute('data-shop-id', shop.id);
+  if(p?.product?.customItem === true){ item.classList.add('is-custom-product'); }
       const productRow = document.createElement('div'); productRow.className='product-line';
       const prodKey = (p.product?.item || p.product?.name || p.productName || p.productNameEn || '').toLowerCase();
       if(prodKey){ const prodIcon = createPriceIcon(prodKey, 18); prodIcon.className = 'product-icon'; productRow.appendChild(prodIcon); }
@@ -901,6 +904,8 @@ function renderShopOffersInResults(shop, query){
         const displayName = pickPriceDisplayName(price);
         span.textContent = `${displayName} ×${price.qty||1}`;
         chip.appendChild(img); chip.appendChild(span); prices.appendChild(chip);
+  // W wynikach wyszukiwania: kolor ceny tylko jeśli price.customItem === true
+  if(price?.customItem === true){ chip.classList.add('price-chip--custom'); }
       });
       item.appendChild(prices);
       listWrap.appendChild(item);

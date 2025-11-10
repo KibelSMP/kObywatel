@@ -202,6 +202,7 @@ function renderFilteredProducts() {
   filtered.forEach(p => {
     const card = document.createElement('div');
     card.className = 'card fade-in';
+    if(p?.product?.customItem === true){ card.classList.add('custom-prod'); }
     const row = document.createElement('div'); row.className='row';
     const icon = createIcon(p.product.item, 48, !!p.product.enchanted);
     row.appendChild(icon);
@@ -285,6 +286,7 @@ function renderFilteredProducts() {
       chip.title = displayName + ' ('+label+')';
       chip.appendChild(span);
       pricesBox.appendChild(chip);
+      if(price?.customItem === true){ chip.classList.add('price-chip--custom'); }
     }
     addPrice('Cena 1', p.price1);
     addPrice('Cena 2', p.price2);
@@ -418,6 +420,7 @@ function renderHierarchy(){
   offers.forEach(p => {
     const card = document.createElement('div');
     card.className = 'card fade-in';
+    if(p?.product?.customItem === true){ card.classList.add('custom-prod'); }
     const row = document.createElement('div'); row.className='row';
     const icon = createIcon(p.product.item, 48, !!p.product.enchanted);
     row.appendChild(icon);
@@ -489,6 +492,7 @@ function renderHierarchy(){
       chip.title = displayName + ' ('+label+')';
       chip.appendChild(span);
       pricesBox.appendChild(chip);
+      if(price?.customItem === true){ chip.classList.add('price-chip--custom'); }
     }
     addPrice('Cena 1', p.price1);
     addPrice('Cena 2', p.price2);
