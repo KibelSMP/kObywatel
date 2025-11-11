@@ -1,42 +1,34 @@
-// kHandel moduł – refaktoryzacja: domyślnie lista wszystkich ofert, grupowanie, wyszukiwanie także w cenach, filtr ilości.
-// Kontrakt danych (pojedyncza oferta): {
-//   product: { item, qty, enchanted?, customItem? },
-//   productName?, productNameEn?, storeName?, storeLocation?, storeOwner?, x?, y?, z?, notes?,
-//   price1?: { item, qty, name?, nameEn?, enchanted?, customItem? },
-//   price2?: { ... }
-// }
-
-// --- Stan aplikacji ---
 let currentLang = (localStorage.getItem('khandelLang') || 'pl');
 let allProducts = [];
-let selectedStore = ''; // używane przy przejściu z widoku sklepów do listy ofert konkretnego sklepu
+let selectedStore = '';
 let searchQuery = '';
-let priceSearch = false; // czy przeszukiwać także nazwy walut (przedmiotów w cenach)
+let priceSearch = false;
 let priceMin = '';
 let priceMax = '';
-let groupMode = 'none'; // none | city | store
+let groupMode = 'none';
 const PAGE_SIZE = 60; // batch render dla płaskiej listy
 
-// --- Elementy DOM ---
-// Breadcrumb usunięty wg wymagań użytkownika
+// Elementy DOM
 const breadcrumbEl = null;
 const productsEl = document.getElementById('khandel-products');
 const emptyEl = document.getElementById('empty');
 const langToggle = document.getElementById('lang-toggle');
+const langToggleFloat = document.getElementById('lang-toggle-float');
 const searchInput = document.getElementById('khandel-search');
 let filterLocation = document.getElementById('khandel-filter-location');
 let filterStore = document.getElementById('khandel-filter-store');
-// Po usunięciu selectów z toolbaru zachowujemy wewnętrzny stan w ukrytych inputach
 if(!filterLocation){ filterLocation = document.createElement('input'); filterLocation.type='hidden'; filterLocation.id='khandel-filter-location'; document.body.appendChild(filterLocation); }
 if(!filterStore){ filterStore = document.createElement('input'); filterStore.type='hidden'; filterStore.id='khandel-filter-store'; document.body.appendChild(filterStore); }
 const clearSearchBtn = document.getElementById('khandel-clear-search');
 const priceSearchToggle = document.getElementById('khandel-price-toggle');
 const priceToggleLabel = document.getElementById('khandel-price-toggle-label');
 const doSearchBtn = document.getElementById('khandel-do-search');
+const mobileSearchInput = document.getElementById('khandel-search-mobile');
+const mobileClearBtn = document.getElementById('khandel-clear-search-mobile');
+const priceToggleMobile = document.getElementById('khandel-price-toggle-mobile');
 const groupNoneBottomBtn = document.getElementById('group-none-bottom');
 const groupCityBottomBtn = document.getElementById('group-city-bottom');
 const groupStoreBottomBtn = document.getElementById('group-store-bottom');
-// Górny blok segmentów został usunięty – pozostają tylko dolne przyciski
 const groupNoneBtn = null;
 const groupCityBtn = null;
 const groupStoreBtn = null;
@@ -76,7 +68,6 @@ function computeSearchPlaceholder(){
     if(groupMode==='store' && sto){ return priceSearch? `Search in store ${sto}… or currency` : `Search in store ${sto}…`; }
     return priceSearch? 'Search item… or currency' : 'Search item…';
   }
-  // pl
   if(groupMode==='city' && loc){ return priceSearch? `Szukaj w mieście ${loc}… lub waluty` : `Szukaj w mieście ${loc}…`; }
   if(groupMode==='store' && sto){ return priceSearch? `Szukaj w sklepie ${sto}… lub waluty` : `Szukaj w sklepie ${sto}…`; }
   return priceSearch? 'Szukaj przedmiotu… lub waluty' : 'Szukaj przedmiotu…';
@@ -84,6 +75,7 @@ function computeSearchPlaceholder(){
 function updatePriceToggleVisual(){
   if(priceToggleLabel){ priceToggleLabel.setAttribute('aria-pressed', priceSearch? 'true':'false'); }
   if(searchInput){ searchInput.placeholder = computeSearchPlaceholder(); }
+  if(priceToggleMobile){ priceToggleMobile.setAttribute('aria-pressed', priceSearch? 'true':'false'); }
 }
 function setGroupMode(mode){ groupMode = mode; setGroupPressed(); updatePriceToggleVisual(); }
 
@@ -171,7 +163,7 @@ function passSearch(p, q){
   return false;
 }
 function passAmount(pr){
-  if(!pr) return false; // dla logiki: jeśli żadna cena nie spełnia, oferta odpada
+  if(!pr) return false;
   const minOk = priceMin==='' || (typeof pr.qty==='number' && pr.qty >= Number(priceMin));
   const maxOk = priceMax==='' || (typeof pr.qty==='number' && pr.qty <= Number(priceMax));
   return minOk && maxOk;
@@ -182,7 +174,6 @@ function filterBase(mode='none'){
   const loc = filterLocation.value;
   const store = filterStore.value;
   const q = searchInput.value.trim();
-  // trybowy wybór filtrów lokalizacja/sklep
   if(mode==='city'){
     if(loc) list = list.filter(p=>p.storeLocation===loc);
   } else if(mode==='store'){
@@ -195,7 +186,6 @@ function filterBase(mode='none'){
   if(priceMin!=='' || priceMax!==''){
     list = list.filter(p => passAmount(p.price1) || passAmount(p.price2));
   }
-  // Aktywność przycisku czyszczenia wyszukiwania – tylko gdy jest zapytanie
   if(typeof clearSearchBtn !== 'undefined' && clearSearchBtn){
     if(q) clearSearchBtn.classList.add('active'); else clearSearchBtn.classList.remove('active');
   }
@@ -240,7 +230,6 @@ function createOfferCard(p, includeMeta=true){
   return card;
 }
 
-// Notatki – rozwijanie
 function createNotesElement(text){
   const MAX = 180; const full = String(text||'');
   const wrap = document.createElement('div'); wrap.className='notes-block'; wrap.style.marginTop='.45rem'; wrap.style.fontSize='.55rem'; wrap.style.lineHeight='1.35'; wrap.style.whiteSpace='pre-wrap'; wrap.style.opacity='.85';
@@ -252,7 +241,6 @@ function createNotesElement(text){
   wrap.appendChild(span); wrap.appendChild(document.createElement('br')); wrap.appendChild(btn); return wrap;
 }
 
-// --- Render płaskiej listy z paginacją ---
 function renderFlat(list){
   productsEl.classList.remove('grid');
   productsEl.classList.remove('offers-grid');
@@ -277,13 +265,11 @@ function renderFlat(list){
   }
 }
 
-// Lista miast jako przyciski nawigacyjne
 function renderGroupByCity(list){
   productsEl.classList.remove('offers-grid');
   productsEl.innerHTML='';
   const selectedCity = filterLocation.value;
   if(!selectedCity){
-    // Widok 1: siatka miast
     const head = document.createElement('h3'); head.textContent = 'Miasta'; head.style.fontSize='.8rem'; head.style.letterSpacing='.5px'; head.style.opacity='.85'; head.style.margin='0 0 .5rem';
     productsEl.appendChild(head);
     const cityMap = list.reduce((m,p)=>{ const c = p.storeLocation || '—'; (m[c] ||= 0); m[c]++; return m; },{});
@@ -297,7 +283,6 @@ function renderGroupByCity(list){
     productsEl.appendChild(gridWrap);
     productsEl.hidden=false; emptyEl.hidden=true; return;
   }
-  // Widok 2: oferty dla wybranego miasta
   const topBar = document.createElement('div'); topBar.className='offers-topbar';
   const back = document.createElement('button'); back.type='button'; back.className='mini-btn grid-switch-back'; back.innerHTML='‹ Wstecz'; back.addEventListener('click',()=>{ filterLocation.value=''; setGroupMode('city'); renderAll(); });
   const title = document.createElement('h3'); title.textContent = `Miasto: ${selectedCity}`;
@@ -318,13 +303,11 @@ function renderGroupByCity(list){
   productsEl.hidden=false; emptyEl.hidden=true;
 }
 
-// --- Render grupowania po sklepie ---
 function renderGroupByStore(list){
   productsEl.classList.remove('offers-grid');
   productsEl.innerHTML='';
   const selectedStoreName = filterStore.value;
   if(!selectedStoreName){
-    // Widok 1: siatka sklepów
     const head = document.createElement('h3'); head.textContent = 'Sklepy'; head.style.fontSize='.8rem'; head.style.letterSpacing='.5px'; head.style.opacity='.85'; head.style.margin='0 0 .5rem';
     productsEl.appendChild(head);
     const byStore = list.reduce((m,p)=>{ const k=p.storeName||'Sklep'; (m[k] ||= 0); m[k]++; return m; },{});
@@ -338,7 +321,6 @@ function renderGroupByStore(list){
     productsEl.appendChild(gridWrap);
     productsEl.hidden=false; emptyEl.hidden=true; return;
   }
-  // Widok 2: oferty dla wybranego sklepu
   const topBar = document.createElement('div'); topBar.className='offers-topbar';
   const back = document.createElement('button'); back.type='button'; back.className='mini-btn grid-switch-back'; back.innerHTML='‹ Wstecz'; back.addEventListener('click',()=>{ filterStore.value=''; setGroupMode('store'); renderAll(); });
   const title = document.createElement('h3'); title.textContent = `Sklep: ${selectedStoreName}`;
@@ -360,7 +342,7 @@ function renderGroupByStore(list){
 }
 
 // --- Breadcrumb (aktualnie uproszczony) ---
-function renderBreadcrumb(){ /* noop – breadcrumb usunięty */ }
+function renderBreadcrumb(){}
 
 // --- Główny render według trybu ---
 function renderAll(){
@@ -372,8 +354,40 @@ function renderAll(){
 
 // --- Zdarzenia ---
 function attachEvents(){
-  if(langToggle){ langToggle.textContent = currentLang==='pl'? 'PL 🇵🇱':'EN 🇬🇧'; langToggle.addEventListener('click',()=>{ currentLang = currentLang==='pl'? 'en':'pl'; localStorage.setItem('khandelLang', currentLang); langToggle.textContent = currentLang==='pl'? 'PL 🇵🇱':'EN 🇬🇧'; updatePriceToggleVisual(); renderAll(); }); }
+  const applyLangLabel = (btn)=>{ if(!btn) return; btn.textContent = currentLang==='pl'? 'PL 🇵🇱':'EN 🇬🇧'; };
+  const switchLang = ()=>{ currentLang = currentLang==='pl'? 'en':'pl'; localStorage.setItem('khandelLang', currentLang); applyLangLabel(langToggle); applyLangLabel(langToggleFloat); updatePriceToggleVisual(); renderAll(); };
+  const applyMobilePriceLabel = ()=>{ if(priceToggleMobile){ priceToggleMobile.textContent = currentLang==='pl'? 'Szukaj w cenach' : 'Search currency'; } };
+  applyMobilePriceLabel();
+  const _origSwitchLang = switchLang;
+  const _switchLangWrapped = ()=>{ _origSwitchLang(); applyMobilePriceLabel(); };
+  if(langToggle){ langToggle.removeEventListener('click', switchLang); langToggle.addEventListener('click', _switchLangWrapped); }
+  if(langToggleFloat){ langToggleFloat.removeEventListener('click', switchLang); langToggleFloat.addEventListener('click', _switchLangWrapped); }
+  applyLangLabel(langToggle); applyLangLabel(langToggleFloat);
+  if(langToggle){ langToggle.addEventListener('click', switchLang); }
+  if(langToggleFloat){ langToggleFloat.addEventListener('click', switchLang); }
   if(searchInput){ searchInput.placeholder = computeSearchPlaceholder(); searchInput.addEventListener('input', ()=>{ renderAll(); }); }
+  if(mobileSearchInput){ mobileSearchInput.placeholder = computeSearchPlaceholder(); }
+  const syncInputs = (from, to)=>{ if(!from || !to) return; to.value = from.value; };
+  if(searchInput && mobileSearchInput){
+    searchInput.addEventListener('input', ()=>{ syncInputs(searchInput, mobileSearchInput); if(mobileClearBtn){ mobileClearBtn.classList.toggle('active', !!searchInput.value.trim()); } });
+    mobileSearchInput.addEventListener('input', ()=>{ 
+      syncInputs(mobileSearchInput, searchInput); 
+      const hasQ = !!mobileSearchInput.value.trim();
+      if(clearSearchBtn){ clearSearchBtn.classList.toggle('active', hasQ); }
+      if(mobileClearBtn){ mobileClearBtn.classList.toggle('active', hasQ); }
+      const wrapper = mobileSearchInput.closest('.khandel-bottom-search');
+      if(wrapper){ wrapper.classList.toggle('has-query', hasQ); }
+      renderAll();
+    });
+    mobileSearchInput.addEventListener('focus', ()=>{ const wrapper = mobileSearchInput.closest('.khandel-bottom-search'); if(wrapper){ wrapper.classList.add('has-query'); } });
+    mobileSearchInput.addEventListener('blur', ()=>{ const wrapper = mobileSearchInput.closest('.khandel-bottom-search'); if(wrapper && !mobileSearchInput.value.trim()){ wrapper.classList.remove('has-query'); } });
+    const _updatePlaceholders = ()=>{
+      const ph = computeSearchPlaceholder();
+      searchInput.placeholder = ph; mobileSearchInput.placeholder = ph;
+    };
+    const _origUpdatePriceToggleVisual = updatePriceToggleVisual;
+    updatePriceToggleVisual = function(){ _origUpdatePriceToggleVisual(); if(mobileSearchInput){ mobileSearchInput.placeholder = computeSearchPlaceholder(); } };
+  }
   if(searchInput){
     searchInput.addEventListener('input', ()=>{
       if(clearSearchBtn){ clearSearchBtn.classList.toggle('active', !!searchInput.value.trim()); }
@@ -384,21 +398,30 @@ function attachEvents(){
     });
   }
   if(doSearchBtn){ doSearchBtn.addEventListener('click', ()=>{ renderAll(); requestAnimationFrame(()=> scrollToProducts()); }); }
-  // Selecty usunięte – jeśli kiedyś wrócą, zdarzenia zadziałają warunkowo
   if(filterLocation && filterLocation.tagName==='SELECT'){ filterLocation.addEventListener('change', ()=>{ updateStoreFilter(); filterStore.value=''; renderAll(); }); }
   if(filterStore && filterStore.tagName==='SELECT'){ filterStore.addEventListener('change', ()=>{ renderAll(); }); }
   if(clearSearchBtn){ clearSearchBtn.addEventListener('click', ()=>{
     searchInput.value=''; renderAll(); searchInput.focus();
     clearSearchBtn.classList.remove('active');
   }); }
+  if(mobileClearBtn){ mobileClearBtn.addEventListener('click', ()=>{
+    mobileSearchInput.value=''; syncInputs(mobileSearchInput, searchInput); renderAll(); mobileSearchInput.focus();
+    mobileClearBtn.classList.remove('active'); if(clearSearchBtn) clearSearchBtn.classList.remove('active');
+  }); }
   if(priceSearchToggle){ priceSearchToggle.addEventListener('change', ()=>{ priceSearch = !!priceSearchToggle.checked; updatePriceToggleVisual(); renderAll(); }); }
+  if(priceToggleMobile){ priceToggleMobile.addEventListener('click', ()=>{ priceSearch = !priceSearch; if(priceSearchToggle){ priceSearchToggle.checked = priceSearch; } updatePriceToggleVisual(); renderAll(); }); }
   if(groupNoneBtn){ groupNoneBtn.addEventListener('click', ()=>{ setGroupMode('none'); renderAll(); }); }
   if(groupCityBtn){ groupCityBtn.addEventListener('click', ()=>{ filterStore.value=''; setGroupMode('city'); renderAll(); }); }
   if(groupStoreBtn){ groupStoreBtn.addEventListener('click', ()=>{ filterLocation.value=''; setGroupMode('store'); renderAll(); }); }
   if(groupNoneBottomBtn){ groupNoneBottomBtn.addEventListener('click', ()=>{ setGroupMode('none'); renderAll(); }); }
   if(groupCityBottomBtn){ groupCityBottomBtn.addEventListener('click', ()=>{ filterStore.value=''; setGroupMode('city'); renderAll(); }); }
   if(groupStoreBottomBtn){ groupStoreBottomBtn.addEventListener('click', ()=>{ filterLocation.value=''; setGroupMode('store'); renderAll(); }); }
-  // Klawiatura dla listy kart (ARIA tablist)
+  if(mobileSearchInput){
+    mobileSearchInput.addEventListener('keydown',(e)=>{
+      if(e.key==='Enter'){ e.preventDefault(); syncInputs(mobileSearchInput, searchInput); renderAll(); requestAnimationFrame(()=> scrollToProducts()); }
+      else if(e.key==='Escape'){ if(mobileSearchInput.value){ mobileSearchInput.value=''; syncInputs(mobileSearchInput, searchInput); renderAll(); } }
+    });
+  }
   if(segmented){
     const tabs = [groupNoneBtn, groupCityBtn, groupStoreBtn].filter(Boolean);
     segmented.addEventListener('keydown',(e)=>{
@@ -418,7 +441,6 @@ function attachEvents(){
   }
 }
 
-// --- Ładowanie ---
 async function load(){
   try {
     const list = await window.__db.fetchJson('data/khandel-products.json');
