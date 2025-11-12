@@ -6,9 +6,8 @@ let priceSearch = false;
 let priceMin = '';
 let priceMax = '';
 let groupMode = 'none';
-const PAGE_SIZE = 60; // batch render dla płaskiej listy
+const PAGE_SIZE = 60;
 
-// Elementy DOM
 const breadcrumbEl = null;
 const productsEl = document.getElementById('khandel-products');
 const emptyEl = document.getElementById('empty');
@@ -37,13 +36,25 @@ const segmented = null;
 // --- Funkcje pomocnicze językowe ---
 function pickName(obj, fallback){
   if(!obj) return fallback;
-  if(currentLang==='en' && obj.nameEn) return obj.nameEn;
-  if(currentLang==='pl' && obj.name) return obj.name;
-  return obj.nameEn || obj.name || fallback;
+  const rawName = obj.name || obj.namePl || obj.namePL || obj.name_pl;
+  const rawEn = obj.nameEn || obj.nameEN || obj.name_en;
+  if(currentLang==='en'){
+    if(rawEn){
+      return rawEn;
+    }
+    return rawName || fallback;
+  } else {
+    return rawName || rawEn || fallback;
+  }
 }
 function pickRootName(entry){
-  if(currentLang==='en') return entry.productNameEn || entry.productName || (entry.product?.nameEn) || (entry.product?.name) || (entry.product?.item);
-  return entry.productName || entry.productNameEn || (entry.product?.name) || (entry.product?.nameEn) || (entry.product?.item);
+  const p = entry.product || {};
+  const plName = entry.productName || p.name || p.namePl || p.namePL || p.name_pl;
+  const enName = entry.productNameEn || p.nameEn || p.nameEN || p.name_en;
+  if(currentLang==='en'){
+    return enName || plName || p.item || '—';
+  }
+  return plName || enName || p.item || '—';
 }
 
 // --- Grupowanie ---
@@ -355,18 +366,33 @@ function renderAll(){
 // --- Zdarzenia ---
 function attachEvents(){
   const applyLangLabel = (btn)=>{ if(!btn) return; btn.textContent = currentLang==='pl'? 'PL 🇵🇱':'EN 🇬🇧'; };
-  const switchLang = ()=>{ currentLang = currentLang==='pl'? 'en':'pl'; localStorage.setItem('khandelLang', currentLang); applyLangLabel(langToggle); applyLangLabel(langToggleFloat); updatePriceToggleVisual(); renderAll(); };
   const applyMobilePriceLabel = ()=>{ if(priceToggleMobile){ priceToggleMobile.textContent = currentLang==='pl'? 'Szukaj w cenach' : 'Search currency'; } };
-  applyMobilePriceLabel();
-  const _origSwitchLang = switchLang;
-  const _switchLangWrapped = ()=>{ _origSwitchLang(); applyMobilePriceLabel(); };
-  if(langToggle){ langToggle.removeEventListener('click', switchLang); langToggle.addEventListener('click', _switchLangWrapped); }
-  if(langToggleFloat){ langToggleFloat.removeEventListener('click', switchLang); langToggleFloat.addEventListener('click', _switchLangWrapped); }
-  applyLangLabel(langToggle); applyLangLabel(langToggleFloat);
-  if(langToggle){ langToggle.addEventListener('click', switchLang); }
-  if(langToggleFloat){ langToggleFloat.addEventListener('click', switchLang); }
-  if(searchInput){ searchInput.placeholder = computeSearchPlaceholder(); searchInput.addEventListener('input', ()=>{ renderAll(); }); }
-  if(mobileSearchInput){ mobileSearchInput.placeholder = computeSearchPlaceholder(); }
+  const updateAllLangUI = ()=>{
+    applyLangLabel(langToggle); applyLangLabel(langToggleFloat);
+    applyMobilePriceLabel();
+    if(searchInput){ searchInput.placeholder = computeSearchPlaceholder(); }
+    if(mobileSearchInput){ mobileSearchInput.placeholder = computeSearchPlaceholder(); }
+    updatePriceToggleVisual();
+  };
+  const applyLangDataAttr = ()=>{ try { document.documentElement.setAttribute('data-lang', currentLang); } catch(_){} };
+  const switchLang = ()=>{
+    currentLang = currentLang==='pl'? 'en':'pl';
+    localStorage.setItem('khandelLang', currentLang);
+    applyLangDataAttr();
+    updateAllLangUI();
+    renderAll();
+  };
+  // Inicjalny stan UI językowego
+  applyLangDataAttr();
+  updateAllLangUI();
+  // Podłącz jeden, spójny handler do obu przycisków
+  if(langToggle){ langToggle.replaceWith(langToggle.cloneNode(true)); }
+  if(langToggleFloat){ langToggleFloat.replaceWith(langToggleFloat.cloneNode(true)); }
+  const _langToggle = document.getElementById('lang-toggle');
+  const _langToggleFloat = document.getElementById('lang-toggle-float');
+  if(_langToggle){ _langToggle.addEventListener('click', switchLang); }
+  if(_langToggleFloat){ _langToggleFloat.addEventListener('click', switchLang); }
+  if(searchInput){ searchInput.addEventListener('input', ()=>{ renderAll(); }); }
   const syncInputs = (from, to)=>{ if(!from || !to) return; to.value = from.value; };
   if(searchInput && mobileSearchInput){
     searchInput.addEventListener('input', ()=>{ syncInputs(searchInput, mobileSearchInput); if(mobileClearBtn){ mobileClearBtn.classList.toggle('active', !!searchInput.value.trim()); } });
@@ -380,13 +406,7 @@ function attachEvents(){
       renderAll();
     });
     mobileSearchInput.addEventListener('focus', ()=>{ const wrapper = mobileSearchInput.closest('.khandel-bottom-search'); if(wrapper){ wrapper.classList.add('expanded'); } });
-    // Usuwamy logikę blur, zamykanie będzie sterowane centralnie (klik poza/scroll/zmiana zakładki)
-    const _updatePlaceholders = ()=>{
-      const ph = computeSearchPlaceholder();
-      searchInput.placeholder = ph; mobileSearchInput.placeholder = ph;
-    };
-    const _origUpdatePriceToggleVisual = updatePriceToggleVisual;
-    updatePriceToggleVisual = function(){ _origUpdatePriceToggleVisual(); if(mobileSearchInput){ mobileSearchInput.placeholder = computeSearchPlaceholder(); } };
+    // Aktualizacja placeholderów jest scentralizowana w updateAllLangUI + updatePriceToggleVisual
   }
   if(searchInput){
     searchInput.addEventListener('input', ()=>{
