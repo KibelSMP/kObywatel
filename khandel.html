@@ -187,6 +187,12 @@
       mask-size: 100% 100%;
       -webkit-mask-repeat: no-repeat;
       mask-repeat: no-repeat;
+      background-image: url('/icns_ui/enchanted_glint_item.png');
+      background-size: 256px 256px;
+      background-repeat: repeat;
+      image-rendering: pixelated;
+      animation: glintTexture 6s linear infinite, glintPulse 2.8s ease-in-out infinite;
+      opacity: .5;
     }
 
     @keyframes glintShift {
@@ -227,6 +233,11 @@
       100% {
         transform: translate(0, 0);
       }
+    }
+
+    @keyframes glintTexture {
+      0% { background-position: 0 0; }
+      100% { background-position: 256px 256px; }
     }
 
     @media (prefers-reduced-motion:reduce) {
@@ -469,8 +480,7 @@
       }
     }
 
-    .app-shell:has(.khandel-bottom-search:focus-within) #lang-toggle-float,
-    .app-shell:has(.khandel-bottom-search.has-query) #lang-toggle-float {
+    .app-shell:has(.khandel-bottom-search.expanded) #lang-toggle-float {
       bottom: calc(12.5rem + env(safe-area-inset-bottom, 0px));
     }
 
@@ -999,11 +1009,7 @@
         border-radius: 0
       }
 
-      .khandel-bottom-search:focus-within .price-toggle-mobile {
-        display: inline-flex
-      }
-
-      .khandel-bottom-search.has-query .price-toggle-mobile {
+      .khandel-bottom-search.expanded .price-toggle-mobile {
         display: inline-flex
       }
 
@@ -1028,8 +1034,7 @@
         margin-bottom: calc(5rem + env(safe-area-inset-bottom, 0px));
       }
 
-      .app-shell:has(.khandel-bottom-search:focus-within) .app-main,
-      .app-shell:has(.khandel-bottom-search.has-query) .app-main {
+      .app-shell:has(.khandel-bottom-search.expanded) .app-main {
         margin-bottom: calc(6.5rem + env(safe-area-inset-bottom, 0px));
       }
     }

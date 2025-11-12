@@ -1,9 +1,3 @@
----
-tagi:
-  - ZTK
-autor: Miersetnik
-pdf: /Loty_samolotami.pdf
----
 # Poradnik: Loty samolotami
 
 Loty samolotem są szybką, ekonomiczną i ekologiczną formą transportu. Jak z niej korzystać?

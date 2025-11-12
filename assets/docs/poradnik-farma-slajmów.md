@@ -1,8 +1,3 @@
----
-tagi:
-  - Poradniki
-autor: Ketrab
----
 # Poradnik: Farma Slajmów
 
 **Możliwość pozyskania:**

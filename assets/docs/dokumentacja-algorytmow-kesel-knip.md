@@ -1,9 +1,3 @@
----
-tagi:
-  - kObywatel
-autor: Miersetnik
-pdf: /Dokumentacja_algorytmów_generowania_kodów_KESEL_i_KNIP.pdf
----
 # Dokumentacja algorytmów generowania kodów KESEL i KNIP
 
 ## **1. Algorytm generowania numeru KESEL**

@@ -1,8 +1,3 @@
----
-tagi:
-  - Poradniki
-autor: Ketrab
----
 # Poradnik: Kopalnia piachu "Kekałtów"
 
 **Możliwość pozyskania:**

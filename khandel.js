@@ -376,11 +376,11 @@ function attachEvents(){
       if(clearSearchBtn){ clearSearchBtn.classList.toggle('active', hasQ); }
       if(mobileClearBtn){ mobileClearBtn.classList.toggle('active', hasQ); }
       const wrapper = mobileSearchInput.closest('.khandel-bottom-search');
-      if(wrapper){ wrapper.classList.toggle('has-query', hasQ); }
+      if(wrapper && hasQ){ wrapper.classList.add('expanded'); }
       renderAll();
     });
-    mobileSearchInput.addEventListener('focus', ()=>{ const wrapper = mobileSearchInput.closest('.khandel-bottom-search'); if(wrapper){ wrapper.classList.add('has-query'); } });
-    mobileSearchInput.addEventListener('blur', ()=>{ const wrapper = mobileSearchInput.closest('.khandel-bottom-search'); if(wrapper && !mobileSearchInput.value.trim()){ wrapper.classList.remove('has-query'); } });
+    mobileSearchInput.addEventListener('focus', ()=>{ const wrapper = mobileSearchInput.closest('.khandel-bottom-search'); if(wrapper){ wrapper.classList.add('expanded'); } });
+    // Usuwamy logikę blur, zamykanie będzie sterowane centralnie (klik poza/scroll/zmiana zakładki)
     const _updatePlaceholders = ()=>{
       const ph = computeSearchPlaceholder();
       searchInput.placeholder = ph; mobileSearchInput.placeholder = ph;
@@ -414,8 +414,8 @@ function attachEvents(){
   if(groupCityBtn){ groupCityBtn.addEventListener('click', ()=>{ filterStore.value=''; setGroupMode('city'); renderAll(); }); }
   if(groupStoreBtn){ groupStoreBtn.addEventListener('click', ()=>{ filterLocation.value=''; setGroupMode('store'); renderAll(); }); }
   if(groupNoneBottomBtn){ groupNoneBottomBtn.addEventListener('click', ()=>{ setGroupMode('none'); renderAll(); }); }
-  if(groupCityBottomBtn){ groupCityBottomBtn.addEventListener('click', ()=>{ filterStore.value=''; setGroupMode('city'); renderAll(); }); }
-  if(groupStoreBottomBtn){ groupStoreBottomBtn.addEventListener('click', ()=>{ filterLocation.value=''; setGroupMode('store'); renderAll(); }); }
+  if(groupCityBottomBtn){ groupCityBottomBtn.addEventListener('click', ()=>{ filterStore.value=''; setGroupMode('city'); renderAll(); collapseMobileSearch(); }); }
+  if(groupStoreBottomBtn){ groupStoreBottomBtn.addEventListener('click', ()=>{ filterLocation.value=''; setGroupMode('store'); renderAll(); collapseMobileSearch(); }); }
   if(mobileSearchInput){
     mobileSearchInput.addEventListener('keydown',(e)=>{
       if(e.key==='Enter'){ e.preventDefault(); syncInputs(mobileSearchInput, searchInput); renderAll(); requestAnimationFrame(()=> scrollToProducts()); }
@@ -440,6 +440,47 @@ function attachEvents(){
     });
   }
 }
+
+// Zarządzanie rozwinięciem dolnego paska wyszukiwania (klasa .expanded)
+function getBottomSearchWrapper(){ return document.querySelector('.khandel-bottom-search'); }
+function expandMobileSearch(){ const w = getBottomSearchWrapper(); if(w) w.classList.add('expanded'); }
+function collapseMobileSearch(){ const w = getBottomSearchWrapper(); if(w) w.classList.remove('expanded'); }
+
+// Globalne zdarzenia do zamykania: klik poza, scroll, zmiana zakładki już wywołuje collapse w handlerach powyżej
+document.addEventListener('click', (e)=>{
+  const w = getBottomSearchWrapper();
+  if(!w) return;
+  if(w.contains(e.target)){ // klik w obrębie – utrzymujemy expanded
+    w.classList.add('expanded');
+  } else {
+    collapseMobileSearch();
+  }
+});
+
+// Blokada zwijania podczas interakcji z dolnym paskiem (np. schowanie klawiatury wywołuje scroll)
+let _scrollTimeout=null;
+let _bottomSearchLock=false;
+let _unlockTimer=null;
+function lockBottomSearch(ms=800){
+  _bottomSearchLock = true;
+  if(_unlockTimer) clearTimeout(_unlockTimer);
+  _unlockTimer = setTimeout(()=>{ _bottomSearchLock=false; }, ms);
+}
+const _bsw = getBottomSearchWrapper();
+if(_bsw){
+  _bsw.addEventListener('pointerdown', ()=>{ lockBottomSearch(900); }, { passive: true });
+  _bsw.addEventListener('touchstart', ()=>{ lockBottomSearch(900); }, { passive: true });
+  _bsw.addEventListener('focusin', ()=>{ expandMobileSearch(); lockBottomSearch(900); });
+}
+
+window.addEventListener('scroll', ()=>{
+  if(_scrollTimeout) return;
+  _scrollTimeout = setTimeout(()=>{
+    _scrollTimeout=null;
+    if(_bottomSearchLock) return; // ignoruj scroll tuż po dotyku w panelu
+    collapseMobileSearch();
+  }, 80);
+}, { passive: true });
 
 async function load(){
   try {
