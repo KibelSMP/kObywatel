@@ -742,13 +742,33 @@ function maybeUpdateShopClusters(){
 
 const __MC_VER = '1.20.4';
 const __MC_BASE = `https://cdn.jsdelivr.net/gh/InventivetalentDev/minecraft-assets@${__MC_VER}/assets/minecraft/textures`;
-function createPriceIcon(item, size=18){
+// Ikona przedmiotu z opcjonalnym efektem enchant (glint) – zgodnie z kHandel
+function createMcIcon(item, size=18, enchanted=false){
+  const wrap = document.createElement('div');
+  wrap.className = 'item-icon' + (enchanted? ' enchanted':'');
+  wrap.style.width = size+'px';
+  wrap.style.height = size+'px';
+  wrap.classList.add('loading');
+  const img = document.createElement('img');
+  img.loading='lazy'; img.decoding='async'; img.alt = String(item||'');
+  wrap.appendChild(img);
+  let overlay = null;
+  if(enchanted){ overlay = document.createElement('div'); overlay.className='ench-overlay'; wrap.appendChild(overlay); }
   const safe = String(item||'').toLowerCase();
   const stages = [ `/mc-items/${encodeURIComponent(safe)}.png`, `${__MC_BASE}/item/${encodeURIComponent(safe)}.png`, `${__MC_BASE}/block/${encodeURIComponent(safe)}.png`, `${__MC_BASE}/item/barrier.png` ];
-  const img = document.createElement('img'); img.width=size; img.height=size; img.alt=''; img.loading='lazy'; img.decoding='async';
-  let i=0; img.src = stages[i];
-  img.onerror = ()=>{ if(i < stages.length-1){ i++; img.src = stages[i]; } };
-  return img;
+  let i=0;
+  function apply(){ img.src = stages[i]; }
+  img.addEventListener('load', ()=>{
+    wrap.classList.remove('loading');
+    if(i===3){ img.style.opacity = '.55'; }
+    if(enchanted && overlay){
+      const url = `url(${img.src})`;
+      overlay.style.maskImage = url; overlay.style.webkitMaskImage = url; wrap.classList.add('masked');
+    }
+  });
+  img.onerror = ()=>{ if(i < stages.length-1){ i++; apply(); } else { wrap.classList.remove('loading'); } };
+  apply();
+  return wrap;
 }
 
 function pickPriceDisplayName(price){
@@ -799,7 +819,7 @@ function openShopPanel(shopId){
         const row = document.createElement('div'); row.className='shop-offer-row';
         const product = document.createElement('div'); product.className='product';
         const prodIconKey = (p.product?.item || p.product?.name || p.productName || p.productNameEn || '').toLowerCase();
-        if(prodIconKey){ const icon = createPriceIcon(prodIconKey, 18); icon.className='product-icon'; product.appendChild(icon); }
+  if(prodIconKey){ const icon = createMcIcon(prodIconKey, 18, !!p?.product?.enchanted); icon.classList.add('product-icon'); product.appendChild(icon); }
         const title = document.createElement('div'); title.className='title';
         const name = pickProductDisplayName(p); title.textContent = name;
         if(p?.product?.customItem === true){ title.classList.add('title--custom'); }
@@ -809,7 +829,7 @@ function openShopPanel(shopId){
         function addPrice(label, price){
           if(!price || !price.item) return;
           const chip = document.createElement('div'); chip.className='price-chip';
-          const img = createPriceIcon(price.item, 18);
+          const img = createMcIcon(price.item, 18, !!price?.enchanted);
           const span = document.createElement('span');
           const displayName = pickPriceDisplayName(price);
           span.textContent = `${displayName} ×${price.qty||1}`;
@@ -888,7 +908,7 @@ function renderShopOffersInResults(shop, query){
   if(p?.product?.customItem === true){ item.classList.add('is-custom-product'); }
       const productRow = document.createElement('div'); productRow.className='product-line';
       const prodKey = (p.product?.item || p.product?.name || p.productName || p.productNameEn || '').toLowerCase();
-      if(prodKey){ const prodIcon = createPriceIcon(prodKey, 18); prodIcon.className = 'product-icon'; productRow.appendChild(prodIcon); }
+  if(prodKey){ const prodIcon = createMcIcon(prodKey, 18, !!p?.product?.enchanted); prodIcon.classList.add('product-icon'); productRow.appendChild(prodIcon); }
       const title = document.createElement('div'); title.className='point-result-name';
       const name = pickProductDisplayName(p);
       title.textContent = name;
@@ -899,7 +919,7 @@ function renderShopOffersInResults(shop, query){
       const prices = document.createElement('div'); prices.className='prices';
       [p.price1, p.price2].filter(Boolean).forEach(price=>{
         const chip = document.createElement('div'); chip.className='price-chip';
-        const img = createPriceIcon(price.item, 18);
+  const img = createMcIcon(price.item, 18, !!price?.enchanted);
         const span = document.createElement('span');
         const displayName = pickPriceDisplayName(price);
         span.textContent = `${displayName} ×${price.qty||1}`;

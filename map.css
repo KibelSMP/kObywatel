@@ -1418,6 +1418,77 @@ body.light .line-category-badge {
   display: block;
 }
 
+/* --- Enchanted item glint (kHandel style) dla ikon ofert na mapie --- */
+.map-app .item-icon { position: relative; display: inline-block; }
+.map-app .item-icon img { width: 100%; height: 100%; display: block; image-rendering: crisp-edges; }
+
+.map-app .item-icon.enchanted::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  mix-blend-mode: screen;
+  animation: glintShift 4.2s linear infinite, glintPulse 2.8s ease-in-out infinite;
+  opacity: .85;
+}
+
+.map-app .item-icon.enchanted::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(circle at 30% 25%, rgba(180, 90, 255, .35), transparent 70%);
+  mix-blend-mode: color-dodge;
+  animation: glintDrift 6s linear infinite;
+}
+
+.map-app .item-icon.enchanted.masked::before,
+.map-app .item-icon.enchanted.masked::after { display:none; }
+
+.map-app .item-icon.enchanted .ench-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  mix-blend-mode: screen;
+  animation: glintShift 4.2s linear infinite, glintPulse 2.8s ease-in-out infinite;
+  opacity: .9;
+}
+
+.map-app .item-icon.enchanted .ench-overlay::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 30% 25%, rgba(180, 90, 255, .35), transparent 68%);
+  mix-blend-mode: color-dodge;
+  animation: glintDrift 6s linear infinite;
+}
+
+.map-app .item-icon.enchanted.masked .ench-overlay {
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  background-image: url('/icns_ui/enchanted_glint_item.png');
+  background-size: 256px 256px;
+  background-repeat: repeat;
+  image-rendering: pixelated;
+  animation: glintTexture 6s linear infinite, glintPulse 2.8s ease-in-out infinite;
+  opacity: .55;
+}
+
+@keyframes glintShift {
+  0% { background: repeating-linear-gradient(55deg, rgba(90,50,200,0)0, rgba(90,50,200,0)8px, rgba(140,80,255,.35)8px, rgba(140,80,255,.35)12px, rgba(30,170,255,.25)12px, rgba(30,170,255,.25)16px); background-position:0 0; }
+  100% { background: repeating-linear-gradient(55deg, rgba(90,50,200,0)0, rgba(90,50,200,0)8px, rgba(140,80,255,.35)8px, rgba(140,80,255,.35)12px, rgba(30,170,255,.25)12px, rgba(30,170,255,.25)16px); background-position:256px 256px; }
+}
+@keyframes glintPulse { 0%,100% { opacity:.85; } 50% { opacity:.55; } }
+@keyframes glintDrift { 0% { transform:translate(0,0); } 100% { transform:translate(6px,8px); } }
+@keyframes glintTexture { 0% { background-position:0 0; } 100% { background-position:256px 256px; } }
+
+/* Loading skeleton dla ikon (opcjonalny) */
+.map-app .item-icon.loading::before {
+  content:""; position:absolute; inset:0; background:linear-gradient(110deg,#1f2a35 15%,#263341 35%,#1f2a35 55%); background-size:200% 100%; animation:skeleton 1.2s linear infinite; }
+@keyframes skeleton { 0%{ background-position:0 0; } 100%{ background-position:200% 0; } }
+
 /* Mała pigułka ilości sztuk obok tytułu produktu (wyniki ofert sklepu) */
 .shop-offer-item .qty-pill {
   display: inline-flex;
