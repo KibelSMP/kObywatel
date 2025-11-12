@@ -1,0 +1,79 @@
+{
+  "categories": [
+    {
+      "name": "Dokumenty ZTK",
+      "docs": [
+        {
+          "slug": "obwieszczenie-ztk",
+          "title": "Obwieszczenie ZTK",
+          "excerpt": "Oficjalne obwieszczenie",
+          "author": "NKacz",
+          "md": "Obwieszczenie ZTK.md"
+        },
+        {
+          "slug": "rozporzadzenie-mi-wskazniki-kolejowe",
+          "title": "Rozporządzenie MI w sprawie szczegółowych warunków technicznych dla wskaźników kolejowych i znaków drogowych oraz warunków ich umieszczania",
+          "excerpt": "Dokument PDF",
+          "author": "NKacz",
+          "pdf": "Rozporzadzenie_MI_w_sprawie_szczegolowych_warunkow_technicznych_dla_wskaznikow_kolejowych_i_znakow_drogowych_11.04.24.pdf",
+          "md": "rozporzadzenie-mi-wskazniki-kolejowe.md"
+        },
+        {
+          "slug": "rozporzadzenie-mi-budowle-kolejowe",
+          "title": "Rozporządzenie MI w sprawie szczegółowych warunków technicznych, jakim powinny odpowiadać budowle kolejowe i ich usytuowanie",
+          "excerpt": "Dokument PDF",
+          "author": "NKacz",
+          "pdf": "Rozporzadzenie_MI_w_sprawie_szczegolowych_warunkow_technicznych_jakim_powinny_odpowiadac_budowle_kolejowe_i_ich_usytuowanie_11.04.24.pdf",
+          "md": "rozporzadzenie-mi-budowle-kolejowe.md"
+        }
+      ]
+    },
+    {
+      "name": "Dokumenty kObywatel",
+      "docs": [
+        {
+          "slug": "dokumentacja-algorytmow-kesel-knip",
+          "title": "Dokumentacja algorytmów KESEL/KNIP",
+          "excerpt": "Opis generowania kodów KESEL i KNIP",
+          "author": "Miersetnik",
+          "md": "dokumentacja-algorytmow-kesel-knip.md",
+          "pdf": "Dokumentacja_algorytmów_generowania_kodów_KESEL_i_KNIP.pdf"
+        }
+      ]
+    },
+    {
+      "name": "Poradniki",
+      "docs": [
+        {
+          "slug": "poradnik-loty-samolotami",
+          "title": "Loty samolotami",
+          "excerpt": "Zasady i dobre praktyki lotów",
+          "author": "Miersetnik",
+          "md": "poradnik-loty-samolotami.md",
+          "pdf": "Loty_samolotami.pdf"
+        },
+        {
+          "slug": "poradnik-farma-slajmów",
+          "title": "Farma Slajmów",
+          "excerpt": "Jak korzystać z farmy slajmów",
+          "author": "Ketrab",
+          "md": "poradnik-farma-slajmów.md"
+        },
+        {
+          "slug": "poradnik-kekałtów",
+          "title": "Kopalnia piachu \"Kekałtów\"",
+          "excerpt": "Wskazówki dot. kopalni Kekałtów",
+          "author": "Ketrab",
+          "md": "poradnik-kekałtów.md"
+        },
+        {
+          "slug": "poradnik-allay-expiarka",
+          "title": "Expiarka Allay'ów",
+          "excerpt": "Jak korzystać z expiarki Allay'ów",
+          "author": "Ketrab",
+          "md": "poradnik-allay-expiarka.md"
+        }
+      ]
+    }
+  ]
+}

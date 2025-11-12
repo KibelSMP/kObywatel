@@ -1,9 +1,3 @@
----
-tagi:
-  - ZTK
-  - RolePlay
-autor: NKacz
----
 # Obwieszczenie publiczne od Zarządu Transportu Kolejowego
 
 Z dniem 9 lutego 2025 roku Zarząd Transportu Kolejowego z siedzibą w Jusznicy, zwany dalej ZTK, ogłasza co następuje:
