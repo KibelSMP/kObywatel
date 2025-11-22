@@ -765,3 +765,69 @@ function render(results){
     renderPointsList();
   }
 }
+
+// --- Inicjalizacja wyszukiwarki na stronie głównej ---
+function startSearch(q){
+  if(!resultsDiv || !queryInput) return;
+  const term = (q||'').trim();
+  if(!term){
+    resultsDiv.innerHTML='';
+    hideSkeleton();
+    showHomeTiles(); // pusty termin – przywróć kafelki
+    body.removeAttribute('data-mode');
+    return;
+  }
+  // Aktywne wyszukiwanie – ukryj kafelki
+  hideHomeTiles();
+  showSkeleton();
+  Promise.all([fetchMapPoints(), fetchMapLines()]).then(()=>{
+    const pointMatches = searchMapPoints(term);
+    const lineMatches = searchMapLines(term);
+    render({ query: escapeHtml(term), pointMatches, lineMatches });
+    body.setAttribute('data-mode','condensed');
+    // Nie pokazuj kafelków dopóki jest aktywny termin
+  }).catch(()=>{
+    hideSkeleton();
+    resultsDiv.innerHTML = '<div class="empty">Błąd wyszukiwania</div>';
+  });
+}
+
+function bindSearch(){
+  if(!form || !queryInput) return;
+  if(form.__bound) return; form.__bound = true;
+  form.addEventListener('submit', e => {
+    e.preventDefault();
+    startSearch(queryInput.value);
+  });
+  // Debounce wyszukiwania podczas pisania
+  let t = null; const DEBOUNCE = 250;
+  queryInput.addEventListener('input', ()=>{
+    clearTimeout(t);
+    t = setTimeout(()=> startSearch(queryInput.value), DEBOUNCE);
+  });
+}
+
+function bindBack(){
+  if(!backBtn) return;
+  if(backBtn.__bound) return; backBtn.__bound = true;
+  backBtn.addEventListener('click', ()=>{
+    queryInput && (queryInput.value='');
+    resultsDiv && (resultsDiv.innerHTML='');
+    hideSkeleton();
+    showHomeTiles();
+    body.removeAttribute('data-mode');
+    hideFormBrowser();
+  });
+}
+
+bindSearch();
+bindBack();
+// Aktywacja inputu po kliknięciu ikony lupy
+function bindSearchIcon(){
+  const icon = document.querySelector('.search-icon');
+  if(!icon || icon.__bound) return; icon.__bound = true;
+  function focusInput(){ if(queryInput){ queryInput.focus(); } }
+  icon.addEventListener('click', focusInput);
+  icon.addEventListener('keydown', e => { if(e.key==='Enter' || e.key===' '){ e.preventDefault(); focusInput(); } });
+}
+bindSearchIcon();
