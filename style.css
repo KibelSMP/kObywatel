@@ -1476,6 +1476,20 @@ body[data-forms-hidden="true"] #form-browser {
 	box-shadow: 0 0 0 4px var(--accent-glow), var(--shadow);
 }
 
+.search-icon {
+	width: 22px;
+	height: 22px;
+	opacity: .7;
+	flex: 0 0 auto;
+	cursor: text;
+}
+
+@media (prefers-color-scheme: light) {
+	.search-icon {
+		filter: invert(1);
+	}
+}
+
 #query {
 	flex: 1;
 	background: transparent;
