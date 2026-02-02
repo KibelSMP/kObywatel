@@ -3,6 +3,7 @@ const imgEl = document.getElementById('map-image');
 const canvas = document.getElementById('map-canvas');
 const viewport = document.getElementById('map-viewport');
 const markersLayer = document.getElementById('markers-layer');
+const crosshairEl = document.getElementById('map-crosshair');
 // Podwarstwy markerów
 let markersMainLayer = null; // standardowe punkty mapy
 let markersShopsLayer = null; // sklepy kHandel
@@ -18,6 +19,7 @@ const filtersPanelEl = document.getElementById('filters-panel');
 // Dynamiczny wskaźnik koordynatów kursora (desktop)
 let legendCursorEl = null;
 let legendCursorRowEl = null;
+let legendUpdatedRowEl = null;
 const searchInput = document.getElementById('point-search');
 const pointResultsEl = document.getElementById('point-search-results');
 const pointDetailEl = document.getElementById('point-search-detail');
@@ -59,6 +61,7 @@ let baseLogicalHeight = 0;
 let currentResolutionFactor = 1; // 1 / 2 / 4
 let tilesLayer = null; // kontener na kafelki hi-res
 let tiles = new Map(); // klucz => element
+let crosshairHideTimeout = null;
 const TILE_CONFIG = {
   2: { grid:3 },
   4: { grid:5 }
@@ -422,6 +425,9 @@ function centerOnFocusParam(){
     const x = Number(parts[0]);
     const z = Number(parts[parts.length-1]);
     if(!isFinite(x) || !isFinite(z)) return;
+    const zoomParam = usp.get('zoom');
+    const zoomVal = zoomParam !== null ? Number(zoomParam) : NaN;
+    const desiredScale = isFinite(zoomVal) ? Math.min(maxScale, Math.max(minScale, zoomVal)) : null;
     // Jeśli mapa nie gotowa – ponów później
     if(!mapData || !imgWidth || !imgHeight){
       const retry = ()=>{ if(mapData && imgWidth && imgHeight){ centerOnFocusParam(); } else { setTimeout(retry, 150); } };
@@ -429,8 +435,8 @@ function centerOnFocusParam(){
     }
     // Skorzystaj z istniejącej funkcji – centrowanie + tymczasowy marker (pulse)
     ensurePlayersLayerVisible();
-  const label = usp.get('fl') || usp.get('label') || 'Cel';
-    focusLogicalPoint(x, z, { pulse:true, label });
+    const label = usp.get('fl') || usp.get('label') || 'Cel';
+    focusLogicalPoint(x, z, { pulse:true, label, desiredScale });
   } catch(_){ }
 }
 
@@ -585,15 +591,54 @@ function renderLegendCursor(){
     const row = document.createElement('div');
     row.className = 'legend-coords';
     row.style.cssText = 'margin-top:.5rem;font-size:.62rem;opacity:.95;display:flex;gap:.4rem;align-items:center;';
-    // dekoracyjna kropka
-    const dot = document.createElement('span'); dot.className='legend-dot'; dot.style.background = '#64748b';
     const label = document.createElement('span'); label.textContent = 'Kursor:'; label.style.minWidth = '52px';
-    const val = document.createElement('span'); val.textContent = '—'; val.style.fontWeight='700'; val.style.letterSpacing='.2px';
-    row.appendChild(dot); row.appendChild(label); row.appendChild(val);
+    const val = document.createElement('span');
+    val.textContent = '—';
+    val.style.fontWeight='700';
+    val.style.letterSpacing='.2px';
+    val.style.marginLeft='auto';
+    val.style.textAlign='right';
+    row.appendChild(label); row.appendChild(val);
     // wstaw tuż pod legendą
     if(legendEl.nextSibling){ filtersPanelEl.insertBefore(row, legendEl.nextSibling); } else { filtersPanelEl.appendChild(row); }
     legendCursorRowEl = row; legendCursorEl = val;
+    renderUpdatedAtRow();
   } catch(_) { legendCursorEl = null; legendCursorRowEl = null; }
+}
+
+function renderUpdatedAtRow(){
+  // Usuń wcześniejszy wpis o dacie aktualizacji
+  if(legendUpdatedRowEl && legendUpdatedRowEl.parentElement){ legendUpdatedRowEl.parentElement.removeChild(legendUpdatedRowEl); }
+  legendUpdatedRowEl = null;
+  try {
+    if(!filtersPanelEl) return;
+    const iso = mapData?.meta?.updatedAt;
+    if(!iso) return;
+    const dt = new Date(iso);
+    if(Number.isNaN(dt.getTime())) return;
+    const formatted = dt.toLocaleString('pl-PL', { dateStyle:'short' });
+    const row = document.createElement('div');
+    row.className = 'legend-updated';
+    row.style.cssText = 'margin-top:.25rem;font-size:.62rem;opacity:.9;display:flex;gap:.4rem;align-items:center;';
+    const label = document.createElement('span'); label.textContent = 'Aktualizacja danych:'; label.style.minWidth = '88px';
+    const val = document.createElement('span');
+    val.textContent = formatted;
+    val.style.fontWeight='700';
+    val.style.letterSpacing='.15px';
+    val.style.marginLeft='auto';
+    val.style.textAlign='right';
+    row.appendChild(label); row.appendChild(val);
+    if(legendCursorRowEl && legendCursorRowEl.nextSibling){
+      filtersPanelEl.insertBefore(row, legendCursorRowEl.nextSibling);
+    } else if(legendCursorRowEl){
+      filtersPanelEl.appendChild(row);
+    } else if(legendEl && legendEl.nextSibling){
+      filtersPanelEl.insertBefore(row, legendEl.nextSibling);
+    } else {
+      filtersPanelEl.appendChild(row);
+    }
+    legendUpdatedRowEl = row;
+  } catch(_) { legendUpdatedRowEl = null; }
 }
 
 // --- Sklepy kHandel: legenda, ładowanie i render ---
@@ -1795,6 +1840,21 @@ function ensurePlayersLayerVisible(){
   if(activeCategories.has('players')){ activeCategories.delete('players'); buildLegend(); saveLegendState(); }
 }
 
+function showCrosshairDuringPan(){
+  if(!crosshairEl) return;
+  crosshairEl.classList.add('visible');
+  if(crosshairHideTimeout){ clearTimeout(crosshairHideTimeout); crosshairHideTimeout = null; }
+}
+
+function scheduleCrosshairHide(delay = 5000){
+  if(!crosshairEl) return;
+  if(crosshairHideTimeout) clearTimeout(crosshairHideTimeout);
+  crosshairHideTimeout = setTimeout(()=>{
+    crosshairEl.classList.remove('visible');
+    crosshairHideTimeout = null;
+  }, delay);
+}
+
 // Panowanie
 function computeCenterAndDistance(){
   const arr = Array.from(pointers.values());
@@ -1846,15 +1906,18 @@ viewport.addEventListener('pointermove', e=>{
     const sY = center.y - rect.top;
     setScale(scale * factor, sX, sY);
     lastPinchCenter = center; lastPinchDistance = distance;
+    showCrosshairDuringPan();
     return;
   }
   if(!isPanning) return;
   originX = panOriginStart.x + (e.clientX - panStart.x);
   originY = panOriginStart.y + (e.clientY - panStart.y);
   applyTransform();
+  showCrosshairDuringPan();
 });
 
 function endPointerInteraction(e){
+  const hadActiveMove = isPanning || pinchActive;
   // Usuń pointer z mapy
   if(pointers.has(e.pointerId)) pointers.delete(e.pointerId);
   // Jeśli kończymy gest pinch (mniej niż 2 aktywne) – reset
@@ -1866,12 +1929,21 @@ function endPointerInteraction(e){
   if(isPanning){
     isPanning = false;
   }
+  if(hadActiveMove && !isPanning && !pinchActive){
+    scheduleCrosshairHide();
+  }
 }
 
 viewport.addEventListener('pointerup', endPointerInteraction);
 viewport.addEventListener('pointercancel', endPointerInteraction);
 // Fallback: jeśli z jakiegoś powodu capture się nie utrzymało i użytkownik wyjdzie kursorem poza viewport
-window.addEventListener('mouseup', () => { if(isPanning) isPanning=false; pinchActive=false; pointers.clear(); });
+window.addEventListener('mouseup', () => {
+  const hadActiveMove = isPanning || pinchActive;
+  if(isPanning) isPanning=false;
+  pinchActive=false;
+  pointers.clear();
+  if(hadActiveMove){ scheduleCrosshairHide(); }
+});
 
 // --- Focus helpers (naprawiona sekcja) ---
 function applyFocusFromSearchParams(){
@@ -1909,14 +1981,20 @@ function applyFocusFromSearchParams(){
       const x = Number(parts[0]);
       const z = Number(parts[parts.length-1]);
       if(isFinite(x) && isFinite(z)){
+        const zoomParam = params.get('zoom');
+        const zoomVal = zoomParam !== null ? Number(zoomParam) : NaN;
+        const desiredScale = isFinite(zoomVal) ? Math.min(maxScale, Math.max(minScale, zoomVal)) : null;
         ensurePlayersLayerVisible();
-  const label = params.get('fl') || params.get('label') || 'Cel';
-        focusLogicalPoint(x, z, { pulse:true, label });
+        const label = params.get('fl') || params.get('label') || 'Cel';
+        focusLogicalPoint(x, z, { pulse:true, label, desiredScale });
         return true;
       }
     }
   }
   const fx = params.get('fx'); const fz = params.get('fz'); const fl = params.get('fl');
+  const zoomParam = params.get('zoom');
+  const zoomVal = zoomParam !== null ? Number(zoomParam) : NaN;
+  const desiredScale = isFinite(zoomVal) ? Math.min(maxScale, Math.max(minScale, zoomVal)) : null;
   const lineParam = params.get('line');
   if(lineParam){
     // Spróbuj podświetlić linię po jej ID
@@ -1939,7 +2017,7 @@ function applyFocusFromSearchParams(){
   const x = Number(fx), z = Number(fz);
   if(!isFinite(x) || !isFinite(z)) return false;
   ensurePlayersLayerVisible();
-  focusLogicalPoint(x, z, { pulse:true, label: fl });
+  focusLogicalPoint(x, z, { pulse:true, label: fl, desiredScale });
   return true;
 }
 function applyFocusFromSession(){
@@ -1984,7 +2062,7 @@ function focusLogicalPoint(x,z, opts){
     pxX = (imgWidth/2) + (x / unitsPerPixel);
     pxY = (imgHeight/2) + (z / unitsPerPixel);
   } else { pxX = x; pxY = z; }
-  const desiredScale = Math.max(scale, 1.4);
+  const desiredScale = opts.desiredScale != null ? opts.desiredScale : Math.max(scale, 1.4);
   scale = Math.min(maxScale, Math.max(minScale, desiredScale));
   originX = (viewport.clientWidth/2) - pxX * scale;
   originY = (viewport.clientHeight/2) - pxY * scale;
@@ -2082,6 +2160,8 @@ if(btnTheme){
     drawLines(); // kolory linii mogą mieć warianty light/dark
     purgeTilesOfOtherTheme();
     if(currentResolutionFactor > 1){
+      // Po czyszczeniu kafelków innego motywu odbuduj placeholdery obecnego poziomu, aby mogły się ponownie załadować.
+      buildTilesForCurrentLevel();
       awaitingFirstHiResTile = true;
       canvas.classList.remove('hires-on'); // dopóki pierwszy kafelek nie dojedzie
     }
@@ -2111,15 +2191,26 @@ if(btnCopyFocus){
       // Zaokrąglij do pełnych jednostek dla czytelności
       const X = Math.round(logicX);
       const Z = Math.round(logicZ);
+      const clampedZoom = Math.min(maxScale, Math.max(minScale, scale));
       const url = new URL(location.href);
       url.searchParams.set('focus', `${X},${Z}`);
-      url.searchParams.set('label', 'Cel');
+      url.searchParams.set('label', 'Punkt');
+      url.searchParams.set('zoom', clampedZoom.toFixed(2));
       // Kopiuj do schowka
       await navigator.clipboard.writeText(url.toString());
       // Prosta informacja zwrotna (title swap)
       const prevTitle = btnCopyFocus.title;
       btnCopyFocus.title = 'Skopiowano!';
-      setTimeout(()=>{ btnCopyFocus.title = prevTitle || 'Kopiuj link do celu'; }, 1200);
+      const iconEl = btnCopyFocus.querySelector('img');
+      const originalSrc = iconEl?.getAttribute('src') || null;
+      const successIcon = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="%23FFFFFF"><path d="M382-240 154-468l57-57 171 171 367-367 57 57-424 424Z"/></svg>';
+      if(iconEl){ iconEl.setAttribute('src', successIcon); }
+      btnCopyFocus.classList.add('copied');
+      setTimeout(()=>{
+        if(iconEl && originalSrc){ iconEl.setAttribute('src', originalSrc); }
+        btnCopyFocus.classList.remove('copied');
+        btnCopyFocus.title = prevTitle || 'Kopiuj link do celu';
+      }, 1500);
     } catch(_e){ /* ciche pominięcie */ }
   });
 }
