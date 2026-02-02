@@ -178,6 +178,12 @@ body.light {
   line-height: 1;
 }
 
+.map-toolbar #btn-copy-focus.copied {
+  background: linear-gradient(145deg, #b3202b, #8d1822);
+  border-color: #b3202b;
+  color: #fff;
+}
+
 .map-toolbar #btn-zoom-in,
 .map-toolbar #btn-zoom-out {
   font-size: .95rem;
@@ -396,6 +402,52 @@ body.light {
   left: 0;
   inset: 0;
   pointer-events: none;
+}
+
+.map-crosshair {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 30px;
+  height: 30px;
+  pointer-events: none;
+  transform: translate(-50%, -50%) scale(.94);
+  opacity: 0;
+  transition: opacity .16s ease, transform .16s ease;
+  z-index: 20;
+  --cross-color: rgba(255, 255, 255, .95);
+  --cross-shadow: rgba(0, 0, 0, .55);
+}
+
+body.light .map-crosshair {
+  --cross-color: #1a202c;
+  --cross-shadow: rgba(255, 255, 255, .65);
+}
+
+.map-crosshair::before,
+.map-crosshair::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  background: var(--cross-color);
+  box-shadow: 0 0 0 1px var(--cross-shadow);
+  transform: translate(-50%, -50%);
+}
+
+.map-crosshair::before {
+  width: 28px;
+  height: 2px;
+}
+
+.map-crosshair::after {
+  width: 2px;
+  height: 28px;
+}
+
+.map-crosshair.visible {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
 }
 
 .markers-layer .markers-sub {
