@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>kSeF – Faktura KAT</title>
+  <link rel="apple-touch-icon" href="/assets/apple-touch-icon/apple-touch-icon.png" />
+  <link rel="apple-touch-icon" sizes="57x57" href="/assets/apple-touch-icon/apple-touch-icon-57x57.png" />
+  <link rel="apple-touch-icon" sizes="72x72" href="/assets/apple-touch-icon/apple-touch-icon-72x72.png" />
+  <link rel="apple-touch-icon" sizes="76x76" href="/assets/apple-touch-icon/apple-touch-icon-76x76.png" />
+  <link rel="apple-touch-icon" sizes="114x114" href="/assets/apple-touch-icon/apple-touch-icon-114x114.png" />
+  <link rel="apple-touch-icon" sizes="120x120" href="/assets/apple-touch-icon/apple-touch-icon-120x120.png" />
+  <link rel="apple-touch-icon" sizes="144x144" href="/assets/apple-touch-icon/apple-touch-icon-144x144.png" />
+  <link rel="apple-touch-icon" sizes="152x152" href="/assets/apple-touch-icon/apple-touch-icon-152x152.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/assets/apple-touch-icon/apple-touch-icon-180x180.png" />
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="icon" type="image/png" href="/favicon.png" />
+  <link rel="stylesheet" href="/style.css" />
+  <style>
+    :root {
+      --ksef-accent: var(--accent);
+      --ksef-accent-2: color-mix(in srgb, var(--accent) 78%, #fff 22%);
+    }
+    body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background: var(--bg, #0d1117); color: var(--text, #e6edf3); }
+    .ksef-wrapper { max-width: 1100px; margin: 0 auto; padding: 1.25rem 1.1rem 2rem; }
+    .ksef-hero { margin-bottom: 1rem; display: flex; flex-direction: column; gap: .35rem; }
+    .ksef-hero h1 { margin: 0; font-size: 1.6rem; letter-spacing: .4px; }
+    .ksef-hero p { margin: 0; opacity: .82; line-height: 1.4; max-width: 75ch; }
+    .ksef-card { background: var(--bg-alt, #111a24); background: linear-gradient(145deg, var(--bg-alt, #111a24), color-mix(in srgb, var(--bg-alt, #111a24) 70%, transparent)); border: 1px solid var(--border, rgba(255,255,255,.07)); border-radius: 16px; padding: 1.1rem 1.2rem; box-shadow: 0 10px 40px -28px rgba(0,0,0,.8); display: flex; flex-direction: column; gap: 1.1rem; }
+    .ksef-section { display: flex; flex-direction: column; gap: .75rem; }
+    .ksef-section h3 { margin: 0; font-size: 1rem; letter-spacing: .4px; display: flex; align-items: center; gap: .4rem; }
+    .ksef-grid { display: grid; gap: .75rem; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+    .ksef-field { display: flex; flex-direction: column; gap: .35rem; }
+    .ksef-field label { font-size: .78rem; font-weight: 700; letter-spacing: .35px; opacity: .8; }
+    .ksef-field input, .ksef-field textarea, .ksef-field select { width: 100%; border: 1px solid var(--border, #1f2a35); background: var(--bg-elev, #111a24); color: var(--text, #e6edf3); border-radius: 12px; padding: .65rem .75rem; font-size: .92rem; transition: border-color .2s, box-shadow .2s; }
+    .ksef-field textarea { min-height: 96px; resize: vertical; }
+    .ksef-field input:focus, .ksef-field textarea:focus, .ksef-field select:focus { outline: none; border-color: var(--ksef-accent); box-shadow: 0 0 0 3px var(--accent-glow, rgba(172, 25, 67, .4)); }
+    .ksef-flex { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: .9rem; }
+    .ksef-box { border: 1px dashed var(--border, rgba(255,255,255,.08)); padding: .9rem 1rem; border-radius: 12px; background: var(--bg-alt, #0f161d); background: color-mix(in srgb, var(--bg-alt, #0f161d) 60%, transparent); }
+    .ksef-box h4 { margin: 0 0 .5rem; font-size: .95rem; letter-spacing: .35px; }
+    .ksef-table-wrap { width: 100%; overflow: auto; border: 1px solid var(--border, rgba(255,255,255,.08)); border-radius: 12px; }
+    .ksef-table { width: 100%; border-collapse: collapse; min-width: 760px; }
+    .ksef-table thead { background: var(--ksef-accent); }
+    .ksef-table th, .ksef-table td { padding: .65rem .6rem; border-bottom: 1px solid var(--border, rgba(255,255,255,.08)); text-align: left; font-size: .85rem; }
+    .ksef-table th { letter-spacing: .35px; font-weight: 700; font-size: .78rem; color: #fff; opacity: 1; }
+    .ksef-table td input { width: 100%; border: 1px solid var(--border, rgba(255,255,255,.08)); background: var(--bg, #0d1117); color: var(--text, #e6edf3); border-radius: 10px; padding: .4rem .5rem; font-size: .86rem; }
+    .ksef-table td input:focus { outline: none; border-color: var(--ksef-accent); box-shadow: 0 0 0 2px var(--accent-glow, rgba(172, 25, 67, .4)); }
+    .ksef-table .actions { display: flex; gap: .4rem; }
+    .ksef-subhead { display: flex; align-items: center; justify-content: space-between; gap: .6rem; }
+    .ksef-subhead small { opacity: .7; }
+    .ksef-badge { display: inline-flex; align-items: center; gap: .35rem; padding: .25rem .55rem; border-radius: 999px; background: linear-gradient(135deg, var(--ksef-accent), var(--ksef-accent-2)); color: #0b1020; font-weight: 700; font-size: .7rem; letter-spacing: .35px; }
+    .ksef-actions { display: flex; flex-wrap: wrap; gap: .6rem; justify-content: flex-end; }
+    .ksef-btn { border: 1px solid var(--ksef-accent); background: linear-gradient(135deg, var(--ksef-accent), var(--ksef-accent-2)); color: #0b1020; font-weight: 700; letter-spacing: .4px; padding: .65rem 1rem; border-radius: 12px; cursor: pointer; font-size: .95rem; transition: transform .2s, box-shadow .2s; box-shadow: 0 8px 24px -12px color-mix(in srgb, var(--accent) 55%, transparent); }
+    .ksef-btn:hover { transform: translateY(-1px); box-shadow: 0 12px 30px -14px color-mix(in srgb, var(--accent) 65%, transparent); }
+    .ksef-btn:active { transform: translateY(0); }
+    .ksef-btn.ghost { background: transparent; color: var(--text, #e6edf3); border-color: var(--border, rgba(255,255,255,.1)); box-shadow: none; }
+    .ksef-btn.ghost:hover { border-color: var(--ksef-accent); }
+    .ksef-remove { border: 1px solid var(--border, rgba(255,255,255,.15)); background: transparent; color: var(--text, #e6edf3); padding: .35rem .6rem; border-radius: 10px; cursor: pointer; font-weight: 700; letter-spacing: .25px; }
+    .ksef-remove:hover { border-color: var(--ksef-accent); color: var(--ksef-accent); }
+    .ksef-totals { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: .75rem; }
+    .ksef-total { border: 1px solid var(--border, rgba(255,255,255,.1)); border-radius: 12px; padding: .85rem 1rem; background: color-mix(in srgb, var(--bg-alt, #0f161d) 70%, transparent); display: flex; flex-direction: column; gap: .25rem; }
+    .ksef-total span { font-size: .8rem; opacity: .75; letter-spacing: .3px; }
+    .ksef-total strong { font-size: 1.15rem; letter-spacing: .4px; }
+    .ksef-status { min-height: 1.2rem; font-size: .88rem; }
+    .ksef-status.ok { color: #46d38d; }
+    .ksef-status.err { color: #ff7a7a; }
+    .ksef-note { font-size: .8rem; opacity: .7; line-height: 1.35; }
+    @media (max-width: 720px) {
+      .ksef-card { padding: 1rem; }
+      .ksef-table { min-width: 640px; }
+      .ksef-actions { justify-content: stretch; }
+      .ksef-actions .ksef-btn { flex: 1 1 200px; text-align: center; }
+    }
+  </style>
+  <meta property="og:title" content="kSeF" />
+  <meta property="og:description" content="Wystaw Fakturę KAT z poziomu kObywatela." />
+  <meta property="og:image" content="/assets/og/OG-Standard-kSeF.png" />
+  <meta property="og:url" content="/ksef" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="kObywatel" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:image" content="/assets/og/OG-Twitter-kSeF.png" />
+</head>
+<body>
+  <div class="app-shell" data-state="ksef">
+    <header class="app-header">
+      <button type="button" id="back-btn" class="back-btn" aria-label="Powrót" title="Powrót">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <a class="brand" href="/" aria-label="Strona główna">
+        <img src="/logo.png" alt="Logo kObywatel" class="logo no-bg" />
+        <span class="brand-name">kObywatel</span>
+      </a>
+      <nav class="main-nav" aria-label="Nawigacja"></nav>
+    </header>
+    <main class="app-main ksef-app">
+      <div class="ksef-wrapper">
+        <div class="ksef-hero">
+          <div class="ksef-badge">Kiblowy System e-Faktur</div>
+          <h1>Faktura KAT</h1>
+          <p>Wypełnij formularz, dodaj pozycje i pobierz gotowy plik PDF zgodny z szablonem "Faktura KAT". Pola są walidowane na bieżąco, a podsumowanie aktualizuje się automatycznie.</p>
+        </div>
+        <form id="ksef-form" class="ksef-card" novalidate>
+          <section class="ksef-section">
+            <div class="ksef-subhead">
+              <h3>Dane podstawowe</h3>
+              <small>Numery i daty faktury</small>
+            </div>
+            <div class="ksef-grid">
+              <div class="ksef-field">
+                <label for="invoiceNumber">Numer faktury</label>
+                <input id="invoiceNumber" name="invoiceNumber" type="text" placeholder="KAT-2026-001" required />
+              </div>
+              <div class="ksef-field">
+                <label for="issueDate">Data wystawienia</label>
+                <input id="issueDate" name="issueDate" type="date" required />
+              </div>
+              <div class="ksef-field">
+                <label for="saleDate">Data sprzedaży</label>
+                <input id="saleDate" name="saleDate" type="date" required />
+              </div>
+              <div class="ksef-field">
+                <label for="currency">Waluta</label>
+                <input id="currency" name="currency" type="text" value="PMK" required />
+              </div>
+            </div>
+          </section>
+
+          <section class="ksef-section">
+            <div class="ksef-subhead">
+              <h3>Strony</h3>
+              <small>Sprzedawca i nabywca</small>
+            </div>
+            <div class="ksef-flex">
+              <div class="ksef-box">
+                <h4>Sprzedawca</h4>
+                <div class="ksef-field">
+                  <label for="sellerName">Nazwa</label>
+                  <input id="sellerName" name="sellerName" type="text" placeholder="Firma / obywatel" required />
+                </div>
+                <div class="ksef-field">
+                  <label for="sellerId">KNIP / KESEL</label>
+                  <input id="sellerId" name="sellerId" type="text" placeholder="0000000000" />
+                </div>
+                <div class="ksef-field">
+                  <label for="sellerAddress">Adres</label>
+                  <textarea id="sellerAddress" name="sellerAddress" placeholder="ul. Przykładowa 1&#10;00-000 Miasto" required></textarea>
+                </div>
+              </div>
+              <div class="ksef-box">
+                <h4>Nabywca</h4>
+                <div class="ksef-field">
+                  <label for="buyerName">Nazwa</label>
+                  <input id="buyerName" name="buyerName" type="text" placeholder="Firma / obywatel" required />
+                </div>
+                <div class="ksef-field">
+                  <label for="buyerId">KNIP / KESEL</label>
+                  <input id="buyerId" name="buyerId" type="text" placeholder="0000000000" />
+                </div>
+                <div class="ksef-field">
+                  <label for="buyerAddress">Adres</label>
+                  <textarea id="buyerAddress" name="buyerAddress" placeholder="ul. Przykładowa 2&#10;00-000 Miasto" required></textarea>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="ksef-section">
+            <div class="ksef-subhead">
+              <h3>Płatność</h3>
+              <small>Termin i metoda płatności</small>
+            </div>
+            <div class="ksef-grid">
+              <div class="ksef-field">
+                <label for="paymentMethod">Metoda płatności</label>
+                <select id="paymentMethod" name="paymentMethod">
+                  <option value="Gotówka">Gotówka</option>
+                </select>
+              </div>
+              <div class="ksef-field">
+                <label for="paymentStatus">Status płatności</label>
+                <select id="paymentStatus" name="paymentStatus">
+                  <option value="Oczekuje">Oczekuje</option>
+                  <option value="Opłacona">Opłacona</option>
+                  <option value="Częściowa">Częściowa</option>
+                </select>
+              </div>
+              <div class="ksef-field">
+                <label for="paymentTerms">Termin płatności</label>
+                <input id="paymentTerms" name="paymentTerms" type="date" required />
+              </div>
+              <div class="ksef-field">
+                <label for="extraNotes">Uwagi</label>
+                <input id="extraNotes" name="extraNotes" type="text" placeholder="Uwagi do płatności, referencje itp." />
+              </div>
+            </div>
+          </section>
+
+          <section class="ksef-section">
+            <div class="ksef-subhead">
+              <h3>Pozycje</h3>
+              <small>Wpisz produkty lub usługi</small>
+              <div class="ksef-actions" style="justify-content:flex-start;">
+                <button type="button" id="add-item" class="ksef-btn ghost">Dodaj pozycję</button>
+              </div>
+            </div>
+            <div class="ksef-table-wrap">
+              <table class="ksef-table" aria-label="Pozycje faktury">
+                <thead>
+                  <tr>
+                    <th style="width:40px;">#</th>
+                    <th>Nazwa</th>
+                    <th style="width:120px;">Ilość</th>
+                    <th style="width:120px;">Jm</th>
+                    <th style="width:140px;">Cena netto</th>
+                    <th style="width:120px;">KAT %</th>
+                    <th style="width:140px;">Suma brutto</th>
+                    <th style="width:80px;">Usuń</th>
+                  </tr>
+                </thead>
+                <tbody id="items-body"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="ksef-section">
+            <div class="ksef-subhead">
+              <h3>Podsumowanie</h3>
+              <small>Aktualizuje się automatycznie</small>
+            </div>
+            <div class="ksef-totals">
+              <div class="ksef-total">
+                <span>Razem netto</span>
+                <strong id="total-net">0,00</strong>
+              </div>
+              <div class="ksef-total">
+                <span>KAT</span>
+                <strong id="total-kat">0,00</strong>
+              </div>
+              <div class="ksef-total">
+                <span>Razem brutto</span>
+                <strong id="total-gross">0,00</strong>
+              </div>
+            </div>
+          </section>
+
+          <div class="ksef-status" id="ksef-status" aria-live="polite"></div>
+
+          <div class="ksef-actions">
+            <button type="button" id="reset-form" class="ksef-btn ghost">Wyczyść formularz</button>
+            <button type="submit" class="ksef-btn">Generuj PDF</button>
+          </div>
+          <p class="ksef-note">PDF generowany jest lokalnie w przeglądarce. Dane nie opuszczają Twojego urządzenia.</p>
+        </form>
+      </div>
+    </main>
+  </div>
+  <script src="/db-adapter.js"></script>
+  <script>window.__db && window.__db.loadConfig && window.__db.loadConfig().catch(()=>{});</script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
+  <script type="module" src="/ksef.js"></script>
+</body>
+</html>
