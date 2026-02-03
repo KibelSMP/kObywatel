@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>kDokumenty</title>
+  <link rel="apple-touch-icon" href="/assets/apple-touch-icon/apple-touch-icon.png" />
+  <link rel="apple-touch-icon" sizes="57x57" href="/assets/apple-touch-icon/apple-touch-icon-57x57.png" />
+  <link rel="apple-touch-icon" sizes="72x72" href="/assets/apple-touch-icon/apple-touch-icon-72x72.png" />
+  <link rel="apple-touch-icon" sizes="76x76" href="/assets/apple-touch-icon/apple-touch-icon-76x76.png" />
+  <link rel="apple-touch-icon" sizes="114x114" href="/assets/apple-touch-icon/apple-touch-icon-114x114.png" />
+  <link rel="apple-touch-icon" sizes="120x120" href="/assets/apple-touch-icon/apple-touch-icon-120x120.png" />
+  <link rel="apple-touch-icon" sizes="144x144" href="/assets/apple-touch-icon/apple-touch-icon-144x144.png" />
+  <link rel="apple-touch-icon" sizes="152x152" href="/assets/apple-touch-icon/apple-touch-icon-152x152.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/assets/apple-touch-icon/apple-touch-icon-180x180.png" />
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="icon" type="image/png" href="/favicon.png" />
+  <link rel="stylesheet" href="/style.css" />
+  <style>
+    :root {
+      --kdok-accent: var(--accent);
+      --kdok-accent-2: color-mix(in srgb, var(--accent) 78%, #fff 22%);
+    }
+    body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background: var(--bg, #0d1117); color: var(--text, #e6edf3); }
+    .kdok-wrapper { max-width: 1120px; margin: 0 auto; padding: 1.25rem 1.1rem 2.2rem; }
+    .kdok-hero { margin-bottom: 1rem; display: flex; flex-direction: column; gap: .35rem; }
+    .kdok-hero h1 { margin: 0; font-size: 1.6rem; letter-spacing: .4px; }
+    .kdok-hero p { margin: 0; opacity: .82; line-height: 1.4; max-width: 75ch; }
+    .kdok-badge { display: inline-flex; align-items: center; gap: .35rem; padding: .25rem .55rem; border-radius: 999px; background: linear-gradient(135deg, var(--kdok-accent), var(--kdok-accent-2)); color: #0b1020; font-weight: 700; font-size: .7rem; letter-spacing: .35px; }
+    .kdok-card { background: linear-gradient(150deg, color-mix(in srgb, var(--bg-alt, #111a24) 90%, transparent), var(--bg-alt, #111a24)); border: 1px solid var(--border, rgba(255,255,255,.08)); border-radius: 18px; padding: 1.1rem 1.2rem; box-shadow: 0 10px 40px -28px rgba(0,0,0,.8); display: flex; flex-direction: column; gap: 1.15rem; }
+    .kdok-section { display: flex; flex-direction: column; gap: .75rem; }
+    .kdok-section h3 { margin: 0; font-size: 1rem; letter-spacing: .4px; display: flex; align-items: center; gap: .4rem; }
+    .kdok-subhead { display: flex; align-items: center; justify-content: space-between; gap: .6rem; }
+    .kdok-subhead small { opacity: .75; }
+    .kdok-grid { display: grid; gap: .75rem; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+    .kdok-field { display: flex; flex-direction: column; gap: .35rem; }
+    .kdok-field label { font-size: .78rem; font-weight: 700; letter-spacing: .35px; opacity: .8; }
+    .kdok-field input, .kdok-field textarea, .kdok-field select { width: 100%; border: 1px solid var(--border, #1f2a35); background: var(--bg-elev, #111a24); color: var(--text, #e6edf3); border-radius: 12px; padding: .65rem .75rem; font-size: .92rem; transition: border-color .2s, box-shadow .2s; }
+    .kdok-field textarea { min-height: 110px; resize: vertical; }
+    .kdok-field input:focus, .kdok-field textarea:focus, .kdok-field select:focus { outline: none; border-color: var(--kdok-accent); box-shadow: 0 0 0 3px var(--accent-glow, rgba(172, 25, 67, .4)); }
+    .kdok-flex { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: .9rem; }
+    .kdok-box { border: 1px dashed var(--border, rgba(255,255,255,.08)); padding: .9rem 1rem; border-radius: 12px; background: color-mix(in srgb, var(--bg-alt, #0f161d) 70%, transparent); }
+    .kdok-box h4 { margin: 0 0 .5rem; font-size: .95rem; letter-spacing: .35px; }
+    .kdok-toolbar { display: flex; flex-wrap: wrap; gap: .45rem; background: color-mix(in srgb, var(--bg-alt, #0f161d) 70%, transparent); border: 1px solid var(--border, rgba(255,255,255,.08)); border-radius: 12px; padding: .55rem; }
+    .kdok-btn { border: 1px solid var(--kdok-accent); background: linear-gradient(135deg, var(--kdok-accent), var(--kdok-accent-2)); color: #0b1020; font-weight: 700; letter-spacing: .35px; padding: .6rem .95rem; border-radius: 12px; cursor: pointer; font-size: .92rem; transition: transform .2s, box-shadow .2s; box-shadow: 0 8px 24px -12px color-mix(in srgb, var(--accent) 55%, transparent); }
+    .kdok-btn:hover { transform: translateY(-1px); box-shadow: 0 12px 30px -14px color-mix(in srgb, var(--accent) 65%, transparent); }
+    .kdok-btn:active { transform: translateY(0); }
+    .kdok-btn.ghost { background: transparent; color: var(--text, #e6edf3); border-color: var(--border, rgba(255,255,255,.14)); box-shadow: none; }
+    .kdok-btn.ghost:hover { border-color: var(--kdok-accent); color: var(--kdok-accent); }
+    .kdok-mini-btn { border: 1px solid var(--border, rgba(255,255,255,.14)); background: transparent; color: var(--text, #e6edf3); border-radius: 10px; padding: .45rem .7rem; cursor: pointer; font-weight: 650; letter-spacing: .35px; font-size: .85rem; transition: border-color .2s, color .2s, transform .2s; }
+    .kdok-mini-btn:hover { border-color: var(--kdok-accent); color: var(--kdok-accent); transform: translateY(-1px); }
+    .kdok-mini-btn:active { transform: translateY(0); }
+    .kdok-editor { display: grid; grid-template-columns: 1fr; gap: .75rem; }
+    .kdok-editor textarea { width: 100%; min-height: 260px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; border-radius: 14px; border: 1px solid var(--border, #1f2a35); background: var(--bg-elev, #0f161d); color: var(--text, #e6edf3); padding: .85rem; }
+    .kdok-preview { border: 1px solid var(--border, rgba(255,255,255,.1)); border-radius: 14px; padding: .9rem 1rem; background: color-mix(in srgb, var(--bg-alt, #0f161d) 70%, transparent); }
+    .kdok-preview h1, .kdok-preview h2, .kdok-preview h3, .kdok-preview h4 { margin: .6rem 0 .35rem; }
+    .kdok-preview p { margin: .4rem 0; line-height: 1.55; }
+    .kdok-preview ul, .kdok-preview ol { padding-left: 1.15rem; margin: .45rem 0; }
+    .kdok-preview blockquote { margin: .45rem 0; padding-left: .8rem; border-left: 3px solid var(--kdok-accent); color: #b7c4d2; }
+    .kdok-status { min-height: 1.2rem; font-size: .88rem; }
+    .kdok-status.ok { color: #46d38d; }
+    .kdok-status.err { color: #ff7a7a; }
+    .kdok-actions { display: flex; flex-wrap: wrap; gap: .6rem; justify-content: flex-end; }
+    .kdok-note { font-size: .8rem; opacity: .7; line-height: 1.35; }
+    .kdok-badge.secondary { background: linear-gradient(135deg, #0f172a, #111a24); color: var(--text, #e6edf3); border: 1px solid var(--border, rgba(255,255,255,.1)); }
+    .kdok-legend { display: flex; gap: .6rem; align-items: center; flex-wrap: wrap; font-size: .82rem; opacity: .85; }
+    @media (min-width: 960px) { .kdok-editor { grid-template-columns: 1fr 1fr; } }
+    @media (max-width: 720px) {
+      .kdok-card { padding: 1rem; }
+      .kdok-actions .kdok-btn { flex: 1 1 200px; text-align: center; }
+    }
+  </style>
+  <meta property="og:title" content="kDokumenty" />
+  <meta property="og:description" content="Przygotuj pismo ogólne na bazie wzoru i pobierz PDF." />
+  <meta property="og:image" content="/assets/og/OG-Standard-kDokumenty.png" />
+  <meta property="og:url" content="/kdokumenty" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="kObywatel" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:image" content="/assets/og/OG-Twitter-kDokumenty.png" />
+</head>
+<body>
+  <div class="app-shell" data-state="kdokumenty">
+    <header class="app-header">
+      <button type="button" id="back-btn" class="back-btn" aria-label="Powrót" title="Powrót">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <a class="brand" href="/" aria-label="Strona główna">
+        <img src="/logo.png" alt="Logo kObywatel" class="logo no-bg" />
+        <span class="brand-name">kObywatel</span>
+      </a>
+      <nav class="main-nav" aria-label="Nawigacja"></nav>
+    </header>
+    <main class="app-main kdok-app">
+      <div class="kdok-wrapper">
+        <div class="kdok-hero">
+          <div class="kdok-badge">kDokumenty</div>
+          <h1>Pismo ogólne</h1>
+          <p>Wypełnij dane nadawcy i adresata, skorzystaj z edytora Markdown z przyciskami formatowania i zapisz gotowe pismo do PDF. Edycja i generowanie odbywa się lokalnie w Twojej przeglądarce.</p>
+        </div>
+        <form id="kdok-form" class="kdok-card" novalidate>
+          <section class="kdok-section">
+            <div class="kdok-subhead">
+              <h3>Meta</h3>
+              <small>Podstawowe informacje o piśmie</small>
+            </div>
+            <div class="kdok-grid">
+              <div class="kdok-field">
+                <label for="docTitle">Tytuł pisma</label>
+                <input id="docTitle" name="docTitle" type="text" placeholder="Wniosek / Zapytanie" required />
+              </div>
+              <div class="kdok-field">
+                <label for="docReference">Sygnatura / ID sprawy (opcjonalnie)</label>
+                <input id="docReference" name="docReference" type="text" placeholder="np. KAT-2026/07" />
+              </div>
+              <div class="kdok-field">
+                <label for="docDate">Data pisma</label>
+                <input id="docDate" name="docDate" type="date" required />
+              </div>
+            </div>
+          </section>
+
+          <section class="kdok-section">
+            <div class="kdok-subhead">
+              <h3>Strony</h3>
+              <small>Nadawca i adresat</small>
+            </div>
+            <div class="kdok-flex">
+              <div class="kdok-box">
+                <h4>Nadawca</h4>
+                <div class="kdok-field">
+                  <label for="senderType">Rodzaj podmiotu</label>
+                  <select id="senderType" name="senderType">
+                    <option value="institution" selected>Instytucja / firma</option>
+                    <option value="person">Osoba prywatna</option>
+                  </select>
+                </div>
+                <div class="kdok-field" data-entity="institution">
+                  <label for="senderCompany">Nazwa firmy</label>
+                  <input id="senderCompany" name="senderCompany" type="text" placeholder="Nazwa instytucji / firmy" />
+                </div>
+                <div class="kdok-field" data-entity="institution">
+                  <label for="senderKnip">KNIP</label>
+                  <input id="senderKnip" name="senderKnip" type="text" placeholder="0000000000" />
+                </div>
+                <div class="kdok-field" data-entity="institution">
+                  <label for="senderUnit">Jednostka / dział (opcjonalnie)</label>
+                  <input id="senderUnit" name="senderUnit" type="text" placeholder="Biuro / dział" />
+                </div>
+                <div class="kdok-field" data-entity="institution">
+                  <label for="senderAddress">Adres</label>
+                  <textarea id="senderAddress" name="senderAddress" placeholder="ul. Przykładowa 1&#10;00-000 Miasto"></textarea>
+                </div>
+                <div class="kdok-field" data-entity="institution">
+                  <label for="senderNick">Nick (opcjonalnie)</label>
+                  <input id="senderNick" name="senderNick" type="text" placeholder="Nick" />
+                </div>
+                <div class="kdok-field" data-entity="institution">
+                  <label for="senderRepPesel">KESEL reprezentanta (opcjonalnie)</label>
+                  <input id="senderRepPesel" name="senderRepPesel" type="text" placeholder="00000000000" />
+                </div>
+                <div class="kdok-field" data-entity="person" hidden>
+                  <label for="senderNickPerson">Nick</label>
+                  <input id="senderNickPerson" name="senderNickPerson" type="text" placeholder="Nick" />
+                </div>
+                <div class="kdok-field" data-entity="person" hidden>
+                  <label for="senderPesel">KESEL</label>
+                  <input id="senderPesel" name="senderPesel" type="text" placeholder="00000000000" />
+                </div>
+                <div class="kdok-field" data-entity="person" hidden>
+                  <label for="senderAddressPerson">Adres</label>
+                  <textarea id="senderAddressPerson" name="senderAddressPerson" placeholder="ul. Przykładowa 1&#10;00-000 Miasto"></textarea>
+                </div>
+              </div>
+              <div class="kdok-box">
+                <h4>Adresat</h4>
+                <div class="kdok-field">
+                  <label for="recipientType">Rodzaj podmiotu</label>
+                  <select id="recipientType" name="recipientType">
+                    <option value="institution" selected>Instytucja / firma</option>
+                    <option value="person">Osoba prywatna</option>
+                  </select>
+                </div>
+                <div class="kdok-field" data-entity="institution">
+                  <label for="recipientCompany">Nazwa firmy</label>
+                  <input id="recipientCompany" name="recipientCompany" type="text" placeholder="Nazwa instytucji / firmy" />
+                </div>
+                <div class="kdok-field" data-entity="institution">
+                  <label for="recipientKnip">KNIP</label>
+                  <input id="recipientKnip" name="recipientKnip" type="text" placeholder="0000000000" />
+                </div>
+                <div class="kdok-field" data-entity="institution">
+                  <label for="recipientUnit">Jednostka / dział (opcjonalnie)</label>
+                  <input id="recipientUnit" name="recipientUnit" type="text" placeholder="Biuro / dział" />
+                </div>
+                <div class="kdok-field" data-entity="institution">
+                  <label for="recipientAddress">Adres</label>
+                  <textarea id="recipientAddress" name="recipientAddress" placeholder="ul. Instytucyjna 2&#10;00-000 Miasto"></textarea>
+                </div>
+                <div class="kdok-field" data-entity="institution">
+                  <label for="recipientNick">Nick (opcjonalnie)</label>
+                  <input id="recipientNick" name="recipientNick" type="text" placeholder="Nick" />
+                </div>
+                <div class="kdok-field" data-entity="institution">
+                  <label for="recipientRepPesel">KESEL reprezentanta (opcjonalnie)</label>
+                  <input id="recipientRepPesel" name="recipientRepPesel" type="text" placeholder="00000000000" />
+                </div>
+                <div class="kdok-field" data-entity="person" hidden>
+                  <label for="recipientNickPerson">Nick</label>
+                  <input id="recipientNickPerson" name="recipientNickPerson" type="text" placeholder="Nick" />
+                </div>
+                <div class="kdok-field" data-entity="person" hidden>
+                  <label for="recipientPesel">KESEL</label>
+                  <input id="recipientPesel" name="recipientPesel" type="text" placeholder="00000000000" />
+                </div>
+                <div class="kdok-field" data-entity="person" hidden>
+                  <label for="recipientAddressPerson">Adres</label>
+                  <textarea id="recipientAddressPerson" name="recipientAddressPerson" placeholder="ul. Instytucyjna 2&#10;00-000 Miasto"></textarea>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="kdok-section">
+            <div class="kdok-subhead">
+              <h3>Treść</h3>
+              <small>Edytor Markdown + podgląd</small>
+            </div>
+            <div class="kdok-legend">
+              <span class="kdok-badge secondary">Markdown</span>
+              <span>Użyj przycisków lub skrótów: **pogrubienie**, _kursywa_, listy i cytaty.</span>
+            </div>
+            <div class="kdok-toolbar" aria-label="Formatowanie">
+              <button type="button" class="kdok-mini-btn" data-action="bold"><strong>B</strong></button>
+              <button type="button" class="kdok-mini-btn" data-action="italic"><em>I</em></button>
+              <button type="button" class="kdok-mini-btn" data-action="h2">H2</button>
+              <button type="button" class="kdok-mini-btn" data-action="quote">Cytat</button>
+              <button type="button" class="kdok-mini-btn" data-action="ul">Lista</button>
+              <button type="button" class="kdok-mini-btn" data-action="ol">Numerowana</button>
+              <button type="button" class="kdok-mini-btn" data-action="link">Link</button>
+              <button type="button" class="kdok-mini-btn" data-action="code">Kod</button>
+            </div>
+            <div class="kdok-editor">
+              <div class="kdok-field">
+                <label for="docBody">Treść pisma (Markdown)</label>
+                <textarea id="docBody" name="docBody" placeholder="Wpisz treść pisma..." required></textarea>
+              </div>
+              <div class="kdok-field">
+                <label>Podgląd</label>
+                <div id="doc-preview" class="kdok-preview" aria-live="polite"></div>
+              </div>
+            </div>
+          </section>
+
+          <div class="kdok-status" id="kdok-status" aria-live="polite"></div>
+
+          <div class="kdok-actions">
+            <button type="button" id="reset-form" class="kdok-btn ghost">Wyczyść</button>
+            <button type="submit" class="kdok-btn">Generuj PDF</button>
+          </div>
+          <p class="kdok-note">PDF powstaje lokalnie w przeglądarce. Dane nie są nigdzie wysyłane.</p>
+        </form>
+      </div>
+    </main>
+  </div>
+  <script src="/db-adapter.js"></script>
+  <script>window.__db && window.__db.loadConfig && window.__db.loadConfig().catch(()=>{});</script>
+  <script src="https://cdn.jsdelivr.net/npm/marked@12.0.1/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+  <script type="module" src="/kdokumenty.js"></script>
+</body>
+</html>
