@@ -4,6 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>kSeF – Faktura KAT</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Libre+Barcode+128+Text&display=swap" rel="stylesheet" />
   <link rel="apple-touch-icon" href="/assets/apple-touch-icon/apple-touch-icon.png" />
   <link rel="apple-touch-icon" sizes="57x57" href="/assets/apple-touch-icon/apple-touch-icon-57x57.png" />
   <link rel="apple-touch-icon" sizes="72x72" href="/assets/apple-touch-icon/apple-touch-icon-72x72.png" />
@@ -109,7 +112,7 @@
             <div class="ksef-grid">
               <div class="ksef-field">
                 <label for="invoiceNumber">Numer faktury</label>
-                <input id="invoiceNumber" name="invoiceNumber" type="text" placeholder="KAT-2026-001" required />
+                <input id="invoiceNumber" name="invoiceNumber" type="text" placeholder="KAT-2026-001" required maxlength="32" />
               </div>
               <div class="ksef-field">
                 <label for="issueDate">Data wystawienia</label>
@@ -247,10 +250,13 @@
           <div class="ksef-status" id="ksef-status" aria-live="polite"></div>
 
           <div class="ksef-actions">
+            <input id="import-file" type="file" accept=".ksefkob,.json" style="display:none" />
             <button type="button" id="reset-form" class="ksef-btn ghost">Wyczyść formularz</button>
+            <button type="button" id="import-json" class="ksef-btn ghost">Importuj (.ksefkob)</button>
+            <button type="button" id="export-json" class="ksef-btn ghost">Eksportuj (.ksefkob)</button>
             <button type="submit" class="ksef-btn">Generuj PDF</button>
           </div>
-          <p class="ksef-note">PDF generowany jest lokalnie w przeglądarce. Dane nie opuszczają Twojego urządzenia.</p>
+          <p class="ksef-note">PDF generowany jest lokalnie w przeglądarce. Dane nie opuszczają Twojego urządzenia. Możesz też przeciągnąć plik .ksefkob na tę stronę, aby go zaimportować.</p>
         </form>
       </div>
     </main>
