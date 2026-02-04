@@ -2,12 +2,16 @@ const form = document.getElementById('ksef-form');
 const itemsBody = document.getElementById('items-body');
 const addItemBtn = document.getElementById('add-item');
 const resetBtn = document.getElementById('reset-form');
+const exportBtn = document.getElementById('export-json');
+const importBtn = document.getElementById('import-json');
+const importInput = document.getElementById('import-file');
 const statusEl = document.getElementById('ksef-status');
 const totalNetEl = document.getElementById('total-net');
 const totalKatEl = document.getElementById('total-kat');
 const totalGrossEl = document.getElementById('total-gross');
 let __fontPromise = null;
 let __logoPromise = null;
+let __barcodeFontPromise = null;
 
 function formatMoney(value){
   const num = Number.isFinite(value) ? value : 0;
@@ -93,7 +97,7 @@ function addRow(prefill = {}){
 
 function collectData(){
   const data = {
-    invoiceNumber: form.invoiceNumber?.value.trim() || '',
+    invoiceNumber: (form.invoiceNumber?.value.trim() || '').slice(0, 32),
     issueDate: form.issueDate?.value || '',
     saleDate: form.saleDate?.value || '',
     currency: form.currency?.value.trim() || 'PMK',
@@ -136,6 +140,119 @@ function collectData(){
   return data;
 }
 
+function buildExportPayload(){
+  const data = collectData();
+  return {
+    kind: 'ksef-kob',
+    version: 1,
+    generatedAt: new Date().toISOString(),
+    data
+  };
+}
+
+function downloadExport(){
+  try {
+    const payload = buildExportPayload();
+    if(!payload.data.items.length){
+      setStatus('Dodaj przynajmniej jedną pozycję przed eksportem.', 'err');
+      return;
+    }
+    const raw = JSON.stringify(payload, null, 2);
+    const fileName = `${safeFileName(payload.data.invoiceNumber || 'faktura_kat')}.ksefkob`;
+    const blob = new Blob([raw], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    a.click();
+    URL.revokeObjectURL(url);
+    setStatus('Eksport zakończony (pobrano plik).', 'ok');
+  } catch(err){
+    console.error(err);
+    setStatus('Nie udało się wyeksportować danych.', 'err');
+  }
+}
+
+function applyImportedData(raw){
+  const payload = raw?.data ? raw : { data: raw };
+  if(payload.kind && payload.kind !== 'ksef-kob'){
+    throw new Error('Nieprawidłowy typ pliku (kind).');
+  }
+  const data = payload.data;
+  if(!data || typeof data !== 'object'){
+    throw new Error('Nie znaleziono danych faktury w pliku.');
+  }
+  form.invoiceNumber.value = (data.invoiceNumber || defaultInvoiceNumber()).slice(0, 32);
+  form.issueDate.value = data.issueDate || todayIso();
+  form.saleDate.value = data.saleDate || todayIso();
+  form.currency.value = data.currency || 'PMK';
+  form.sellerName.value = data.seller?.name || '';
+  form.sellerId.value = data.seller?.id || '';
+  form.sellerAddress.value = data.seller?.address || '';
+  form.buyerName.value = data.buyer?.name || '';
+  form.buyerId.value = data.buyer?.id || '';
+  form.buyerAddress.value = data.buyer?.address || '';
+  form.paymentMethod.value = data.payment?.method || 'Gotówka';
+  form.paymentStatus.value = data.payment?.status || 'Oczekuje';
+  form.paymentTerms.value = data.payment?.terms || todayIso(7);
+  form.extraNotes.value = data.payment?.notes || '';
+  itemsBody.innerHTML = '';
+  if(Array.isArray(data.items) && data.items.length){
+    data.items.forEach(item => {
+      addRow({
+        name: item.name || '',
+        qty: item.qty ?? 1,
+        unit: item.unit || 'szt.',
+        price: item.price ?? 0,
+        kat: item.katRate ?? 0
+      });
+    });
+  } else {
+    addRow();
+  }
+  recalcTotals();
+  syncPaymentTermState();
+  setStatus('Zaimportowano dane z pliku.', 'ok');
+}
+
+function handleImportFile(file){
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const json = JSON.parse(reader.result);
+      applyImportedData(json);
+    } catch(err){
+      console.error(err);
+      setStatus('Nie udało się wczytać pliku (.ksefkob).', 'err');
+    }
+  };
+  reader.onerror = () => {
+    setStatus('Błąd odczytu pliku.', 'err');
+  };
+  reader.readAsText(file);
+}
+
+function isFileDrag(evt){
+  return Array.from(evt?.dataTransfer?.types || []).includes('Files');
+}
+
+function handleDragOver(evt){
+  if(!isFileDrag(evt)) return;
+  evt.preventDefault();
+  evt.dataTransfer.dropEffect = 'copy';
+}
+
+function handleDrop(evt){
+  if(!isFileDrag(evt)) return;
+  evt.preventDefault();
+  const file = evt.dataTransfer?.files?.[0];
+  if(file){
+    clearStatus();
+    handleImportFile(file);
+  }
+}
+
 function safeFileName(name){
   return name.replace(/[^a-z0-9_-]+/gi, '_').replace(/_+/g,'_').replace(/^_+|_+$/g,'') || 'faktura';
 }
@@ -172,6 +289,21 @@ async function ensurePdfFont(doc){
   doc.addFileToVFS('ksef-roboto.ttf', b64);
   doc.addFont('ksef-roboto.ttf','ksef-roboto','normal');
   return 'ksef-roboto';
+}
+
+async function ensureBarcodeFont(doc){
+  if(!__barcodeFontPromise){
+    __barcodeFontPromise = (async()=>{
+      const url = 'https://raw.githubusercontent.com/google/fonts/main/ofl/librebarcode128text/LibreBarcode128Text-Regular.ttf';
+      const r = await fetch(url);
+      if(!r.ok) throw new Error('Nie udało się pobrać czcionki kodu kreskowego.');
+      return bufToBase64(await r.arrayBuffer());
+    })();
+  }
+  const b64 = await __barcodeFontPromise;
+  doc.addFileToVFS('ksef-barcode.ttf', b64);
+  doc.addFont('ksef-barcode.ttf','ksef-barcode','normal');
+  return 'ksef-barcode';
 }
 
 async function ensureLogoData(){
@@ -251,13 +383,25 @@ async function generatePdf(data){
   doc.text(`Płatność: ${data.payment.method || '—'}, termin: ${data.payment.terms || '-'}`, 14, afterTableY + 22);
   if(data.payment.status){ doc.text(`Status płatności: ${data.payment.status}`, 14, afterTableY + 28); }
   if(data.payment.notes){ doc.text(`Uwagi: ${data.payment.notes}`, 14, afterTableY + 34); }
+  try {
+    const barcodeFontName = await ensureBarcodeFont(doc);
+    const pageHeight = doc.internal.pageSize.getHeight();
+    doc.setFont(barcodeFontName, 'normal');
+    doc.setFontSize(32);
+    doc.text(data.invoiceNumber || '-', 14, pageHeight - 12);
+    doc.setFont(fontName, 'normal');
+    doc.setFontSize(11);
+  } catch(err){
+    console.warn('[kSeF] Kod kreskowy pominięty:', err);
+    doc.setFont(fontName, 'normal');
+  }
   const fileName = `${safeFileName(data.invoiceNumber || 'faktura_kat')}.pdf`;
   doc.save(fileName);
 }
 
 function resetForm(){
   form.reset();
-  form.invoiceNumber.value = defaultInvoiceNumber();
+  form.invoiceNumber.value = defaultInvoiceNumber().slice(0, 32);
   form.issueDate.value = todayIso();
   form.saleDate.value = todayIso();
   form.paymentTerms.value = todayIso(7);
@@ -299,9 +443,19 @@ function bindEvents(){
     if(row){ row.remove(); recalcTotals(); }
   });
   addItemBtn?.addEventListener('click', ()=> { addRow(); });
+  exportBtn?.addEventListener('click', ()=> { clearStatus(); downloadExport(); });
+  importBtn?.addEventListener('click', ()=> { importInput?.click(); });
+  importInput?.addEventListener('change', e => {
+    clearStatus();
+    const file = e.target.files?.[0];
+    handleImportFile(file);
+    e.target.value = '';
+  });
   resetBtn?.addEventListener('click', ()=> { resetForm(); });
   form.paymentStatus?.addEventListener('change', syncPaymentTermState);
   form.addEventListener('submit', handleSubmit);
+  document.addEventListener('dragover', handleDragOver);
+  document.addEventListener('drop', handleDrop);
   resetForm();
   syncPaymentTermState();
 }
