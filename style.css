@@ -98,28 +98,51 @@
 	gap: 1.1rem;
 }
 
-@media (min-width:700px) {
-	.offers-grid {
-		grid-template-columns: repeat(3, 1fr);
-	}
-}
-
-/* Stylowanie breadcrumb (ścieżki nawigacyjnej) */
-.khandel-breadcrumb {
-	display: flex;
+.kf-coords-link {
+	display: inline-flex;
 	align-items: center;
-	gap: .5em;
-	font-size: .98rem;
-	margin-bottom: 1.1rem;
-	flex-wrap: wrap;
+	gap: .4rem;
+	color: inherit;
+	text-decoration: none;
+	padding: .35rem .55rem;
+	border-radius: 8px;
+	border: 1px solid #26313d;
+	background: linear-gradient(135deg, #1a2632, #0f172a);
+	box-shadow: 0 6px 14px -10px rgba(0,0,0,.65);
+	font-weight: 700;
+	letter-spacing: .3px;
+	transition: transform .18s ease, filter .18s ease, border-color .18s ease, background .18s ease;
+}
+.kf-coords-link:hover {
+	transform: translateY(-1px);
+	filter: brightness(1.08);
+	border-color: #2f3b4b;
+	text-decoration: none;
+}
+.kf-coords-link:active {
+	transform: translateY(0);
+	filter: brightness(.98);
+}
+body.light .kf-coords-link {
+	background: linear-gradient(135deg, #f8fafc, #e5e7eb);
+	border-color: #cbd5e1;
+	box-shadow: 0 6px 14px -10px rgba(15,23,42,.3);
+}
+.kf-coords-icon {
+	width: 16px;
+	height: 16px;
+	filter: drop-shadow(0 0 1px rgba(0,0,0,.4));
 }
 
 .khandel-breadcrumb .bc-link {
-	background: var(--bg-elev);
+	display: inline-flex;
+	align-items: center;
+	gap: .45rem;
+	padding: .25em .85em;
+	border-radius: 12px;
 	border: 1px solid var(--border);
 	color: var(--text);
-	border-radius: 8px;
-	padding: .25em .85em;
+	background: rgba(255,255,255,.03);
 	font-size: .98rem;
 	font-weight: 600;
 	letter-spacing: .4px;
@@ -427,6 +450,7 @@ body {
 	height: 34px;
 	border-radius: 10px;
 	object-fit: cover;
+
 	border: 1px solid var(--border);
 	background: #0003;
 }
