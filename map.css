@@ -548,6 +548,49 @@ body.light .shop-marker .marker-btn {
   color: #111;
 }
 
+/* Firmy kFirma */
+.company-marker .marker-btn {
+  background: linear-gradient(135deg, #a855f7, #7c3aed);
+}
+
+body.light .company-marker .marker-btn {
+  color: #111;
+}
+
+.company-link-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  padding: .45rem .9rem;
+  border-radius: 12px;
+  border: 1px solid #2d3542;
+  background: linear-gradient(135deg, #1f2937, #0f172a);
+  color: #e5e7eb;
+  font-weight: 700;
+  letter-spacing: .3px;
+  text-decoration: none;
+  box-shadow: 0 10px 22px -12px rgba(0,0,0,.6);
+  transition: transform .18s ease, filter .18s ease, border-color .18s ease, background .18s ease;
+}
+
+.company-link-btn:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.08);
+  border-color: #475569;
+}
+
+.company-link-btn:active {
+  transform: translateY(0);
+  filter: brightness(.98);
+}
+
+body.light .company-link-btn {
+  background: linear-gradient(135deg, #f8fafc, #e5e7eb);
+  color: #0f172a;
+  border-color: #cbd5e1;
+  box-shadow: 0 10px 22px -12px rgba(15, 23, 42, .35);
+}
+
 .shop-offer {
   display: grid;
   grid-template-columns: 1fr auto;

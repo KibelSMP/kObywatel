@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>kFirma – Rejestracja</title>
+  <link rel="apple-touch-icon" href="/assets/apple-touch-icon/apple-touch-icon.png" />
+  <link rel="apple-touch-icon" sizes="57x57" href="/assets/apple-touch-icon/apple-touch-icon-57x57.png" />
+  <link rel="apple-touch-icon" sizes="72x72" href="/assets/apple-touch-icon/apple-touch-icon-72x72.png" />
+  <link rel="apple-touch-icon" sizes="76x76" href="/assets/apple-touch-icon/apple-touch-icon-76x76.png" />
+  <link rel="apple-touch-icon" sizes="114x114" href="/assets/apple-touch-icon/apple-touch-icon-114x114.png" />
+  <link rel="apple-touch-icon" sizes="120x120" href="/assets/apple-touch-icon/apple-touch-icon-120x120.png" />
+  <link rel="apple-touch-icon" sizes="144x144" href="/assets/apple-touch-icon/apple-touch-icon-144x144.png" />
+  <link rel="apple-touch-icon" sizes="152x152" href="/assets/apple-touch-icon/apple-touch-icon-152x152.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/assets/apple-touch-icon/apple-touch-icon-180x180.png" />
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="icon" type="image/png" href="/favicon.png" />
+  <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="/kfirma/style.css" />
+  <meta property="og:title" content="kFirma – Rejestracja" />
+  <meta property="og:description" content="Generator pliku .kobcomreg" />
+  <meta property="og:image" content="/assets/og/OG-Standard-kFirma.png" />
+  <meta property="og:url" content="/kfirma/register" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="kObywatel" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:image" content="/assets/og/OG-Twitter-kFirma.png" />
+</head>
+<body>
+  <div class="app-shell" data-state="kfirma-rej">
+    <header class="app-header">
+      <button type="button" id="back-btn" class="back-btn" aria-label="Powrót" title="Powrót">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <a class="brand" href="/" aria-label="Strona główna">
+        <img src="/logo.png" alt="Logo kObywatel" class="logo no-bg" />
+        <span class="brand-name">kObywatel</span>
+      </a>
+      <nav class="main-nav" aria-label="Nawigacja"></nav>
+    </header>
+    <main class="app-main">
+      <div class="kfreg-wrap">
+        <div class="kfreg-hero">
+          <div class="kfreg-badge">kFirma</div>
+          <h1>Rejestracja i eksport</h1>
+          <p>Wypełnij dane firmy lub organizacji, wybierz symbole działalności i wygeneruj plik <strong>.kobcomreg</strong>. Po wygenerowaniu pliku wyślij go do <strong>@Miersetnik</strong> na Discordzie.</p>
+          <div class="kfreg-actions">
+            <a class="kfreg-btn" href="/kfirma">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+              Wróć do listy
+            </a>
+          </div>
+        </div>
+
+        <form id="kfreg-form" class="kfreg-card" novalidate>
+          <div class="kfreg-section">
+            <h3>Dane podstawowe</h3>
+            <div class="kfreg-grid">
+              <div class="kfreg-field">
+                <label for="kfreg-name">Nazwa firmy/organizacji</label>
+                <input id="kfreg-name" name="name" type="text" placeholder="CYFRA Sp. z o.o." required />
+              </div>
+              <div class="kfreg-field">
+                <label for="kfreg-registrar">KESEL osoby rejestrującej</label>
+                <input id="kfreg-registrar" name="registrar" type="number" inputmode="numeric" placeholder="55475590" required />
+              </div>
+            </div>
+          </div>
+
+          <div class="kfreg-section">
+            <h3>Symbole działalności</h3>
+            <p class="kfreg-note">Uzupełnij zakres działalności Twojej firmy/organizacji.</p>
+            <div id="kfreg-symbols" class="kfreg-symbols" aria-live="polite"></div>
+          </div>
+
+          <div class="kfreg-section">
+            <h3>Lokalizacja</h3>
+            <div class="kfreg-grid">
+              <div class="kfreg-field">
+                <label for="kfreg-city">Miasto</label>
+                <input id="kfreg-city" name="city" type="text" placeholder="Spawnowice" required />
+              </div>
+              <div class="kfreg-field">
+                <label for="kfreg-voiv">Województwo</label>
+                <input id="kfreg-voiv" name="voiv" type="text" placeholder="Międzyrzeckie" required />
+              </div>
+              <div class="kfreg-field">
+                <label for="kfreg-street">Ulica</label>
+                <input id="kfreg-street" name="street" type="text" placeholder="al. Mikolska 1/15" required />
+              </div>
+            </div>
+            <div class="kfreg-grid">
+              <div class="kfreg-field">
+                <label for="kfreg-x">Koordynaty (X)</label>
+                <input id="kfreg-x" name="x" type="number" inputmode="numeric" placeholder="-178" required />
+              </div>
+              <div class="kfreg-field">
+                <label for="kfreg-y">Koordynaty (Y)</label>
+                <input id="kfreg-y" name="y" type="number" inputmode="numeric" placeholder="34" required />
+              </div>
+            </div>
+          </div>
+
+          <div class="kfreg-section">
+            <div class="kfreg-check">
+              <input type="checkbox" id="kfreg-declaration" name="declaration" required />
+              <label for="kfreg-declaration">Oświadczam, że jestem właścicielem firmy/organizacji lub zostałem upoważniony / zostałam upoważniona przez właściciela do rejestracji firmy/organizacji w systemie.</label>
+            </div>
+          </div>
+
+          <div class="kfreg-actions-row">
+            <button type="button" class="kfreg-btn ghost" id="kfreg-reset">Wyczyść</button>
+            <button type="submit" class="kfreg-btn" id="kfreg-generate">Generuj i pobierz</button>
+          </div>
+          <div class="kfreg-status" id="kfreg-status" aria-live="polite"></div>
+        </form>
+      </div>
+    </main>
+  </div>
+  <script src="/db-adapter.js"></script>
+  <script>window.__db && window.__db.loadConfig && window.__db.loadConfig().catch(()=>{});</script>
+  <script type="module" src="/kfirma/register.js"></script>
+</body>
+</html>

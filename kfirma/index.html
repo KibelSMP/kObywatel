@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>kFirma – Przeglądarka</title>
+  <link rel="apple-touch-icon" href="/assets/apple-touch-icon/apple-touch-icon.png" />
+  <link rel="apple-touch-icon" sizes="57x57" href="/assets/apple-touch-icon/apple-touch-icon-57x57.png" />
+  <link rel="apple-touch-icon" sizes="72x72" href="/assets/apple-touch-icon/apple-touch-icon-72x72.png" />
+  <link rel="apple-touch-icon" sizes="76x76" href="/assets/apple-touch-icon/apple-touch-icon-76x76.png" />
+  <link rel="apple-touch-icon" sizes="114x114" href="/assets/apple-touch-icon/apple-touch-icon-114x114.png" />
+  <link rel="apple-touch-icon" sizes="120x120" href="/assets/apple-touch-icon/apple-touch-icon-120x120.png" />
+  <link rel="apple-touch-icon" sizes="144x144" href="/assets/apple-touch-icon/apple-touch-icon-144x144.png" />
+  <link rel="apple-touch-icon" sizes="152x152" href="/assets/apple-touch-icon/apple-touch-icon-152x152.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/assets/apple-touch-icon/apple-touch-icon-180x180.png" />
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="icon" type="image/png" href="/favicon.png" />
+  <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="/kfirma/style.css" />
+  <meta property="og:title" content="kFirma" />
+  <meta property="og:description" content="Przeglądarka firm kObywatela" />
+  <meta property="og:image" content="/assets/og/OG-Standard-kFirma.png" />
+  <meta property="og:url" content="/kfirma" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="kObywatel" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:image" content="/assets/og/OG-Twitter-kFirma.png" />
+</head>
+<body>
+  <div class="app-shell" data-state="kfirma">
+    <header class="app-header">
+      <button type="button" id="back-btn" class="back-btn" aria-label="Powrót" title="Powrót">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <a class="brand" href="/" aria-label="Strona główna">
+        <img src="/logo.png" alt="Logo kObywatel" class="logo no-bg" />
+        <span class="brand-name">kObywatel</span>
+      </a>
+      <nav class="main-nav" aria-label="Nawigacja"></nav>
+    </header>
+    <main class="app-main kf-app">
+      <div class="kf-wrap">
+        <div class="kf-hero">
+          <div class="kf-badge">kFirma</div>
+          <h1>Przeglądarka firm i organizacji</h1>
+          <p>Sprawdź zarejestrowane firmy oraz organizacje, ich lokalizację i symbole działalności.</p>
+          <div class="kf-actions">
+            <a class="kf-btn" href="/kfirma/register">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+              Rejestracja
+            </a>
+          </div>
+        </div>
+
+        <section class="kf-panel kf-filters" aria-label="Filtry">
+          <div class="kf-filter-grid">
+            <div class="kf-field">
+              <label for="kf-search">Szukaj (nazwa, KNIP, miasto, symbol)</label>
+              <input id="kf-search" type="search" placeholder="np. CYFRA, 2007, Spawnowice" autocomplete="off" />
+            </div>
+            <div class="kf-field">
+              <label for="kf-symbol">Symbol działalności</label>
+              <select id="kf-symbol">
+                <option value="">Dowolny symbol</option>
+              </select>
+            </div>
+            <div class="kf-field">
+              <label for="kf-voiv">Województwo</label>
+              <select id="kf-voiv">
+                <option value="">Dowolne województwo</option>
+              </select>
+            </div>
+          </div>
+          <div class="kf-status" id="kf-status" aria-live="polite"></div>
+        </section>
+
+        <section class="kf-stats" aria-label="Podsumowanie" id="kf-stats"></section>
+
+        <section id="lista" class="kf-panel" aria-label="Lista firm">
+          <div class="kf-list" id="kf-list" aria-live="polite"></div>
+        </section>
+      </div>
+    </main>
+  </div>
+  <script src="/db-adapter.js"></script>
+  <script>window.__db && window.__db.loadConfig && window.__db.loadConfig().catch(()=>{});</script>
+  <script type="module" src="/kfirma/index.js"></script>
+</body>
+</html>

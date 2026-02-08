@@ -7,6 +7,7 @@ const crosshairEl = document.getElementById('map-crosshair');
 // Podwarstwy markerów
 let markersMainLayer = null; // standardowe punkty mapy
 let markersShopsLayer = null; // sklepy kHandel
+let markersCompaniesLayer = null; // firmy kFirma
 const linesCanvas = document.getElementById('lines-layer');
 const linesCtx = linesCanvas ? linesCanvas.getContext('2d') : null;
 const loadingEl = document.getElementById('loading');
@@ -152,6 +153,12 @@ let currentShopContextId = null; // aktywny sklep do wyświetlania ofert w wynik
 let lastShopClusteringActive = false;
 let lastShopScaleForEval = scale;
 
+// --- Firmy kFirma ---
+let companiesData = null; // Array<{ id,name,city,street,voiv,knip,registrar,symbols:[],x,z }>
+let showCompanies = false;
+let lastCompanyClusteringActive = false;
+let lastCompanyScaleForEval = scale;
+
 // Snapshot poprzedniego stanu dla animacji
 let previousClusterSnapshot = {
   clusters: new Map(), // key -> { cx, cy, count, members:Set }
@@ -175,6 +182,11 @@ function ensureMarkerSublayers(){
     markersShopsLayer = document.createElement('div');
     markersShopsLayer.className = 'markers-sub markers-shops';
     markersLayer.appendChild(markersShopsLayer);
+  }
+  if(!markersCompaniesLayer){
+    markersCompaniesLayer = document.createElement('div');
+    markersCompaniesLayer.className = 'markers-sub markers-companies';
+    markersLayer.appendChild(markersCompaniesLayer);
   }
 }
 
@@ -215,6 +227,7 @@ function saveLegendState(){
       localStorage.setItem('map.legend.linesLegendCollapsed', JSON.stringify(linesLegendEl.classList.contains('collapsed')));
     }
     localStorage.setItem('map.legend.showShops', JSON.stringify(!!showShops));
+    localStorage.setItem('map.legend.showCompanies', JSON.stringify(!!showCompanies));
   } catch(_) {}
 }
 
@@ -263,6 +276,8 @@ function loadLegendState(){
     }
     const ss = localStorage.getItem('map.legend.showShops');
     if(ss !== null){ showShops = !!JSON.parse(ss); found = true; }
+    const sc = localStorage.getItem('map.legend.showCompanies');
+    if(sc !== null){ showCompanies = !!JSON.parse(sc); found = true; }
   } catch(_) {}
   hasLoadedLegendState = found;
   // Ustal pochodną scaloną
@@ -271,7 +286,7 @@ function loadLegendState(){
 
 // Konfiguracja domyślna widoczności kategorii:
 // W trybie ogólnym mają być widoczne tylko duże miejscowości (miasto_duze) + ewentualny spawn (miasto) + inne kategorie infrastruktury jeśli zostaną włączone.
-// Dlatego przy pierwszym załadowaniu (gdy brak stanu w localStorage) ukrywamy: miasto_male, kolej, metro, infrastruktura (opcjonalnie), players (opcjonalnie).
+// Dlatego przy pierwszym załadowaniu (gdy brak stanu w localStorage) ukrywamy: miasto_male, kolej, metro, infrastruktura, players.
 // Zostawiamy odsłonięte: miasto_duze, miasto.
 function applyInitialCategoryVisibility(){
   if(hasLoadedLegendState) return; // użytkownik ma już swój stan – nic nie zmieniamy
@@ -338,6 +353,7 @@ function applyTransform(){
   if(__lastPointerPos){ updateCursorCoords(__lastPointerPos.x, __lastPointerPos.y); }
   // Aktualizacja klastrów sklepów przy zmianach transformacji
   try { maybeUpdateShopClusters(); } catch(_){ }
+  try { maybeUpdateCompanyClusters(); } catch(_){ }
 }
 // Progi dla podbijania rozdzielczości (wartość scale*dpr)
 const HI_RES_THRESHOLD_2X = 1.15;
@@ -434,7 +450,6 @@ function centerOnFocusParam(){
       setTimeout(retry, 150); return;
     }
     // Skorzystaj z istniejącej funkcji – centrowanie + tymczasowy marker (pulse)
-    ensurePlayersLayerVisible();
     const label = usp.get('fl') || usp.get('label') || 'Cel';
     focusLogicalPoint(x, z, { pulse:true, label, desiredScale });
   } catch(_){ }
@@ -510,6 +525,23 @@ function buildLegend(){
       const lab = document.createElement('span'); lab.className='legend-label'; lab.textContent = 'Sklep';
       row.appendChild(cb); row.appendChild(dot); row.appendChild(lab);
       after.insertAdjacentElement('afterend', row);
+    }
+  } catch(_){ }
+  try {
+    const anchor = legendEl.querySelector('[data-legend-shops]') || legendEl.querySelector('[data-cat-key="miasto_male"]');
+    if(anchor){
+      const row = document.createElement('label'); row.className='legend-item'; row.setAttribute('data-legend-companies','1');
+      const cb = document.createElement('input'); cb.type='checkbox'; cb.style.marginRight='.35rem'; cb.checked = !!showCompanies;
+      cb.addEventListener('change', async ()=>{
+        showCompanies = cb.checked;
+        saveLegendState();
+        if(showCompanies){ await ensureCompaniesLoaded(); }
+        buildCompanyMarkers();
+      });
+      const dot = document.createElement('span'); dot.className='legend-dot'; dot.style.background = '#a855f7';
+      const lab = document.createElement('span'); lab.className='legend-label'; lab.textContent = 'Firma';
+      row.appendChild(cb); row.appendChild(dot); row.appendChild(lab);
+      anchor.insertAdjacentElement('afterend', row);
     }
   } catch(_){ }
   // Separator między punktami a sekcją transportową
@@ -705,6 +737,38 @@ async function ensureShopsLoaded(){
   return shopsData;
 }
 
+function normalizeCompanyRecord(item){
+  const addr = item?.location?.address || {};
+  const coords = item?.location?.coordinates || {};
+  const name = String(item?.name || 'Firma').trim();
+  const knip = String(item?.knip || '').trim();
+  const registrar = String(item?.registrar_kesel ?? item?.registrarKesel ?? '').trim();
+  const symbols = Array.isArray(item?.symbols) ? item.symbols.map(s=> String(s||'').trim()).filter(Boolean) : [];
+  const city = String(addr.city || '').trim();
+  const street = String(addr.street || '').trim();
+  const voiv = String(addr.voivodeship || addr.wojewodztwo || '').trim();
+  const x = Number(coords.x);
+  const z = Number(coords.y ?? coords.z);
+  const id = knip || `${name}|${city}|${street}`;
+  return { id, name, city, street, voiv, knip, registrar, symbols, x: Number.isFinite(x)? x : undefined, z: Number.isFinite(z)? z : undefined };
+}
+
+async function ensureCompaniesLoaded(){
+  if(companiesData !== null) return companiesData;
+  try {
+    const arr = await window.__db.fetchJson('data/companies.json');
+    if(!Array.isArray(arr)){ companiesData = []; return companiesData; }
+    const map = new Map();
+    arr.forEach(raw => {
+      const c = normalizeCompanyRecord(raw);
+      if(!Number.isFinite(c.x) || !Number.isFinite(c.z)) return;
+      if(!map.has(c.id)) map.set(c.id, c);
+    });
+    companiesData = Array.from(map.values());
+  } catch(e){ companiesData = []; }
+  return companiesData;
+}
+
 function logicalToPx(x,z){
   if(!mapData || !imgWidth || !imgHeight) return { x:0, y:0 };
   const meta = mapData.meta || {}; const unitsPerPixel = meta.unitsPerPixel || 4; const originMode = meta.origin || 'top-left';
@@ -783,6 +847,115 @@ function maybeUpdateShopClusters(){
     lastShopScaleForEval = scale; lastShopClusteringActive = active;
     try { buildShopMarkers(); } catch(_){ }
   }
+}
+
+function buildCompanyMarkers(){
+  ensureMarkerSublayers();
+  if(!markersCompaniesLayer) return;
+  markersCompaniesLayer.innerHTML = '';
+  if(!showCompanies) return;
+  if(!mapData || !imgWidth || !imgHeight) return;
+  if(!Array.isArray(companiesData) || companiesData.length===0) return;
+  const enriched = companiesData.map(c=>{
+    const pos = logicalToPx(c.x, c.z);
+    const screenX = originX + pos.x * scale;
+    const screenY = originY + pos.y * scale;
+    return { c, pxX: pos.x, pxY: pos.y, screenX, screenY };
+  });
+  const clusters=[]; const taken=new Set();
+  if(companiesClusteringCurrentlyEnabled()){
+    const threshold = CLUSTER_SCREEN_DISTANCE;
+    for(let i=0;i<enriched.length;i++){
+      if(taken.has(i)) continue;
+      const a = enriched[i]; const group=[i];
+      for(let j=i+1;j<enriched.length;j++){
+        if(taken.has(j)) continue; const b=enriched[j]; const dx=a.screenX-b.screenX, dy=a.screenY-b.screenY; if(dx*dx+dy*dy<=threshold*threshold){ group.push(j); taken.add(j); }
+      }
+      taken.add(i);
+      const members = group.map(k=> enriched[k]);
+      const cx = members.reduce((sum,m)=>sum+m.pxX,0)/members.length;
+      const cy = members.reduce((sum,m)=>sum+m.pxY,0)/members.length;
+      clusters.push({ members, cx, cy });
+    }
+  } else {
+    clusters.push(...enriched.map(m=> ({ members:[m], cx:m.pxX, cy:m.pxY })));
+  }
+  for(const cl of clusters){
+    if(cl.members.length === 1){
+      const m = cl.members[0]; const c = m.c;
+      const wrap = document.createElement('div');
+      wrap.className = 'marker company-marker';
+      wrap.style.left = m.pxX + 'px'; wrap.style.top = m.pxY + 'px';
+      wrap.dataset.companyId = c.id; wrap.dataset.px = String(m.pxX); wrap.dataset.py = String(m.pxY);
+      const btn = document.createElement('button'); btn.className='marker-btn';
+      const icon = document.createElement('img'); icon.src='/icns_ui/city.svg'; icon.style.width='16px'; icon.alt=''; icon.setAttribute('aria-hidden','true');
+      btn.appendChild(icon);
+      btn.addEventListener('click', (e)=>{ e.stopPropagation(); openCompanyInSearch(c.id); });
+      const label = document.createElement('div'); label.className='marker-label';
+      const locLabel = c.city ? `${c.name} • ${c.city}` : c.name;
+      label.textContent = locLabel;
+      wrap.appendChild(btn); wrap.appendChild(label); markersCompaniesLayer.appendChild(wrap);
+    } else {
+      const wrap = document.createElement('div');
+      wrap.className = 'marker cluster-marker'; wrap.style.left = cl.cx + 'px'; wrap.style.top = cl.cy + 'px';
+      const btn = document.createElement('button'); btn.className='marker-btn cluster-btn'; btn.textContent = cl.members.length>99? '99+': String(cl.members.length);
+      btn.addEventListener('click', (e)=>{
+        e.stopPropagation();
+        const sX = originX + cl.cx * scale; const sY = originY + cl.cy * scale;
+        setScale(scale*1.35, sX, sY);
+      });
+      wrap.appendChild(btn); markersCompaniesLayer.appendChild(wrap);
+    }
+  }
+}
+
+function companiesClusteringCurrentlyEnabled(){
+  return scale < CLUSTER_ZOOM_THRESHOLD;
+}
+
+function maybeUpdateCompanyClusters(){
+  const active = companiesClusteringCurrentlyEnabled();
+  const delta = Math.abs(scale - lastCompanyScaleForEval);
+  if(active !== lastCompanyClusteringActive || delta > 0.02){
+    lastCompanyScaleForEval = scale; lastCompanyClusteringActive = active;
+    try { buildCompanyMarkers(); } catch(_){ }
+  }
+}
+
+function openCompanyInSearch(companyId){
+  try {
+    if(!companiesData) return; const c = companiesData.find(x=> x.id===companyId);
+    if(!c) return;
+    currentShopContextId = null;
+    focusLogicalPoint(c.x, c.z, { pulse:false });
+    renderCompanyDetail(c);
+  } catch(_){ }
+}
+
+function renderCompanyDetail(company){
+  if(!pointDetailEl) return;
+  if(!company){ pointDetailEl.innerHTML=''; pointDetailEl.hidden = true; return; }
+  pointDetailEl.hidden = false;
+  pointDetailEl.innerHTML = '';
+  const h = document.createElement('h4'); h.textContent = company.name; pointDetailEl.appendChild(h);
+  const addr = document.createElement('div'); addr.textContent = [company.city, company.street, company.voiv].filter(Boolean).join(' • ') || 'Brak adresu'; pointDetailEl.appendChild(addr);
+  const meta = document.createElement('div'); meta.className='meta';
+  const parts = [
+    Number.isFinite(company.x)? `X:${company.x}`:'',
+    Number.isFinite(company.z)? `Z:${company.z}`:'',
+    company.knip? `KNIP:${company.knip}`:''
+  ].filter(Boolean);
+  parts.forEach(txt=>{ const span=document.createElement('span'); span.textContent = txt; meta.appendChild(span); });
+  pointDetailEl.appendChild(meta);
+  if(company.symbols && company.symbols.length){
+    const tags = document.createElement('div'); tags.className='tags';
+    company.symbols.slice(0,6).forEach(sym=>{ const t=document.createElement('span'); t.className='tag'; t.textContent=sym; tags.appendChild(t); });
+    pointDetailEl.appendChild(tags);
+  }
+  const linkRow = document.createElement('div'); linkRow.className='meta';
+  const link = document.createElement('a'); link.href='/kfirma'; link.target='_blank'; link.rel='noopener'; link.textContent='Otwórz kFirma';
+  link.className = 'company-link-btn';
+  linkRow.appendChild(link); pointDetailEl.appendChild(linkRow);
 }
 
 const __MC_VER = '1.20.4';
@@ -1291,29 +1464,50 @@ function handleSearch(){
   // Dodatkowo dopasuj sklepy globalnie (jeżeli warstwa sklepów aktywna)
   (async ()=>{
     try {
-      if(!showShops){
-        // Warstwa sklepów wyłączona – jeśli brak punktów, pokaż brak wyników
-        if(matched.length === 0){ pointResultsEl.innerHTML = '<div class="empty" style="padding:.2rem .1rem;">Brak wyników.</div>'; pointResultsEl.hidden=false; }
-        return;
+      let hasAny = matched.length > 0;
+      if(showCompanies){
+        if(companiesData===null) await ensureCompaniesLoaded();
+        if(Array.isArray(companiesData)){
+          const qn = q;
+          const companyMatches = companiesData.filter(c=>{
+            const hay = `${c.name} ${c.city||''} ${c.street||''} ${c.voiv||''} ${c.knip||''} ${c.registrar||''} ${(c.symbols||[]).join(' ')}`.toLowerCase();
+            return hay.includes(qn);
+          });
+          if(companyMatches.length){
+            const html = '<div class="legend-heading" style="margin:.3rem 0 .2rem;">Firmy</div>' + companyMatches.map(c=>{
+              const desc = `${c.name}${c.city? ' @ '+c.city:''}`;
+              return `<div class="point-result-item company-result-item" data-company-id="${c.id}"><div class="point-result-name">${desc}</div><div class="point-result-tags">${c.symbols.slice(0,4).map(s=>`<span class="point-result-tag">${s}</span>`).join('')}</div></div>`;
+            }).join('');
+            pointResultsEl.innerHTML = (pointResultsEl.innerHTML||'') + html;
+            pointResultsEl.hidden = false;
+            hasAny = true;
+            pointResultsEl.querySelectorAll('.company-result-item').forEach(el=>{
+              el.addEventListener('click', ()=>{ const id = el.getAttribute('data-company-id'); openCompanyInSearch(id); });
+            });
+          }
+        }
       }
-      if(shopsData===null) await ensureShopsLoaded(); if(!Array.isArray(shopsData)) return;
-      const qn = q;
-      const shopMatches = shopsData.filter(s=>{
-        const base = `${s.name} ${s.location||''} ${s.owner||''}`.toLowerCase();
-        const offersTxt = (s.offers||[]).map(p=> (p.productName||p.product?.name||p.productNameEn||p.product?.nameEn||p.product?.item||'').toLowerCase()).join(' ');
-        return base.includes(qn) || offersTxt.includes(qn);
-      });
-      if(shopMatches.length){
-        const html = '<div class="legend-heading" style="margin:.3rem 0 .2rem;">Sklepy</div>' + shopMatches.map(s=>{
-          const label = `${s.name}${s.location? ' @ '+s.location:''}`;
-          return `<div class=\"point-result-item shop-result-item\" data-shop-id=\"${s.id}\"><div class=\"point-result-name\">${label}</div></div>`;
-        }).join('');
-        pointResultsEl.innerHTML = (pointResultsEl.innerHTML||'') + html; pointResultsEl.hidden=false;
-        pointResultsEl.querySelectorAll('.shop-result-item').forEach(el=>{
-          el.addEventListener('click', ()=>{ const id=el.getAttribute('data-shop-id'); openShopInSearch(id); });
+      if(showShops){
+        if(shopsData===null) await ensureShopsLoaded(); if(!Array.isArray(shopsData)) return;
+        const qn = q;
+        const shopMatches = shopsData.filter(s=>{
+          const base = `${s.name} ${s.location||''} ${s.owner||''}`.toLowerCase();
+          const offersTxt = (s.offers||[]).map(p=> (p.productName||p.product?.name||p.productNameEn||p.product?.nameEn||p.product?.item||'').toLowerCase()).join(' ');
+          return base.includes(qn) || offersTxt.includes(qn);
         });
-      } else if(matched.length === 0) {
-        // Brak punktów i brak sklepów – pokaż komunikat
+        if(shopMatches.length){
+          const html = '<div class="legend-heading" style="margin:.3rem 0 .2rem;">Sklepy</div>' + shopMatches.map(s=>{
+            const label = `${s.name}${s.location? ' @ '+s.location:''}`;
+            return `<div class=\"point-result-item shop-result-item\" data-shop-id=\"${s.id}\"><div class=\"point-result-name\">${label}</div></div>`;
+          }).join('');
+          pointResultsEl.innerHTML = (pointResultsEl.innerHTML||'') + html; pointResultsEl.hidden=false;
+          hasAny = true;
+          pointResultsEl.querySelectorAll('.shop-result-item').forEach(el=>{
+            el.addEventListener('click', ()=>{ const id=el.getAttribute('data-shop-id'); openShopInSearch(id); });
+          });
+        }
+      }
+      if(!hasAny){
         pointResultsEl.innerHTML = '<div class="empty" style="padding:.2rem .1rem;">Brak wyników.</div>';
         pointResultsEl.hidden = false;
       }
@@ -1439,7 +1633,8 @@ async function fetchMapData(noCache=false){
       'localities-small.json',
       'stations.json',
       'infra.json',
-      'airports.json'
+      'airports.json',
+      'players.json'
     ];
     const loaders = files.map(fn => window.__db.fetchJson('data/map-points/' + fn).catch(()=>({points:[]})));
     const parts = await Promise.all(loaders);
@@ -1761,7 +1956,7 @@ async function load(){
   // Wczytaj stan legendy (jeśli istnieje); w przeciwnym razie ustaw domyślne ukrycie kolei/metra i linii
   loadLegendState();
   if(!hasLoadedLegendState){
-    activeCategories = new Set(['kolej','metro','airport']);
+    activeCategories = new Set(['kolej','metro','airport','miasto_male','infrastruktura','players']);
     showRailLines = false; showFlightLines = false; showLines = false;
   } else {
     // Jeśli użytkownik ma zapisany stan, ale jesteśmy w trybie ogólnym podczas ładowania – wymuś ukrycie kolei/metra.
@@ -1815,6 +2010,8 @@ async function load(){
     buildMarkers();
   // Sklepy kHandel (jeśli włączone)
   try { if(showShops){ await ensureShopsLoaded(); buildShopMarkers(); } } catch(_){ }
+  // Firmy kFirma (jeśli włączone)
+  try { if(showCompanies){ await ensureCompaniesLoaded(); buildCompanyMarkers(); } } catch(_){ }
     // Fallback gdy viewport ma 0 wysokości (np. brak rozciągnięcia rodzica)
     requestAnimationFrame(()=>{
       const rect = viewport.getBoundingClientRect();
@@ -1832,12 +2029,6 @@ async function load(){
     loadingEl.textContent = 'Nie udało się ustalić wymiarów mapy (brak pliku mapy?)';
     console.error('[map] load() fatal', e);
   }
-}
-
-
-function ensurePlayersLayerVisible(){
-  // Usuń ewentualne ukrycie kategorii players
-  if(activeCategories.has('players')){ activeCategories.delete('players'); buildLegend(); saveLegendState(); }
 }
 
 function showCrosshairDuringPan(){
@@ -1965,6 +2156,43 @@ function applyFocusFromSearchParams(){
     } catch(_){}
     return true;
   }
+  // 0a) company/firma=ID – fokus na firmę (kFirma)
+  const companyParam = params.get('company') || params.get('firma');
+  if(companyParam){
+    try {
+      (async ()=>{
+        try { if(companiesData===null) await ensureCompaniesLoaded(); } catch(_){}
+        const c = Array.isArray(companiesData) ? companiesData.find(x=> x.id === companyParam || x.knip === companyParam || x.name === companyParam) : null;
+        let handled = false;
+        if(c){
+          if(!showCompanies){ showCompanies = true; saveLegendState(); buildLegend(); }
+          try { buildCompanyMarkers(); } catch(_){ }
+          openCompanyInSearch(c.id);
+          handled = true;
+        } else {
+          // Fallback: jeśli w linku są koordynaty, otwórz fokus po nich
+          const focusRaw = params.get('focus');
+          if(focusRaw){
+            const parts = focusRaw.split(',').map(s=> s.trim()).filter(Boolean);
+            if(parts.length === 2 || parts.length === 3){
+              const fx = Number(parts[0]);
+              const fz = Number(parts[parts.length-1]);
+              if(Number.isFinite(fx) && Number.isFinite(fz)){
+                const zoomParam = params.get('zoom');
+                const zoomVal = zoomParam !== null ? Number(zoomParam) : NaN;
+                const desiredScale = isFinite(zoomVal) ? Math.min(maxScale, Math.max(minScale, zoomVal)) : null;
+                const label = params.get('fl') || params.get('label') || 'Cel';
+                focusLogicalPoint(fx, fz, { pulse:true, label, desiredScale });
+                handled = true;
+              }
+            }
+          }
+        }
+        if(handled){ return; }
+      })();
+    } catch(_){ }
+    return true;
+  }
   // 0b) point=ID – fokus na punkt po ID i pokazanie jego szczegółów
   const pointParam = params.get('point');
   if(pointParam){
@@ -1984,7 +2212,6 @@ function applyFocusFromSearchParams(){
         const zoomParam = params.get('zoom');
         const zoomVal = zoomParam !== null ? Number(zoomParam) : NaN;
         const desiredScale = isFinite(zoomVal) ? Math.min(maxScale, Math.max(minScale, zoomVal)) : null;
-        ensurePlayersLayerVisible();
         const label = params.get('fl') || params.get('label') || 'Cel';
         focusLogicalPoint(x, z, { pulse:true, label, desiredScale });
         return true;
@@ -2016,7 +2243,6 @@ function applyFocusFromSearchParams(){
   if(fx===null || fz===null) return false;
   const x = Number(fx), z = Number(fz);
   if(!isFinite(x) || !isFinite(z)) return false;
-  ensurePlayersLayerVisible();
   focusLogicalPoint(x, z, { pulse:true, label: fl, desiredScale });
   return true;
 }
@@ -2048,7 +2274,6 @@ function applyFocusFromSession(){
     const { x, z, ts, label } = obj;
     if(!isFinite(x) || !isFinite(z)) return false;
     if(ts && (Date.now() - ts) > 5*60*1000) return false;
-    ensurePlayersLayerVisible();
     focusLogicalPoint(x, z, { pulse:true, label });
     sessionStorage.removeItem('map.focus.player');
     return true;
@@ -2138,11 +2363,12 @@ viewport.addEventListener('wheel', e=>{
   setScale(scale * delta, sX, sY);
   maybeUpdateClusters();
   try { maybeUpdateShopClusters(); } catch(_){ }
+  try { maybeUpdateCompanyClusters(); } catch(_){ }
 }, { passive:false });
 
 // Zoom buttons (zapewnienie pojedynczych listenerów)
 if(btnZoomIn) btnZoomIn.addEventListener('click', ()=>{ const cx=viewport.clientWidth/2, cy=viewport.clientHeight/2; setScale(scale*1.25, cx, cy); });
-if(btnZoomOut) btnZoomOut.addEventListener('click', ()=>{ const cx=viewport.clientWidth/2, cy=viewport.clientHeight/2; setScale(scale*0.8, cx, cy); maybeUpdateClusters(); try { maybeUpdateShopClusters(); } catch(_){ } });
+if(btnZoomOut) btnZoomOut.addEventListener('click', ()=>{ const cx=viewport.clientWidth/2, cy=viewport.clientHeight/2; setScale(scale*0.8, cx, cy); maybeUpdateClusters(); try { maybeUpdateShopClusters(); } catch(_){ } try { maybeUpdateCompanyClusters(); } catch(_){ } });
 if(btnZoomReset) btnZoomReset.addEventListener('click', ()=>{ scale=1; originX=0; originY=0; applyTransform(); centerOnSpawn(); });
 if (closePanelBtn) closePanelBtn.addEventListener('click', closePanel);
 if (pinPanelBtn) pinPanelBtn.addEventListener('click', ()=>{ panel?.classList.toggle('pinned'); const img=document.getElementById('pin-panel-icon'); if(img){ if(panel.classList.contains('pinned')){ img.src='/icns_ui/unpin.svg'; } else { img.src='/icns_ui/pin.svg'; } }});
@@ -2268,7 +2494,7 @@ window.addEventListener('keydown', e=>{
 
 // Reaguj na zmianę rozmiaru – odrysuj linie w przestrzeni ekranu
 window.addEventListener('resize', ()=>{ drawLines(); });
-window.addEventListener('resize', ()=>{ try { buildShopMarkers(); } catch(_){ } });
+window.addEventListener('resize', ()=>{ try { buildShopMarkers(); } catch(_){ } try { buildCompanyMarkers(); } catch(_){ } });
 
 // --- Kafelki hi-res ---
 function ensureTilesContainer(){
@@ -3010,7 +3236,7 @@ if(linesLegendToggleBtn && linesLegendEl && linesLegendBodyEl){
 
 // Odbuduj listę po zmianie motywu (kolory różne w jasnym/ciemnym)
 document.addEventListener('visibilitychange', ()=> { if(!document.hidden) buildLinesLegend(); });
-window.addEventListener('theme-change', ()=>{ try { buildShopMarkers(); } catch(_){ } });
+window.addEventListener('theme-change', ()=>{ try { buildShopMarkers(); } catch(_){ } try { buildCompanyMarkers(); } catch(_){ } });
 
 // --- Tryb mobilny lite (wydajność) ---
 const isMobileDevice = (()=> {
