@@ -20,6 +20,16 @@
         "description": "Przeglądaj dokumenty i poradniki dotyczące serwera."
       },
       {
+        "name": "kSeF",
+        "url": "/ksef",
+        "description": "Wystaw Fakturę KAT w PDF na podstawie prostego formularza."
+      },
+      {
+        "name": "kDokumenty",
+        "url": "/kdokumenty",
+        "description": "Przygotuj dokumenty i zapisz je do PDF."
+      },
+      {
         "name": "Mapa",
         "url": "/map",
         "description": "Przeglądaj punkty, linie i wyszukuj miejsca."
