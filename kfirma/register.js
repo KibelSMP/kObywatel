@@ -75,7 +75,7 @@ function collectData(){
 		city: form.city?.value.trim() || '',
 		voiv: form.voiv?.value.trim() || '',
 		x: Number(form.x?.value || ''),
-		y: Number(form.y?.value || ''),
+		z: Number(form.z?.value || ''),
 		declaration: !!form.declaration?.checked
 	};
 }
@@ -88,7 +88,7 @@ function validate(data){
 	if(!data.city) errors.push('Podaj miasto.');
 	if(!data.voiv) errors.push('Podaj województwo.');
 	if(!data.street) errors.push('Podaj ulicę.');
-	if(!Number.isFinite(data.x) || !Number.isFinite(data.y)) errors.push('Podaj współrzędne X i Y.');
+	if(!Number.isFinite(data.x) || !Number.isFinite(data.z)) errors.push('Podaj współrzędne X i Z.');
 	if(!data.declaration) errors.push('Zaznacz oświadczenie o uprawnieniu do rejestracji.');
 	return errors;
 }
@@ -99,7 +99,7 @@ function buildPayload(data){
 		symbols: data.symbols,
 		registrar_kesel: data.registrar,
 		location: {
-			coordinates: { x: data.x, y: data.y },
+			coordinates: { x: data.x, z: data.z },
 			address: {
 				street: data.street,
 				city: data.city,
