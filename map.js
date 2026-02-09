@@ -166,6 +166,18 @@ let previousClusterSnapshot = {
   clusterKeys: new Set()
 };
 
+function isPlayerPoint(pt){
+  const cat = (pt.category || '').toLowerCase();
+  if(cat === 'players' || cat === 'player' || cat === 'gracze' || cat === 'gracz') return true;
+  const type = (pt.type || '').toLowerCase();
+  if(type.includes('player')) return true;
+  if(Array.isArray(pt.tags)){
+    const hasTag = pt.tags.some(tag => typeof tag === 'string' && tag.toLowerCase() === 'player');
+    if(hasTag) return true;
+  }
+  return false;
+}
+
 function closeClusterPopover(){
   if(clusterPopoverEl && clusterPopoverEl.isConnected){ clusterPopoverEl.remove(); }
   clusterPopoverEl = null;
@@ -884,7 +896,7 @@ function buildCompanyMarkers(){
       wrap.style.left = m.pxX + 'px'; wrap.style.top = m.pxY + 'px';
       wrap.dataset.companyId = c.id; wrap.dataset.px = String(m.pxX); wrap.dataset.py = String(m.pxY);
       const btn = document.createElement('button'); btn.className='marker-btn';
-      const icon = document.createElement('img'); icon.src='/icns_ui/city.svg'; icon.style.width='16px'; icon.alt=''; icon.setAttribute('aria-hidden','true');
+      const icon = document.createElement('img'); icon.src='/icns_ui/company.svg'; icon.alt=''; icon.setAttribute('aria-hidden','true');
       btn.appendChild(icon);
       btn.addEventListener('click', (e)=>{ e.stopPropagation(); openCompanyInSearch(c.id); });
       const label = document.createElement('div'); label.className='marker-label';
@@ -1307,8 +1319,10 @@ function buildMarkers(){
 }
 
 function renderSingleMarker(pt, pxX, pxY){
+  const isPlayer = isPlayerPoint(pt);
   const wrap = document.createElement('div');
   wrap.className = 'marker';
+  if(isPlayer) wrap.classList.add('player-marker');
   if (isAdmin && pt.hidden) wrap.classList.add('is-hidden');
   wrap.style.left = pxX + 'px';
   wrap.style.top = pxY + 'px';
@@ -1319,7 +1333,15 @@ function renderSingleMarker(pt, pxX, pxY){
   const btn = document.createElement('button');
   btn.className = 'marker-btn';
   btn.style.background = mapData.categories?.[pt.category]?.color || '#AC1943';
-  btn.textContent = pt.name?.charAt(0).toUpperCase() || '?';
+  if(isPlayer){
+    const icon = document.createElement('img');
+    icon.src = '/icns_ui/person.svg';
+    icon.alt = '';
+    icon.setAttribute('aria-hidden','true');
+    btn.appendChild(icon);
+  } else {
+    btn.textContent = pt.name?.charAt(0).toUpperCase() || '?';
+  }
   btn.addEventListener('click', (e)=>{
     e.stopPropagation();
     openPoint(pt.id);
@@ -2302,7 +2324,7 @@ function pulseAt(pxX, pxY, label){
     if(!candidate){
       let best=null; let bestDist=Infinity;
       for(const m of markers){
-        if(m.dataset.category !== 'players') continue;
+        if(!m.classList.contains('player-marker')) continue;
         const mx = Number(m.dataset.px), my = Number(m.dataset.py);
         const dx = mx - pxX, dy = my - pxY; const d = dx*dx + dy*dy;
         if(d<bestDist){ bestDist=d; best=m; }
@@ -2329,7 +2351,7 @@ function pulseAt(pxX, pxY, label){
     }
     // Brak markera – utwórz tymczasowy (ephemeral) marker gracza aby wizualnie wskazać punkt
     const wrap = document.createElement('div');
-    wrap.className = 'marker pulse ephemeral-player';
+    wrap.className = 'marker pulse ephemeral-player player-marker';
     wrap.style.left = pxX + 'px';
     wrap.style.top = pxY + 'px';
     wrap.dataset.category = 'players';
@@ -2338,7 +2360,11 @@ function pulseAt(pxX, pxY, label){
     const btn = document.createElement('button');
     btn.className = 'marker-btn';
     btn.style.background = '#AC1943';
-    btn.textContent = (label ? label.charAt(0) : 'P').toUpperCase();
+    const icon = document.createElement('img');
+    icon.src = '/icns_ui/person.svg';
+    icon.alt = '';
+    icon.setAttribute('aria-hidden','true');
+    btn.appendChild(icon);
     const lab = document.createElement('div');
     lab.className = 'marker-label';
     lab.textContent = label || 'Gracz';

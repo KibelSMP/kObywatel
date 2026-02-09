@@ -505,6 +505,13 @@ body.light .map-crosshair {
   transition: .3s;
 }
 
+.marker-btn img {
+  width: 14px;
+  height: 14px;
+  display: block;
+  pointer-events: none;
+}
+
 .marker-btn:hover {
   transform: scale(1.15);
   filter: brightness(1.1);
@@ -556,6 +563,15 @@ body.light .shop-marker .marker-btn {
 }
 
 body.light .company-marker .marker-btn {
+  color: #111;
+}
+
+/* Gracze */
+.player-marker .marker-btn {
+  background: linear-gradient(135deg, #22c55e, #16a34a);
+}
+
+body.light .player-marker .marker-btn {
   color: #111;
 }
 
