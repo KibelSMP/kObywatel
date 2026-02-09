@@ -354,6 +354,7 @@ body.light {
   max-width: none;
   pointer-events: none;
   transition: opacity .25s ease;
+  image-rendering: pixelated;
 }
 
 .hires-on #map-image {
@@ -372,7 +373,7 @@ body.light {
 .hires-tiles .tile {
   position: absolute;
   overflow: hidden;
-  image-rendering: auto;
+  image-rendering: pixelated;
 }
 
 .hires-tiles .tile img {
@@ -382,6 +383,7 @@ body.light {
   object-fit: cover;
   opacity: 0;
   transition: opacity .4s ease;
+  image-rendering: pixelated;
 }
 
 .hires-tiles .tile img.loaded {

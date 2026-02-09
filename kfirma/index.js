@@ -8,6 +8,7 @@ const searchEl = document.getElementById('kf-search');
 const symbolEl = document.getElementById('kf-symbol');
 const voivEl = document.getElementById('kf-voiv');
 const backBtn = document.getElementById('back-btn');
+let modalEl = null;
 
 const state = {
 	companies: [],
@@ -91,6 +92,51 @@ function formatSymbols(symbols){
 	}).join('');
 }
 
+function ensureModal(){
+	if(modalEl) return modalEl;
+	const wrap = document.createElement('div');
+	wrap.className = 'kf-modal hidden';
+	wrap.innerHTML = `
+	  <div class="kf-modal-backdrop"></div>
+	  <div class="kf-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="kf-modal-title">
+	    <div class="kf-modal-head">
+	      <h3 id="kf-modal-title">Symbole działalności</h3>
+	      <button type="button" class="kf-modal-close" aria-label="Zamknij okno">×</button>
+	    </div>
+	    <div class="kf-modal-body" id="kf-modal-body"></div>
+	  </div>`;
+	document.body.appendChild(wrap);
+	wrap.querySelector('.kf-modal-backdrop')?.addEventListener('click', hideModal);
+	wrap.querySelector('.kf-modal-close')?.addEventListener('click', hideModal);
+	modalEl = wrap;
+	return modalEl;
+}
+
+function hideModal(){
+	if(!modalEl) return;
+	modalEl.classList.add('hidden');
+	modalEl.classList.remove('open');
+	document.body.style.overflow = '';
+}
+
+function showSymbolsModal(symbols){
+	const modal = ensureModal();
+	const body = modal.querySelector('#kf-modal-body');
+	if(body){
+		if(!symbols.length){
+			body.innerHTML = '<p>Brak symboli do wyświetlenia.</p>';
+		} else {
+			body.innerHTML = symbols.map(sym => {
+				const desc = state.symbols.get(sym) || 'Brak opisu';
+				return `<div class="kf-modal-row"><span class="kf-modal-sym">${escapeHtml(sym)}</span><span class="kf-modal-desc">${escapeHtml(desc)}</span></div>`;
+			}).join('');
+		}
+	}
+	modal.classList.remove('hidden');
+	modal.classList.add('open');
+	document.body.style.overflow = 'hidden';
+}
+
 function renderList(companies){
 	if(!listEl) return;
 	listEl.innerHTML = '';
@@ -102,7 +148,8 @@ function renderList(companies){
 	companies.forEach(c => {
 		const article = document.createElement('article');
 		article.className = 'kf-card';
-		const symbolsHtml = formatSymbols(c.symbols);
+		const symbolsLabel = c.symbols.length ? c.symbols.join(', ') : 'Brak symboli';
+		const symbolsData = c.symbols.map(s => escapeHtml(s)).join('|');
 		const hasCoords = (c.coords.x||c.coords.x===0) && (c.coords.y||c.coords.y===0);
 		const coordsLabel = hasCoords ? `${c.coords.x}, ${c.coords.y}` : 'Brak współrzędnych';
 		const mapLink = `/map/?company=${encodeURIComponent(c.knip)}`;
@@ -110,7 +157,12 @@ function renderList(companies){
 		  <div class="kf-card-head">
 			<div>
 			  <h3>${escapeHtml(c.name)}</h3>
-			  <div class="kf-meta">${symbolsHtml}</div>
+			  <div class="kf-meta">
+			    <button type="button" class="kf-symbol-btn" data-symbols="${symbolsData}" ${c.symbols.length ? '' : 'disabled'}>
+			    	<span class="kf-symbol-label">Zakres działalności</span>
+			    	<span class="kf-symbol-values">${escapeHtml(symbolsLabel)}</span>
+			    </button>
+			  </div>
 			</div>
 			<div class="kf-ids">
 			  <span title="KNIP">KNIP: ${escapeHtml(c.knip || '—')}</span>
@@ -131,6 +183,13 @@ function renderList(companies){
 			</div>
 		  </div>
 		`;
+		const btn = article.querySelector('.kf-symbol-btn');
+		btn?.addEventListener('click', e => {
+			e.preventDefault();
+			const data = btn.dataset.symbols || '';
+			const symbols = data ? data.split('|').filter(Boolean) : [];
+			showSymbolsModal(symbols);
+		});
 		frag.appendChild(article);
 	});
 	listEl.appendChild(frag);

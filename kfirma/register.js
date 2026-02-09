@@ -76,7 +76,8 @@ function collectData(){
 		voiv: form.voiv?.value.trim() || '',
 		x: Number(form.x?.value || ''),
 		z: Number(form.z?.value || ''),
-		declaration: !!form.declaration?.checked
+		declaration: !!form.declaration?.checked,
+		documentsDeclaration: !!form.documentsDeclaration?.checked
 	};
 }
 
@@ -90,6 +91,7 @@ function validate(data){
 	if(!data.street) errors.push('Podaj ulicę.');
 	if(!Number.isFinite(data.x) || !Number.isFinite(data.z)) errors.push('Podaj współrzędne X i Z.');
 	if(!data.declaration) errors.push('Zaznacz oświadczenie o uprawnieniu do rejestracji.');
+	if(!data.documentsDeclaration) errors.push('Zaznacz oświadczenie o respektowaniu dokumentów z kDokumenty oraz dokumentów (np. faktur) z kSeF.');
 	return errors;
 }
 

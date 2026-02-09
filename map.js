@@ -52,7 +52,7 @@ let mapData = null;
 let linesData = null;
 let scale = 1; // current zoom scale
 let minScale = 0.25;
-let maxScale = 4;
+let maxScale = 10;
 let originX = 0; // top-left of canvas in viewport coords
 let originY = 0;
 let imgWidth = 0;
@@ -139,7 +139,7 @@ let __MOBILE_LITE_FORCE_DPR1 = false;
 // Przy mniejszym powiększeniu wiele punktów nachodzi na siebie – grupujemy je.
 // Prosty algorytm O(n^2) wystarczający dla kilkuset punktów (można później zopt. siatką).
 // (tuning) większy próg zoom -> klastruj częściej oraz większy promień łączenia
-const CLUSTER_ZOOM_THRESHOLD = 1.5; // poniżej tego scale aktywuj klastrowanie
+const CLUSTER_ZOOM_THRESHOLD = 10.01; // poniżej tego scale aktywuj klastrowanie
 const CLUSTER_SCREEN_DISTANCE = 64; // odległość w px przy scale=1 – większy zasięg łączenia
 let suppressClustering = false; // tymczasowe wyłączenie (np. aktywne wyszukiwanie)
 let lastClusteringActive = false;
@@ -148,14 +148,14 @@ let clusterPopoverEl = null; // aktualnie otwarty popover listy punktów w klast
 
 // --- Sklepy kHandel ---
 let shopsData = null; // Array<{ id,name,location,owner?,x,y,z,offers:[] }>
-let showShops = false; // domyślnie wyłączone; kontrolowane z legendy
+let showShops = true; // domyślnie wyłączone; kontrolowane z legendy
 let currentShopContextId = null; // aktywny sklep do wyświetlania ofert w wynikach wyszukiwania
 let lastShopClusteringActive = false;
 let lastShopScaleForEval = scale;
 
 // --- Firmy kFirma ---
 let companiesData = null; // Array<{ id,name,city,street,voiv,knip,registrar,symbols:[],x,z }>
-let showCompanies = false;
+let showCompanies = true;
 let lastCompanyClusteringActive = false;
 let lastCompanyScaleForEval = scale;
 
@@ -290,14 +290,10 @@ function loadLegendState(){
 // Zostawiamy odsłonięte: miasto_duze, miasto.
 function applyInitialCategoryVisibility(){
   if(hasLoadedLegendState) return; // użytkownik ma już swój stan – nic nie zmieniamy
-  // Domyślnie chcemy ukryć małe miejscowości i transport
-  activeCategories.add('miasto_male');
+  // Domyślnie chcemy ukryć transport
   activeCategories.add('kolej');
   activeCategories.add('metro');
   activeCategories.add('airport');
-  // Dodatkowo ukrywamy infrastrukturę i graczy na starcie (zgodnie z wymaganiem)
-  activeCategories.add('infrastruktura');
-  activeCategories.add('players');
 }
 
 function saveThemeState(){ try { localStorage.setItem('map.theme', currentTheme); } catch(_){} }
