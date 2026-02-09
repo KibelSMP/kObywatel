@@ -44,16 +44,35 @@ function renderMarkdownBody(doc, text, startX, startY, maxWidth, lineHeight, fon
   const lines = (text || '').split('\n');
   let y = startY;
   const maxX = startX + maxWidth;
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const pageTop = 20;
+  const bottomMargin = 20;
+
+  const ensureSpace = (extraHeight = 0) => {
+    if(y + extraHeight > pageHeight - bottomMargin){
+      doc.addPage();
+      doc.setFont(fontName, 'normal');
+      doc.setFontSize(baseFontSize);
+      y = pageTop;
+    }
+  };
+
   lines.forEach((rawLine, lineIdx) => {
     let workingLine = rawLine;
     let lineFontSize = baseFontSize;
     let forceBold = false;
+    const bulletMatch = /^\s*([*\-+])\s+(.*)$/.exec(workingLine);
+    const orderedMatch = /^\s*(\d+)\.\s+(.*)$/.exec(workingLine);
     const headingMatch = /^(#{1,6})\s+(.*)$/.exec(workingLine);
     if(headingMatch){
       const level = headingMatch[1].length;
       workingLine = headingMatch[2];
       lineFontSize = [0, 14, 13, 12, 11, 11, 11][level] || baseFontSize;
       forceBold = true;
+    } else if(bulletMatch){
+      workingLine = `• ${bulletMatch[2]}`;
+    } else if(orderedMatch){
+      workingLine = `${orderedMatch[1]}. ${orderedMatch[2]}`;
     }
     const spans = parseMarkdownLineToSpans(workingLine);
     let x = startX;
@@ -70,14 +89,17 @@ function renderMarkdownBody(doc, text, startX, startY, maxWidth, lineHeight, fon
         if(!part) return;
         const w = doc.getTextWidth(part);
         if(x + w > maxX){
+          ensureSpace(lineStep);
           y += lineStep;
           x = startX;
         }
+        ensureSpace(0);
         doc.text(part, x, y);
         x += w;
       });
     });
     if(lineIdx < lines.length - 1){
+      ensureSpace(lineStep);
       y += lineStep;
     }
   });
@@ -320,8 +342,9 @@ async function generatePdf(data){
   if(data.reference){
     doc.text(`Sygnatura: ${data.reference}`, 14, 38);
   }
-  const senderLines = buildPartyLines(data.sender);
-  const recipientLines = buildPartyLines(data.recipient);
+  const columnWidth = 90;
+  const senderLines = wrapLines(buildPartyLines(data.sender), doc, columnWidth);
+  const recipientLines = wrapLines(buildPartyLines(data.recipient), doc, columnWidth);
   doc.setFontSize(10);
   doc.text('Nadawca:', 14, 48);
   doc.text(senderLines.length ? senderLines : ['Brak danych'], 14, 54);
@@ -364,6 +387,10 @@ function buildPartyLines(p){
     p.nick ? `Nick: ${p.nick}` : '',
     p.repPesel ? `KESEL reprezentanta: ${p.repPesel}` : ''
   ].filter(Boolean);
+}
+
+function wrapLines(lines, doc, maxWidth){
+  return (lines || []).flatMap(line => doc.splitTextToSize(line, maxWidth));
 }
 
 function resetForm(){
