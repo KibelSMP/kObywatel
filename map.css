@@ -354,6 +354,7 @@ body.light {
   max-width: none;
   pointer-events: none;
   transition: opacity .25s ease;
+  image-rendering: pixelated;
 }
 
 .hires-on #map-image {
@@ -372,7 +373,7 @@ body.light {
 .hires-tiles .tile {
   position: absolute;
   overflow: hidden;
-  image-rendering: auto;
+  image-rendering: pixelated;
 }
 
 .hires-tiles .tile img {
@@ -382,6 +383,7 @@ body.light {
   object-fit: cover;
   opacity: 0;
   transition: opacity .4s ease;
+  image-rendering: pixelated;
 }
 
 .hires-tiles .tile img.loaded {
@@ -503,6 +505,13 @@ body.light .map-crosshair {
   transition: .3s;
 }
 
+.marker-btn img {
+  width: 14px;
+  height: 14px;
+  display: block;
+  pointer-events: none;
+}
+
 .marker-btn:hover {
   transform: scale(1.15);
   filter: brightness(1.1);
@@ -554,6 +563,15 @@ body.light .shop-marker .marker-btn {
 }
 
 body.light .company-marker .marker-btn {
+  color: #111;
+}
+
+/* Gracze */
+.player-marker .marker-btn {
+  background: linear-gradient(135deg, #22c55e, #16a34a);
+}
+
+body.light .player-marker .marker-btn {
   color: #111;
 }
 
