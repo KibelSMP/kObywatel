@@ -21,6 +21,10 @@ const filtersPanelEl = document.getElementById('filters-panel');
 let legendCursorEl = null;
 let legendCursorRowEl = null;
 let legendUpdatedRowEl = null;
+let legendCrosshairEl = null;
+let legendCrosshairRowEl = null;
+let lastViewportSize = { w: null, h: null };
+let resizeRaf = null;
 const searchInput = document.getElementById('point-search');
 const pointResultsEl = document.getElementById('point-search-results');
 const pointDetailEl = document.getElementById('point-search-detail');
@@ -359,6 +363,7 @@ function applyTransform(){
   maybeUpgradeToHiRes();
   updateVisibleTiles();
   if(__lastPointerPos){ updateCursorCoords(__lastPointerPos.x, __lastPointerPos.y); }
+  updateCrosshairCoords();
   // Aktualizacja klastrów sklepów przy zmianach transformacji
   try { maybeUpdateShopClusters(); } catch(_){ }
   try { maybeUpdateCompanyClusters(); } catch(_){ }
@@ -474,6 +479,14 @@ function screenToLogical(sX, sY){
   return { x: mapPxX, z: mapPxY };
 }
 
+function logicalToMapPx(logicX, logicZ){
+  const meta = mapData?.meta || {}; const unitsPerPixel = meta.unitsPerPixel || 4; const originMode = meta.origin || 'top-left';
+  if(originMode === 'center'){
+    return { x: (imgWidth/2) + (logicX / unitsPerPixel), y: (imgHeight/2) + (logicZ / unitsPerPixel) };
+  }
+  return { x: logicX, y: logicZ };
+}
+
 // Aktualizacja wskaźnika koordynatów (desktop)
 let __lastPointerPos = null; // w układzie viewportu
 function updateCursorCoords(clientX, clientY){
@@ -484,6 +497,20 @@ function updateCursorCoords(clientX, clientY){
   const {x,z} = screenToLogical(sX, sY);
   const rx = Math.round(x); const rz = Math.round(z);
   legendCursorEl.textContent = `${rx}, ${rz}`;
+}
+
+function updateCrosshairCoords(){
+  if(!legendCrosshairEl || !viewport) return;
+  const rect = viewport.getBoundingClientRect();
+  const centerX = rect.width / 2;
+  const centerY = rect.height / 2;
+  const {x,z} = screenToLogical(centerX, centerY);
+  legendCrosshairEl.textContent = `${Math.round(x)}, ${Math.round(z)}`;
+}
+
+function rememberViewportSize(){
+  if(!viewport) return;
+  lastViewportSize = { w: viewport.clientWidth, h: viewport.clientHeight };
 }
 
 function buildLegend(){
@@ -624,7 +651,9 @@ function buildLegend(){
 function renderLegendCursor(){
   // Usuń poprzedni wiersz
   if(legendCursorRowEl && legendCursorRowEl.parentElement){ legendCursorRowEl.parentElement.removeChild(legendCursorRowEl); }
+  if(legendCrosshairRowEl && legendCrosshairRowEl.parentElement){ legendCrosshairRowEl.parentElement.removeChild(legendCrosshairRowEl); }
   legendCursorRowEl = null; legendCursorEl = null;
+  legendCrosshairRowEl = null; legendCrosshairEl = null;
   try {
     const isDesktop = (navigator.maxTouchPoints||0) === 0 && window.matchMedia('(pointer: fine)').matches;
     if(!isDesktop || !filtersPanelEl || !legendEl) return;
@@ -642,6 +671,22 @@ function renderLegendCursor(){
     // wstaw tuż pod legendą
     if(legendEl.nextSibling){ filtersPanelEl.insertBefore(row, legendEl.nextSibling); } else { filtersPanelEl.appendChild(row); }
     legendCursorRowEl = row; legendCursorEl = val;
+
+    // Wiersz z koordynatami celownika (środek ekranu)
+    const targetRow = document.createElement('div');
+    targetRow.className = 'legend-coords';
+    targetRow.style.cssText = 'margin-top:.25rem;font-size:.62rem;opacity:.95;display:flex;gap:.4rem;align-items:center;';
+    const targetLabel = document.createElement('span'); targetLabel.textContent = 'Celownik:'; targetLabel.style.minWidth = '52px';
+    const targetVal = document.createElement('span');
+    targetVal.textContent = '—';
+    targetVal.style.fontWeight='700';
+    targetVal.style.letterSpacing='.2px';
+    targetVal.style.marginLeft='auto';
+    targetVal.style.textAlign='right';
+    targetRow.appendChild(targetLabel); targetRow.appendChild(targetVal);
+    if(row.nextSibling){ filtersPanelEl.insertBefore(targetRow, row.nextSibling); } else { filtersPanelEl.appendChild(targetRow); }
+    legendCrosshairRowEl = targetRow; legendCrosshairEl = targetVal;
+    updateCrosshairCoords();
     renderUpdatedAtRow();
   } catch(_) { legendCursorEl = null; legendCursorRowEl = null; }
 }
@@ -668,10 +713,13 @@ function renderUpdatedAtRow(){
     val.style.marginLeft='auto';
     val.style.textAlign='right';
     row.appendChild(label); row.appendChild(val);
-    if(legendCursorRowEl && legendCursorRowEl.nextSibling){
-      filtersPanelEl.insertBefore(row, legendCursorRowEl.nextSibling);
+    if(legendCrosshairRowEl){
+      // Umieść datę poniżej koordynatów celownika
+      if(legendCrosshairRowEl.nextSibling){ filtersPanelEl.insertBefore(row, legendCrosshairRowEl.nextSibling); }
+      else { filtersPanelEl.appendChild(row); }
     } else if(legendCursorRowEl){
-      filtersPanelEl.appendChild(row);
+      if(legendCursorRowEl.nextSibling){ filtersPanelEl.insertBefore(row, legendCursorRowEl.nextSibling); }
+      else { filtersPanelEl.appendChild(row); }
     } else if(legendEl && legendEl.nextSibling){
       filtersPanelEl.insertBefore(row, legendEl.nextSibling);
     } else {
@@ -2038,6 +2086,7 @@ async function load(){
       }
     });
     loadingEl.hidden = true;
+    rememberViewportSize();
     // Po wczytaniu – sprawdź czy mamy żądanie fokusu z wyszukiwarki / sesji
     if(!applyFocusFromSearchParams() && !applyFocusFromSession()){
       centerOnSpawn();
@@ -2517,6 +2566,21 @@ window.addEventListener('keydown', e=>{
 // Reaguj na zmianę rozmiaru – odrysuj linie w przestrzeni ekranu
 window.addEventListener('resize', ()=>{ drawLines(); });
 window.addEventListener('resize', ()=>{ try { buildShopMarkers(); } catch(_){ } try { buildCompanyMarkers(); } catch(_){ } });
+window.addEventListener('resize', ()=>{
+  if(resizeRaf || !viewport || !mapData) return;
+  resizeRaf = requestAnimationFrame(()=>{
+    resizeRaf = null;
+    const prevW = lastViewportSize.w; const prevH = lastViewportSize.h;
+    const newW = viewport.clientWidth; const newH = viewport.clientHeight;
+    if(!prevW || !prevH){ rememberViewportSize(); return; }
+    const { x:logicX, z:logicZ } = screenToLogical(prevW/2, prevH/2);
+    const { x:pxX, y:pxY } = logicalToMapPx(logicX, logicZ);
+    originX = (newW/2) - pxX * scale;
+    originY = (newH/2) - pxY * scale;
+    applyTransform();
+    rememberViewportSize();
+  });
+});
 
 // --- Kafelki hi-res ---
 function ensureTilesContainer(){
@@ -3188,6 +3252,7 @@ applyTransform = function(){
   origApplyTransform();
   positionRouteEndpointMarkers();
   maybeUpdateClusters();
+  rememberViewportSize();
   // Po transformie markery sklepów skalowane są przez transform rodzica – pozycje bazowe w px mapy pozostają.
 };
 
