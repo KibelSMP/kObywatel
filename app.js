@@ -144,9 +144,19 @@ const btnFirma = document.getElementById('btn-firma');
 const btnKDonos = document.getElementById('btn-kdonos');
 const tileWnioski = document.getElementById('tile-wnioski');
 const homeTiles = document.querySelector('.home-tiles');
+const layoutEditBtn = document.getElementById('layout-edit-btn');
+const layoutEditor = document.getElementById('layout-editor');
+const layoutTilesList = document.getElementById('layout-tiles-list');
+const layoutSearchToggle = document.getElementById('layout-search-toggle');
+const layoutResetBtn = document.getElementById('layout-reset-btn');
+const layoutCloseBtn = document.getElementById('layout-close-btn');
 
 let currentCategory = null;
 let currentForm = null;
+const LAYOUT_STORAGE_KEY = 'kob.home.layout.v1';
+let layoutState = null;
+let layoutDefaultsCache = null;
+const LOCKED_TILES = new Set(['tile-report','tile-creators']);
 
 async function fetchJson(url){
   const r = await fetch(url);
@@ -396,7 +406,202 @@ async function selectForm(slug, btnEl){
 }
 
 function escapeHtml(str){
-  return str.replace(/[&<>"]+/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
+  return str.replace(/[&<>"']+/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;' }[c]));
+}
+
+function layoutDefaults(){
+  const domTiles = [...document.querySelectorAll('.home-tiles .tile')]
+    .map(tile=>({ id: tile.id, label: (tile.querySelector('.tile-title')?.textContent || tile.id || '').trim() || tile.id, hidden: false }))
+    .filter(t=> t.id);
+  if(!layoutDefaultsCache){
+    layoutDefaultsCache = { searchHidden: false, tiles: domTiles };
+  } else {
+    const known = new Set(layoutDefaultsCache.tiles.map(t=> t.id));
+    const hasNew = domTiles.some(t=> !known.has(t.id));
+    if(hasNew){
+      const merged = [...layoutDefaultsCache.tiles];
+      domTiles.forEach(t=>{ if(!known.has(t.id)) merged.push(t); });
+      layoutDefaultsCache = { searchHidden: false, tiles: merged };
+    }
+  }
+  return { searchHidden: false, tiles: layoutDefaultsCache.tiles.map(t=> ({ ...t })) };
+}
+
+function normalizeLayout(raw){
+  const base = layoutDefaults();
+  const storedTiles = Array.isArray(raw?.tiles) ? raw.tiles : [];
+  const ordered = [];
+  const available = new Map(base.tiles.map(t=> [t.id, t]));
+  storedTiles.forEach(t=>{
+    if(!t?.id || !available.has(t.id)) return;
+    const ref = available.get(t.id);
+    const locked = LOCKED_TILES.has(ref.id);
+    ordered.push({ id: ref.id, label: ref.label, hidden: locked ? false : !!t.hidden, locked });
+    available.delete(t.id);
+  });
+  available.forEach(t=> ordered.push({ ...t, hidden:false, locked: LOCKED_TILES.has(t.id) }));
+  return { searchHidden: !!raw?.searchHidden, tiles: ordered };
+}
+
+function loadLayoutState(){
+  try {
+    const raw = localStorage.getItem(LAYOUT_STORAGE_KEY);
+    if(!raw) return normalizeLayout({});
+    return normalizeLayout(JSON.parse(raw));
+  } catch(_){
+    return normalizeLayout({});
+  }
+}
+
+function saveLayoutState(state){
+  try { localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(state)); } catch(_){ /* ignore */ }
+}
+
+function applyLayoutState(state, opts={}){
+  const { persist = true, syncUI = true } = opts;
+  if(homeTiles){
+    const map = new Map([...homeTiles.children].map(el=> [el.id, el]));
+    const frag = document.createDocumentFragment();
+    state.tiles.forEach(tile => {
+      const locked = LOCKED_TILES.has(tile.id) || tile.locked;
+      if(locked) tile.hidden = false;
+      const el = map.get(tile.id);
+      if(!el) return;
+      el.dataset.hidden = tile.hidden ? 'true' : 'false';
+      el.style.display = tile.hidden ? 'none' : '';
+      frag.appendChild(el);
+      map.delete(tile.id);
+    });
+    map.forEach(el=>{
+      el.dataset.hidden = 'false';
+      el.style.display = '';
+      frag.appendChild(el);
+    });
+    homeTiles.innerHTML = '';
+    homeTiles.appendChild(frag);
+  }
+  if(state.searchHidden){
+    body.setAttribute('data-search-hidden','true');
+  } else {
+    body.removeAttribute('data-search-hidden');
+  }
+  if(persist) saveLayoutState(state);
+  if(syncUI) syncLayoutEditor(state);
+}
+
+function syncLayoutEditor(state){
+  if(layoutSearchToggle){
+    layoutSearchToggle.checked = !state.searchHidden;
+  }
+  if(!layoutTilesList) return;
+  layoutTilesList.innerHTML = state.tiles.map((tile, idx) => {
+    const upDisabled = idx === 0 ? 'disabled' : '';
+    const downDisabled = idx === state.tiles.length - 1 ? 'disabled' : '';
+    const safeLabel = escapeHtml(tile.label || tile.id);
+    const safeId = escapeHtml(tile.id);
+    const upIcon = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 15 12 9 18 15"></polyline></svg>';
+    const downIcon = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>';
+    const locked = LOCKED_TILES.has(tile.id) || tile.locked;
+    const visIcon = locked ? '/icns_ui/visibility_lock.svg' : (tile.hidden ? '/icns_ui/visibility_off.svg' : '/icns_ui/visibility.svg');
+    return `<div class="layout-item" role="listitem" data-tile="${safeId}" data-hidden="${tile.hidden ? '1' : '0'}" data-locked="${locked ? '1' : '0'}">`
+      + `<div class="layout-labels"><div class="layout-title">${safeLabel}</div></div>`
+      + `<div class="layout-actions">`
+      + `<button type="button" class="mini-btn ghost layout-vis-btn" data-tile-vis="${safeId}" data-hidden="${tile.hidden ? '1' : '0'}" data-locked="${locked ? '1' : '0'}" ${locked?'disabled':''} aria-label="${locked ? 'Ten kafelek jest zawsze widoczny' : (tile.hidden ? 'Pokaż' : 'Ukryj') + ' ' + safeLabel}"><img src="${visIcon}" alt="" aria-hidden="true" class="layout-vis-icon" /></button>`
+      + `<div class="layout-move">`
+      + `<button type="button" class="mini-btn ghost" data-move="up" data-tile="${safeId}" ${upDisabled} aria-label="Przesuń ${safeLabel} w górę">${upIcon}</button>`
+      + `<button type="button" class="mini-btn ghost" data-move="down" data-tile="${safeId}" ${downDisabled} aria-label="Przesuń ${safeLabel} w dół">${downIcon}</button>`
+      + `</div>`
+      + `</div>`
+      + `</div>`;
+  }).join('');
+}
+
+function toggleLayoutEditor(open){
+  if(!layoutEditor || !layoutEditBtn) return;
+  const next = open !== undefined ? open : layoutEditor.hidden;
+  layoutEditor.hidden = !next;
+  layoutEditor.dataset.open = next ? 'true' : 'false';
+  layoutEditBtn.setAttribute('aria-expanded', String(!!next));
+  if(next){
+    body.setAttribute('data-layout-open','true');
+  } else {
+    body.removeAttribute('data-layout-open');
+  }
+}
+
+function initLayoutEditor(){
+  if(!homeTiles) return;
+  layoutState = loadLayoutState();
+  applyLayoutState(layoutState, { persist:false });
+  syncLayoutEditor(layoutState);
+  toggleLayoutEditor(false);
+  if(layoutEditBtn && !layoutEditBtn.__bound){
+    layoutEditBtn.__bound = true;
+    layoutEditBtn.addEventListener('click', ()=>{
+      const isOpen = layoutEditBtn.getAttribute('aria-expanded') === 'true';
+      toggleLayoutEditor(!isOpen);
+    });
+  }
+  if(layoutCloseBtn && !layoutCloseBtn.__bound){
+    layoutCloseBtn.__bound = true;
+    layoutCloseBtn.addEventListener('click', ()=> toggleLayoutEditor(false));
+  }
+  if(layoutResetBtn && !layoutResetBtn.__bound){
+    layoutResetBtn.__bound = true;
+    layoutResetBtn.addEventListener('click', ()=>{
+      layoutState = normalizeLayout({});
+      applyLayoutState(layoutState);
+      toggleLayoutEditor(true);
+    });
+  }
+  if(layoutSearchToggle && !layoutSearchToggle.__bound){
+    layoutSearchToggle.__bound = true;
+    layoutSearchToggle.addEventListener('change', ()=>{
+      layoutState.searchHidden = !layoutSearchToggle.checked;
+      applyLayoutState(layoutState);
+    });
+  }
+  if(layoutTilesList && !layoutTilesList.__bound){
+    layoutTilesList.__bound = true;
+    layoutTilesList.addEventListener('click', e => {
+      const moveBtn = e.target.closest('[data-move]');
+      if(moveBtn && layoutState){
+        const id = moveBtn.getAttribute('data-tile');
+        const dir = moveBtn.getAttribute('data-move');
+        const idx = layoutState.tiles.findIndex(t=> t.id === id);
+        if(idx >= 0){
+          if(dir === 'up' && idx > 0){
+            [layoutState.tiles[idx-1], layoutState.tiles[idx]] = [layoutState.tiles[idx], layoutState.tiles[idx-1]];
+            applyLayoutState(layoutState);
+          }
+          if(dir === 'down' && idx < layoutState.tiles.length - 1){
+            [layoutState.tiles[idx+1], layoutState.tiles[idx]] = [layoutState.tiles[idx], layoutState.tiles[idx+1]];
+            applyLayoutState(layoutState);
+          }
+        }
+        return;
+      }
+      const visBtn = e.target.closest('[data-tile-vis]');
+      if(visBtn && layoutState){
+        if(visBtn.disabled || visBtn.getAttribute('data-locked') === '1') return;
+        const id = visBtn.getAttribute('data-tile-vis');
+        const entry = layoutState.tiles.find(t=> t.id === id);
+        if(entry){
+          entry.hidden = !entry.hidden;
+          applyLayoutState(layoutState);
+        }
+      }
+    });
+  }
+  if(layoutEditor && !layoutEditor.__bound){
+    layoutEditor.__bound = true;
+    layoutEditor.addEventListener('keydown', e=>{
+      if(e.key === 'Escape'){
+        toggleLayoutEditor(false);
+        if(layoutEditBtn) layoutEditBtn.focus();
+      }
+    });
+  }
 }
 
 function renderField(block){
@@ -817,9 +1022,14 @@ function bindBack(){
     showHomeTiles();
     body.removeAttribute('data-mode');
     hideFormBrowser();
+    toggleLayoutEditor(false);
+    if(layoutState){
+      applyLayoutState(layoutState, { persist:false });
+    }
   });
 }
 
+initLayoutEditor();
 bindSearch();
 bindBack();
 // Aktywacja inputu po kliknięciu ikony lupy

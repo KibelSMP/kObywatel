@@ -84,7 +84,11 @@
         <img src="/logo.png" alt="Logo kObywatel" class="logo no-bg" />
         <span class="brand-name">kObywatel</span>
       </a>
-    <nav class="main-nav" aria-label="Nawigacja"></nav>
+    <nav class="main-nav" aria-label="Nawigacja">
+      <button type="button" id="layout-edit-btn" class="nav-link edit-layout-btn" aria-expanded="false" aria-controls="layout-editor" aria-label="Edycja" title="Edycja">
+        <img src="/icns_ui/edit.svg" alt="" aria-hidden="true" class="nav-icon" />
+      </button>
+    </nav>
     </header>
     <main class="app-main">
       <div id="global-alert-container" class="global-alert-host" aria-live="polite"></div>
@@ -164,6 +168,30 @@
           </a>
         </div>
       </div>
+      <section id="layout-editor" class="layout-editor" aria-label="Personalizacja strony głównej" role="dialog" aria-modal="true" hidden>
+        <div class="layout-editor__card">
+          <div class="layout-editor__head">
+            <div class="layout-editor__copy">
+              <p class="layout-editor__eyebrow">Ustawienia</p>
+              <h2 class="layout-editor__title">Personalizuj ekran główny</h2>
+              <p class="layout-editor__desc">Ukryj elementy lub zmień kolejność kafelków.</p>
+            </div>
+            <div class="layout-editor__actions">
+              <button type="button" class="mini-btn ghost" id="layout-reset-btn">Domyślne</button>
+              <button type="button" class="mini-btn layout-close-btn" id="layout-close-btn" aria-label="Zamknij" title="Zamknij">
+                <img src="/icns_ui/close.svg" alt="" aria-hidden="true" class="nav-icon" />
+              </button>
+            </div>
+          </div>
+          <div class="layout-editor__body">
+            <label class="layout-toggle" for="layout-search-toggle">
+              <input type="checkbox" id="layout-search-toggle" checked />
+              <span>Pokazuj pasek wyszukiwania</span>
+            </label>
+            <div class="layout-list" id="layout-tiles-list" role="list" aria-label="Kafelki"></div>
+          </div>
+        </div>
+      </section>
       <section id="results-section" aria-live="polite">
         <div id="results" class="results-grid"></div>
         <div id="form-browser" class="form-browser" hidden>
