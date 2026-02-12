@@ -5,7 +5,7 @@
 - Slimeball,
 - Doświadczenie (wydajność zdobywania: **Umiarkowana**)
 
-**Lokalizacja:** [x: -2626 y: 77 z: 1004](/map.html?focus=-2626,77,1004&label=Farma%20Slajmów)
+**Lokalizacja:** [x: -2626 y: 77 z: 1004](/map/?focus=-2626,77,1004&label=Farma%20Slajmów)
 
 Farma znajduje się przy przystanku Bagno. Można dostać się linią kolejową Jusznica-Podkazie lub skorzystać z piekłostrady (nitka S1). Farma schowana jest w największym slajmie, a portal do Netheru w średnim.
 

@@ -4,7 +4,7 @@
 
 - Doświadczenie (wydajność zdobywania: **Wysoka**)
 
-**Lokalizacja:** [x: -122 y: 467 z: -265](/map.html?focus=-122,467,-265&label=Expiarka%20Allay'ów)
+**Lokalizacja:** [x: -122 y: 467 z: -265](/map/?focus=-122,467,-265&label=Expiarka%20Allay'ów)
 
 Expiarka znajduje się w Spawnowicach w północnej części za rzeką. Do Spawnowic można dostać się linią kolejową Susy-Jusznica. Po opuszczeniu budynku dworca trzeba skierować się na północ.
 
@@ -24,6 +24,6 @@ Po chwili można będzie odebrać gotowe mikstury ze skrzyni poniżej. Jeśli ni
 
 ![Załącznik 4](https://media.discordapp.net/attachments/906826197508435968/1371811911569510532/Allay4.png?ex=68f37a66&is=68f228e6&hm=91f636e7d261e9c0cd687cf74d72e22fa42d707c4e6edb3ffc54bd95d940a62a&=&format=webp&quality=lossless&width=2094&height=1110)
 
-UWAGA: Po włączeniu maszyna będzie produkować silverfishe przez 3 minuty, jeśli potrzebujesz więcej EXPa po prostu kliknij na noteblock po prawej stronie ponownie. Teraz możesz zabijać silverfishe uderzając naładowanym atakiem miecza w armourstand (miecz nie może mieć enchantu Fire Aspect - jeśli twój taki ma możesz skorzystać z miecza znajdującego się w beczce pod ścianą.
+UWAGA: Po włączeniu maszyna będzie produkować silverfishe przez 3 minuty, jeśli potrzebujesz więcej EXPa po prostu kliknij na noteblock po prawej stronie ponownie. Teraz możesz zabijać silverfishe uderzając naładowanym atakiem miecza w armourstand (miecz nie może mieć enchantu Fire Aspect - jeśli twój taki ma możesz skorzystać z miecza znajdującego się w beczce pod ścianą).
 
 **PO ZAKOŃCZENIU KORZYSTANIA Z FARMY KLIKNIJ PRAWYM PRZYCISKIEM MYSZKI NA NOTEBLOCK PO LEWEJ STRONIE ABY CAŁKOWICIE WYŁĄCZYĆ MASZYNĘ.** 
