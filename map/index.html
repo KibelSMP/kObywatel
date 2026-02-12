@@ -110,6 +110,30 @@
   <button class="pin-panel" id="pin-panel" aria-label="Przypnij panel" title="Przypnij panel"><img id="pin-panel-icon" src="/icns_ui/pin.svg" alt="" aria-hidden="true" /></button>
       <div class="point-content" id="point-content"></div>
     </div>
+    <div id="info-bubble" class="info-bubble" aria-live="polite">
+      <div class="info-head">
+        <span class="info-title">Info</span>
+        <button id="info-close" class="info-close" type="button" aria-label="Ukryj informacje" title="Ukryj informacje">✕</button>
+      </div>
+      <div id="info-body" class="info-body">
+        <div class="info-row" data-info-row="cursor">
+          <span class="info-label">Kursor</span>
+          <span class="info-value" id="info-cursor">—</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Celownik</span>
+          <span class="info-value" id="info-crosshair">—</span>
+        </div>
+        <div class="info-row" id="info-updated-row">
+          <span class="info-label">Aktualizacja</span>
+          <span class="info-value" id="info-updated">—</span>
+        </div>
+        <a class="info-action" id="info-propose" href="/map/add" target="_blank" rel="noreferrer noopener">Zaproponuj punkt</a>
+      </div>
+    </div>
+    <button id="info-fab" class="info-fab" aria-label="Pokaż informacje" title="Pokaż informacje">
+      <img src="/icns_ui/my_location.svg" alt="" aria-hidden="true" />
+    </button>
     <div id="lines-legend" class="lines-legend collapsed" aria-label="Legenda linii kolejowych i metra">
       <div class="lines-legend-header">
         <button id="lines-legend-toggle" type="button" aria-expanded="false" aria-controls="lines-legend-body" title="Pokaż / ukryj legendę linii">Linie ▼</button>

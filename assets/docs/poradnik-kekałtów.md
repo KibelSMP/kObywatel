@@ -7,7 +7,7 @@
 - czerwony piasek,
 - czerwony piaskowiec,
 
-**Lokalizacja:** [x: 946 y: 40 z: -1105](/map.html?focus=946,40,-1105&label=Kekałtów)
+**Lokalizacja:** [x: 946 y: 40 z: -1105](/map/?focus=946,40,-1105&label=Kekałtów)
 
 Aby dostać się do kopalni można skorzystać z linii kolejowej Jusznica-Borg Cube, wysiadając na przystanku Piaszczyna, a następnie udać się ścieżką na południe ~~lub skorzystać z pociagu na żądanie~~.Na dół kopalni można dostać się kolejką linową na żądanie.
 

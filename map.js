@@ -17,6 +17,13 @@ const closePanelBtn = document.getElementById('close-panel');
 const pinPanelBtn = document.getElementById('pin-panel');
 const legendEl = document.getElementById('legend');
 const filtersPanelEl = document.getElementById('filters-panel');
+const infoBubbleEl = document.getElementById('info-bubble');
+const infoCursorEl = document.getElementById('info-cursor');
+const infoCrosshairEl = document.getElementById('info-crosshair');
+const infoUpdatedEl = document.getElementById('info-updated');
+const infoCloseBtn = document.getElementById('info-close');
+const infoBodyEl = document.getElementById('info-body');
+const infoFabBtn = document.getElementById('info-fab');
 // Dynamiczny wskaźnik koordynatów kursora (desktop)
 let legendCursorEl = null;
 let legendCursorRowEl = null;
@@ -539,45 +546,38 @@ function buildLegend(){
     const lab = document.createElement('span'); lab.className='legend-label'; lab.textContent = val.label || key; div.appendChild(lab);
     legendEl.appendChild(div);
   });
+  // Sklep / Firma – po wszystkich kategoriach punktów z danych
   try {
-    const after = legendEl.querySelector('[data-cat-key="miasto_male"]');
-    if(after){
-      const row = document.createElement('label'); row.className='legend-item'; row.setAttribute('data-legend-shops','1');
-      const cb = document.createElement('input'); cb.type='checkbox'; cb.style.marginRight='.35rem'; cb.checked = !!showShops;
-      cb.addEventListener('change', async ()=>{ 
-        showShops = cb.checked; 
-        saveLegendState(); 
-        if(showShops){ 
-          await ensureShopsLoaded(); 
-        } else {
-          // Wyłączenie warstwy sklepów – wyczyść kontekst i wyniki ofert
-          currentShopContextId = null; 
-          if(pointResultsEl){ pointResultsEl.innerHTML=''; pointResultsEl.hidden = true; }
-        }
-        buildShopMarkers(); 
-      });
-      const dot = document.createElement('span'); dot.className='legend-dot'; dot.style.background = '#0ea5e9';
-      const lab = document.createElement('span'); lab.className='legend-label'; lab.textContent = 'Sklep';
-      row.appendChild(cb); row.appendChild(dot); row.appendChild(lab);
-      after.insertAdjacentElement('afterend', row);
-    }
-  } catch(_){ }
-  try {
-    const anchor = legendEl.querySelector('[data-legend-shops]') || legendEl.querySelector('[data-cat-key="miasto_male"]');
-    if(anchor){
-      const row = document.createElement('label'); row.className='legend-item'; row.setAttribute('data-legend-companies','1');
-      const cb = document.createElement('input'); cb.type='checkbox'; cb.style.marginRight='.35rem'; cb.checked = !!showCompanies;
-      cb.addEventListener('change', async ()=>{
-        showCompanies = cb.checked;
-        saveLegendState();
-        if(showCompanies){ await ensureCompaniesLoaded(); }
-        buildCompanyMarkers();
-      });
-      const dot = document.createElement('span'); dot.className='legend-dot'; dot.style.background = '#a855f7';
-      const lab = document.createElement('span'); lab.className='legend-label'; lab.textContent = 'Firma';
-      row.appendChild(cb); row.appendChild(dot); row.appendChild(lab);
-      anchor.insertAdjacentElement('afterend', row);
-    }
+    const shopRow = document.createElement('label'); shopRow.className='legend-item'; shopRow.setAttribute('data-legend-shops','1');
+    const shopCb = document.createElement('input'); shopCb.type='checkbox'; shopCb.style.marginRight='.35rem'; shopCb.checked = !!showShops;
+    shopCb.addEventListener('change', async ()=>{
+      showShops = shopCb.checked;
+      saveLegendState();
+      if(showShops){
+        await ensureShopsLoaded();
+      } else {
+        currentShopContextId = null;
+        if(pointResultsEl){ pointResultsEl.innerHTML=''; pointResultsEl.hidden = true; }
+      }
+      buildShopMarkers();
+    });
+    const shopDot = document.createElement('span'); shopDot.className='legend-dot'; shopDot.style.background = '#0ea5e9';
+    const shopLab = document.createElement('span'); shopLab.className='legend-label'; shopLab.textContent = 'Sklep';
+    shopRow.appendChild(shopCb); shopRow.appendChild(shopDot); shopRow.appendChild(shopLab);
+    legendEl.appendChild(shopRow);
+
+    const companyRow = document.createElement('label'); companyRow.className='legend-item'; companyRow.setAttribute('data-legend-companies','1');
+    const companyCb = document.createElement('input'); companyCb.type='checkbox'; companyCb.style.marginRight='.35rem'; companyCb.checked = !!showCompanies;
+    companyCb.addEventListener('change', async ()=>{
+      showCompanies = companyCb.checked;
+      saveLegendState();
+      if(showCompanies){ await ensureCompaniesLoaded(); }
+      buildCompanyMarkers();
+    });
+    const companyDot = document.createElement('span'); companyDot.className='legend-dot'; companyDot.style.background = '#a855f7';
+    const companyLab = document.createElement('span'); companyLab.className='legend-label'; companyLab.textContent = 'Firma';
+    companyRow.appendChild(companyCb); companyRow.appendChild(companyDot); companyRow.appendChild(companyLab);
+    legendEl.appendChild(companyRow);
   } catch(_){ }
   // Separator między punktami a sekcją transportową
   const sepTop = document.createElement('div'); sepTop.className='legend-sep'; legendEl.appendChild(sepTop);
@@ -649,84 +649,50 @@ function buildLegend(){
 }
 
 function renderLegendCursor(){
-  // Usuń poprzedni wiersz
-  if(legendCursorRowEl && legendCursorRowEl.parentElement){ legendCursorRowEl.parentElement.removeChild(legendCursorRowEl); }
-  if(legendCrosshairRowEl && legendCrosshairRowEl.parentElement){ legendCrosshairRowEl.parentElement.removeChild(legendCrosshairRowEl); }
-  legendCursorRowEl = null; legendCursorEl = null;
-  legendCrosshairRowEl = null; legendCrosshairEl = null;
+  // W nowym bąbelku w prawym dolnym rogu – tylko aktualizacja referencji
+  legendCursorEl = infoCursorEl || null;
+  legendCrosshairEl = infoCrosshairEl || null;
+  legendCursorRowEl = infoBubbleEl || null;
+  legendCrosshairRowEl = infoBubbleEl || null;
   try {
-    const isDesktop = (navigator.maxTouchPoints||0) === 0 && window.matchMedia('(pointer: fine)').matches;
-    if(!isDesktop || !filtersPanelEl || !legendEl) return;
-    const row = document.createElement('div');
-    row.className = 'legend-coords';
-    row.style.cssText = 'margin-top:.5rem;font-size:.62rem;opacity:.95;display:flex;gap:.4rem;align-items:center;';
-    const label = document.createElement('span'); label.textContent = 'Kursor:'; label.style.minWidth = '52px';
-    const val = document.createElement('span');
-    val.textContent = '—';
-    val.style.fontWeight='700';
-    val.style.letterSpacing='.2px';
-    val.style.marginLeft='auto';
-    val.style.textAlign='right';
-    row.appendChild(label); row.appendChild(val);
-    // wstaw tuż pod legendą
-    if(legendEl.nextSibling){ filtersPanelEl.insertBefore(row, legendEl.nextSibling); } else { filtersPanelEl.appendChild(row); }
-    legendCursorRowEl = row; legendCursorEl = val;
-
-    // Wiersz z koordynatami celownika (środek ekranu)
-    const targetRow = document.createElement('div');
-    targetRow.className = 'legend-coords';
-    targetRow.style.cssText = 'margin-top:.25rem;font-size:.62rem;opacity:.95;display:flex;gap:.4rem;align-items:center;';
-    const targetLabel = document.createElement('span'); targetLabel.textContent = 'Celownik:'; targetLabel.style.minWidth = '52px';
-    const targetVal = document.createElement('span');
-    targetVal.textContent = '—';
-    targetVal.style.fontWeight='700';
-    targetVal.style.letterSpacing='.2px';
-    targetVal.style.marginLeft='auto';
-    targetVal.style.textAlign='right';
-    targetRow.appendChild(targetLabel); targetRow.appendChild(targetVal);
-    if(row.nextSibling){ filtersPanelEl.insertBefore(targetRow, row.nextSibling); } else { filtersPanelEl.appendChild(targetRow); }
-    legendCrosshairRowEl = targetRow; legendCrosshairEl = targetVal;
-    updateCrosshairCoords();
+    if(legendCursorEl){ legendCursorEl.textContent = '—'; }
+    if(legendCrosshairEl){ legendCrosshairEl.textContent = '—'; updateCrosshairCoords(); }
     renderUpdatedAtRow();
+    updateInfoBubbleOffset();
   } catch(_) { legendCursorEl = null; legendCursorRowEl = null; }
 }
 
 function renderUpdatedAtRow(){
-  // Usuń wcześniejszy wpis o dacie aktualizacji
-  if(legendUpdatedRowEl && legendUpdatedRowEl.parentElement){ legendUpdatedRowEl.parentElement.removeChild(legendUpdatedRowEl); }
-  legendUpdatedRowEl = null;
+  legendUpdatedRowEl = infoUpdatedEl || null;
   try {
-    if(!filtersPanelEl) return;
     const iso = mapData?.meta?.updatedAt;
-    if(!iso) return;
-    const dt = new Date(iso);
-    if(Number.isNaN(dt.getTime())) return;
-    const formatted = dt.toLocaleString('pl-PL', { dateStyle:'short' });
-    const row = document.createElement('div');
-    row.className = 'legend-updated';
-    row.style.cssText = 'margin-top:.25rem;font-size:.62rem;opacity:.9;display:flex;gap:.4rem;align-items:center;';
-    const label = document.createElement('span'); label.textContent = 'Aktualizacja danych:'; label.style.minWidth = '88px';
-    const val = document.createElement('span');
-    val.textContent = formatted;
-    val.style.fontWeight='700';
-    val.style.letterSpacing='.15px';
-    val.style.marginLeft='auto';
-    val.style.textAlign='right';
-    row.appendChild(label); row.appendChild(val);
-    if(legendCrosshairRowEl){
-      // Umieść datę poniżej koordynatów celownika
-      if(legendCrosshairRowEl.nextSibling){ filtersPanelEl.insertBefore(row, legendCrosshairRowEl.nextSibling); }
-      else { filtersPanelEl.appendChild(row); }
-    } else if(legendCursorRowEl){
-      if(legendCursorRowEl.nextSibling){ filtersPanelEl.insertBefore(row, legendCursorRowEl.nextSibling); }
-      else { filtersPanelEl.appendChild(row); }
-    } else if(legendEl && legendEl.nextSibling){
-      filtersPanelEl.insertBefore(row, legendEl.nextSibling);
-    } else {
-      filtersPanelEl.appendChild(row);
+    let formatted = '—';
+    if(iso){
+      const dt = new Date(iso);
+      if(!Number.isNaN(dt.getTime())){
+        formatted = dt.toLocaleString('pl-PL', { dateStyle:'short' });
+      }
     }
-    legendUpdatedRowEl = row;
+    if(legendUpdatedRowEl){ legendUpdatedRowEl.textContent = formatted; }
+    updateInfoBubbleOffset();
   } catch(_) { legendUpdatedRowEl = null; }
+}
+
+function updateInfoBubbleOffset(){
+  if(!infoBubbleEl) return;
+  const h = infoBubbleEl.offsetHeight || 0;
+  const gap = h ? 10 : 0; // mały odstęp nad legendą linii
+  document.documentElement.style.setProperty('--info-bubble-offset', `${h + gap}px`);
+}
+
+function setInfoBubbleVisible(visible){
+  if(!infoBubbleEl) return;
+  const v = !!visible;
+  if(infoBodyEl){ infoBodyEl.hidden = !v; }
+  infoBubbleEl.classList.toggle('info-visible', v);
+  infoBubbleEl.classList.toggle('collapsed', !v);
+  if(infoFabBtn){ infoFabBtn.hidden = v; }
+  updateInfoBubbleOffset();
 }
 
 // --- Sklepy kHandel: legenda, ładowanie i render ---
@@ -1654,6 +1620,7 @@ if(pointSearchClearBtn){
     all.forEach(m=>{ m.style.opacity = 1; m.style.filter=''; });
     // Po wyczyszczeniu wyszukiwania przywróć klastrowanie jeśli powinno działać
     if(suppressClustering){ suppressClustering = false; buildMarkers(); }
+    updateSearchClearVisibility();
   });
 }
 
@@ -1662,14 +1629,22 @@ function debounce(fn, wait=120){
   let t; return function(...args){ clearTimeout(t); t = setTimeout(()=> fn.apply(this,args), wait); };
 }
 
+function updateSearchClearVisibility(){
+  if(!pointSearchClearBtn || !searchInput) return;
+  const hasValue = !!searchInput.value.trim();
+  const focused = document.activeElement === searchInput;
+  pointSearchClearBtn.hidden = !(hasValue || focused);
+}
+
 // Podpięcie wyszukiwarki punktów
 if(searchInput){
   const onInput = debounce(()=> handleSearch(), 90);
-  searchInput.addEventListener('input', onInput);
+  searchInput.addEventListener('input', ()=>{ updateSearchClearVisibility(); onInput(); });
   searchInput.addEventListener('keydown', (e)=>{
     if(e.key === 'Escape'){
       searchInput.value = '';
       handleSearch();
+      updateSearchClearVisibility();
       e.stopPropagation();
       return;
     }
@@ -1679,9 +1654,13 @@ if(searchInput){
       if(first){ first.dispatchEvent(new MouseEvent('click', { bubbles:true })); }
     }
   });
+  searchInput.addEventListener('focus', updateSearchClearVisibility);
+  searchInput.addEventListener('blur', updateSearchClearVisibility);
   // Jeśli pole ma już wartość (np. powrót do karty), przelicz wyniki po starcie
   if(searchInput.value && searchInput.value.trim()){
-    setTimeout(()=> handleSearch(), 0);
+    setTimeout(()=>{ handleSearch(); updateSearchClearVisibility(); }, 0);
+  } else {
+    updateSearchClearVisibility();
   }
 }
 
@@ -2039,6 +2018,23 @@ async function load(){
   }
   buildLegend();
   buildLinesLegend();
+  // Info bubble: desktop zawsze widoczny, mobile otwierany przyciskiem
+  const infoMobileMql = window.matchMedia('(max-width: 860px)');
+  const applyInfoLayout = ()=>{
+    if(infoMobileMql.matches){
+      setInfoBubbleVisible(false);
+    } else {
+      setInfoBubbleVisible(true);
+    }
+  };
+  applyInfoLayout();
+  infoMobileMql.addEventListener('change', applyInfoLayout);
+  if(infoFabBtn){
+    infoFabBtn.addEventListener('click', ()=> setInfoBubbleVisible(true));
+  }
+  if(infoCloseBtn){
+    infoCloseBtn.addEventListener('click', ()=> setInfoBubbleVisible(false));
+  }
   await new Promise((resolve,reject)=>{
     imgEl.onload = ()=> resolve();
     imgEl.onerror = ()=> reject();
