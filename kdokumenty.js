@@ -3,6 +3,10 @@ const bodyInput = document.getElementById('docBody');
 const previewEl = document.getElementById('doc-preview');
 const statusEl = document.getElementById('kdok-status');
 const resetBtn = document.getElementById('reset-form');
+const importBtn = document.getElementById('import-kobdoc');
+const exportBtn = document.getElementById('export-kobdoc');
+const importInput = document.getElementById('kobdoc-import');
+const KOBDOC_VERSION = '1.0.0';
 let __fontPromise = null;
 let __logoPromise = null;
 
@@ -116,6 +120,16 @@ function setStatus(msg, kind = 'ok'){
 }
 function safeFileName(name){
   return (name || '').replace(/[^a-z0-9_-]+/gi, '_').replace(/_+/g, '_').replace(/^_+|_+$/g, '') || 'pismo';
+}
+
+function buildFileBaseName(data){
+  const title = data?.title?.trim();
+  const reference = data?.reference?.trim();
+  const parts = [];
+  if(reference) parts.push(reference);
+  if(title) parts.push(title);
+  const raw = parts.join('_') || 'pismo';
+  return safeFileName(raw);
 }
 function bufToBase64(buf){
   const bytes = new Uint8Array(buf);
@@ -317,6 +331,105 @@ function collectParty(prefix){
   };
 }
 
+function buildKobdocPayload(){
+  return {
+    version: KOBDOC_VERSION,
+    exportedAt: new Date().toISOString(),
+    data: collectData()
+  };
+}
+
+function downloadKobdoc(){
+  const payload = buildKobdocPayload();
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = `${buildFileBaseName(payload.data)}.kobdoc`;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(link.href), 1500);
+  setStatus('Eksport zakończony. Plik .kobdoc został pobrany.', 'ok');
+}
+
+function setFieldValue(name, value){
+  if(form[name]){
+    form[name].value = value ?? '';
+  }
+}
+
+function applyParty(prefix, party){
+  const p = party || {};
+  const type = p.type === 'person' ? 'person' : 'institution';
+  setFieldValue(`${prefix}Type`, type);
+  syncEntityUI();
+  if(type === 'person'){
+    setFieldValue(`${prefix}NickPerson`, p.nick || '');
+    setFieldValue(`${prefix}Pesel`, p.pesel || '');
+    setFieldValue(`${prefix}AddressPerson`, p.address || '');
+  } else {
+    setFieldValue(`${prefix}Company`, p.company || '');
+    setFieldValue(`${prefix}Knip`, p.knip || '');
+    setFieldValue(`${prefix}Unit`, p.unit || '');
+    setFieldValue(`${prefix}Address`, p.address || '');
+    setFieldValue(`${prefix}Nick`, p.nick || '');
+    setFieldValue(`${prefix}RepPesel`, p.repPesel || '');
+  }
+}
+
+function applyKobdocData(payload){
+  if(!payload || typeof payload !== 'object'){
+    throw new Error('Plik ma nieprawidłowy format (brak danych).');
+  }
+  const version = payload.version;
+  const data = payload.data || payload;
+  if(!data || typeof data !== 'object'){
+    throw new Error('Plik nie zawiera danych dokumentu.');
+  }
+  if(version && version !== KOBDOC_VERSION){
+    setStatus(`Inna wersja pliku (${version}) niż wspierana (${KOBDOC_VERSION}). Próba importu...`, 'ok');
+  }
+  setFieldValue('docTitle', data.title || '');
+  setFieldValue('docReference', data.reference || '');
+  setFieldValue('docDate', data.date || todayIso());
+  bodyInput.value = data.body || '';
+  applyParty('sender', data.sender);
+  applyParty('recipient', data.recipient);
+  updatePreview();
+  syncEntityUI();
+}
+
+function importKobdocFile(file){
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const parsed = JSON.parse(reader.result || '{}');
+        applyKobdocData(parsed);
+        setStatus('Import zakończony. Dane zostały wczytane.', 'ok');
+        resolve();
+      } catch(err){
+        console.error(err);
+        setStatus(err.message || 'Nie udało się zaimportować pliku.', 'err');
+        reject(err);
+      }
+    };
+    reader.onerror = () => {
+      const err = reader.error || new Error('Nie udało się odczytać pliku.');
+      setStatus(err.message, 'err');
+      reject(err);
+    };
+    reader.readAsText(file, 'utf-8');
+  });
+}
+
+function handleImportChange(){
+  clearStatus();
+  const file = importInput?.files?.[0];
+  if(!file) return;
+  importKobdocFile(file).finally(() => {
+    if(importInput) importInput.value = '';
+  });
+}
+
 async function generatePdf(data){
   const { jsPDF } = window.jspdf || {};
   if(!jsPDF) throw new Error('Brak biblioteki PDF (jsPDF).');
@@ -364,7 +477,7 @@ async function generatePdf(data){
   y += 8;
   const bodyText = data.body || 'Brak treści.';
   renderMarkdownBody(doc, bodyText, 14, y, 182, 6, fontName, 11);
-  const fileName = safeFileName(data.title || 'pismo') + '.pdf';
+  const fileName = `${buildFileBaseName(data)}.pdf`;
   doc.save(fileName);
 }
 
@@ -431,6 +544,20 @@ function bindEvents(){
   bodyInput.addEventListener('input', updatePreview);
   form.addEventListener('submit', handleSubmit);
   resetBtn?.addEventListener('click', resetForm);
+  exportBtn?.addEventListener('click', () => {
+    clearStatus();
+    try {
+      downloadKobdoc();
+    } catch(err){
+      console.error(err);
+      setStatus(err.message || 'Nie udało się wyeksportować pliku.', 'err');
+    }
+  });
+  importBtn?.addEventListener('click', () => {
+    clearStatus();
+    importInput?.click();
+  });
+  importInput?.addEventListener('change', handleImportChange);
   resetForm();
   form.senderType?.addEventListener('change', syncEntityUI);
   form.recipientType?.addEventListener('change', syncEntityUI);

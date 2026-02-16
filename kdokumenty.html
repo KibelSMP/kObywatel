@@ -255,10 +255,13 @@
           <div class="kdok-status" id="kdok-status" aria-live="polite"></div>
 
           <div class="kdok-actions">
+            <button type="button" id="import-kobdoc" class="kdok-btn ghost">Importuj .kobdoc</button>
+            <button type="button" id="export-kobdoc" class="kdok-btn ghost">Eksportuj .kobdoc</button>
             <button type="button" id="reset-form" class="kdok-btn ghost">Wyczyść</button>
             <button type="submit" class="kdok-btn">Generuj PDF</button>
           </div>
           <p class="kdok-note">PDF powstaje lokalnie w przeglądarce. Dane nie są nigdzie wysyłane.</p>
+          <input type="file" id="kobdoc-import" accept=".kobdoc,application/json" hidden />
         </form>
       </div>
     </main>
