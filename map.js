@@ -762,6 +762,7 @@ async function ensureShopsLoaded(){
 function normalizeCompanyRecord(item){
   const addr = item?.location?.address || {};
   const coords = item?.location?.coordinates || {};
+  const dimension = String(item?.location?.dimension || 'Overworld').trim();
   const name = String(item?.name || 'Firma').trim();
   const knip = String(item?.knip || '').trim();
   const registrar = String(item?.registrar_kesel ?? item?.registrarKesel ?? '').trim();
@@ -772,7 +773,7 @@ function normalizeCompanyRecord(item){
   const x = Number(coords.x);
   const z = Number(coords.y ?? coords.z);
   const id = knip || `${name}|${city}|${street}`;
-  return { id, name, city, street, voiv, knip, registrar, symbols, x: Number.isFinite(x)? x : undefined, z: Number.isFinite(z)? z : undefined };
+  return { id, name, city, street, voiv, knip, registrar, symbols, dimension, x: Number.isFinite(x)? x : undefined, z: Number.isFinite(z)? z : undefined };
 }
 
 async function ensureCompaniesLoaded(){
@@ -783,6 +784,7 @@ async function ensureCompaniesLoaded(){
     const map = new Map();
     arr.forEach(raw => {
       const c = normalizeCompanyRecord(raw);
+      if(c.dimension && c.dimension !== 'Overworld') return;
       if(!Number.isFinite(c.x) || !Number.isFinite(c.z)) return;
       if(!map.has(c.id)) map.set(c.id, c);
     });
@@ -850,8 +852,7 @@ function buildShopMarkers(){
       const btn = document.createElement('button'); btn.className='marker-btn cluster-btn'; btn.textContent = cl.members.length>99? '99+': String(cl.members.length);
       btn.addEventListener('click', (e)=>{
         e.stopPropagation();
-        const sX = originX + cl.cx * scale; const sY = originY + cl.cy * scale;
-        setScale(scale*1.35, sX, sY);
+        toggleShopClusterPopover(wrap, cl);
       });
       wrap.appendChild(btn); markersShopsLayer.appendChild(wrap);
     }
@@ -923,8 +924,7 @@ function buildCompanyMarkers(){
       const btn = document.createElement('button'); btn.className='marker-btn cluster-btn'; btn.textContent = cl.members.length>99? '99+': String(cl.members.length);
       btn.addEventListener('click', (e)=>{
         e.stopPropagation();
-        const sX = originX + cl.cx * scale; const sY = originY + cl.cy * scale;
-        setScale(scale*1.35, sX, sY);
+        toggleCompanyClusterPopover(wrap, cl);
       });
       wrap.appendChild(btn); markersCompaniesLayer.appendChild(wrap);
     }
@@ -1421,6 +1421,80 @@ function toggleClusterPopover(anchorEl, cluster){
     });
   });
   // Klik poza – zamknij
+  setTimeout(()=>{
+    const handler = (ev)=>{
+      if(clusterPopoverEl && !clusterPopoverEl.contains(ev.target) && !anchorEl.contains(ev.target)){
+        closeClusterPopover();
+        window.removeEventListener('click', handler, true);
+      }
+    };
+    window.addEventListener('click', handler, true);
+  });
+}
+
+// Popover dla klastrów sklepów (kHandel)
+function toggleShopClusterPopover(anchorEl, cluster){
+  if(clusterPopoverEl && clusterPopoverEl.anchor === anchorEl){
+    closeClusterPopover(); return;
+  }
+  closeClusterPopover();
+  clusterPopoverEl = document.createElement('div');
+  clusterPopoverEl.className = 'cluster-popover';
+  clusterPopoverEl.anchor = anchorEl;
+  const list = cluster.members
+    .slice()
+    .sort((a,b)=> (a.s.name||'').localeCompare(b.s.name||''))
+    .map(m=> `<div class="cp-item" data-shop-id="${m.s.id}"><span class="cp-dot" style="background:#f0a500"></span><span class="cp-name">${m.s.name}</span><span class="cp-cat">${m.s.location||''}</span></div>`)
+    .join('');
+  clusterPopoverEl.innerHTML = `<div class="cp-header">${cluster.members.length} sklepów</div><div class="cp-list">${list}</div>`;
+  clusterPopoverEl.style.left = anchorEl.style.left;
+  clusterPopoverEl.style.top = anchorEl.style.top;
+  markersShopsLayer.appendChild(clusterPopoverEl);
+  clusterPopoverEl.querySelectorAll('.cp-item').forEach(el=>{
+    el.addEventListener('click', (ev)=>{
+      ev.stopPropagation();
+      const id = el.getAttribute('data-shop-id');
+      closeClusterPopover();
+      openShopInSearch(id);
+    });
+  });
+  setTimeout(()=>{
+    const handler = (ev)=>{
+      if(clusterPopoverEl && !clusterPopoverEl.contains(ev.target) && !anchorEl.contains(ev.target)){
+        closeClusterPopover();
+        window.removeEventListener('click', handler, true);
+      }
+    };
+    window.addEventListener('click', handler, true);
+  });
+}
+
+// Popover dla klastrów firm (kFirma)
+function toggleCompanyClusterPopover(anchorEl, cluster){
+  if(clusterPopoverEl && clusterPopoverEl.anchor === anchorEl){
+    closeClusterPopover(); return;
+  }
+  closeClusterPopover();
+  clusterPopoverEl = document.createElement('div');
+  clusterPopoverEl.className = 'cluster-popover';
+  clusterPopoverEl.anchor = anchorEl;
+  const list = cluster.members
+    .slice()
+    .sort((a,b)=> (a.c.name||'').localeCompare(b.c.name||''))
+    .map(m=> `<div class="cp-item" data-company-id="${m.c.id}"><span class="cp-dot" style="background:#4fc3f7"></span><span class="cp-name">${m.c.name}</span><span class="cp-cat">${m.c.city||''}</span></div>`)
+    .join('');
+  clusterPopoverEl.innerHTML = `<div class="cp-header">${cluster.members.length} firm</div><div class="cp-list">${list}</div>`;
+  clusterPopoverEl.style.left = anchorEl.style.left;
+  clusterPopoverEl.style.top = anchorEl.style.top;
+  markersCompaniesLayer.appendChild(clusterPopoverEl);
+  clusterPopoverEl.querySelectorAll('.cp-item').forEach(el=>{
+    el.addEventListener('click', (ev)=>{
+      ev.stopPropagation();
+      const id = el.getAttribute('data-company-id');
+      closeClusterPopover();
+      openCompanyInSearch(id);
+    });
+  });
   setTimeout(()=>{
     const handler = (ev)=>{
       if(clusterPopoverEl && !clusterPopoverEl.contains(ev.target) && !anchorEl.contains(ev.target)){
@@ -2121,8 +2195,9 @@ function computeCenterAndDistance(){
 }
 
 viewport.addEventListener('pointerdown', e=>{
-  // Kliknięcia w elementy UI (w tym link marki) nie powinny rozpoczynać panowania ani przechwytywać wskaźnika
+  // Kliknięcia w elementy UI (w tym link marki i popovery klastrów) nie powinny rozpoczynać panowania ani przechwytywać wskaźnika
   const isUi = !!(e.target.closest('.marker')
+    || e.target.closest('.cluster-popover')
     || e.target.closest('.map-toolbar')
     || e.target.closest('.map-sidepanel')
     || e.target.closest('.point-panel')

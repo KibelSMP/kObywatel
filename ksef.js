@@ -13,6 +13,19 @@ let __fontPromise = null;
 let __logoPromise = null;
 let __barcodeFontPromise = null;
 
+function simplifyPolish(str){
+  return String(str || '').normalize('NFD').replace(/\p{Diacritic}+/gu, '').replace(/ł/g,'l').replace(/Ł/g,'L');
+}
+
+function sanitizeStrings(value){
+  if(Array.isArray(value)) return value.map(sanitizeStrings);
+  if(value && typeof value === 'object'){
+    return Object.fromEntries(Object.entries(value).map(([k,v])=> [k, sanitizeStrings(v)]));
+  }
+  if(typeof value === 'string') return simplifyPolish(value);
+  return value;
+}
+
 function formatMoney(value){
   const num = Number.isFinite(value) ? value : 0;
   return num.toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -137,7 +150,7 @@ function collectData(){
     kat: data.items.reduce((s,i)=> s + i.kat, 0)
   };
   data.totals.gross = data.totals.net + data.totals.kat;
-  return data;
+  return sanitizeStrings(data);
 }
 
 function buildExportPayload(){
@@ -254,7 +267,8 @@ function handleDrop(evt){
 }
 
 function safeFileName(name){
-  return name.replace(/[^a-z0-9_-]+/gi, '_').replace(/_+/g,'_').replace(/^_+|_+$/g,'') || 'faktura';
+  const cleaned = simplifyPolish(name);
+  return cleaned.replace(/[^a-z0-9_-]+/gi, '_').replace(/_+/g,'_').replace(/^_+|_+$/g,'') || 'faktura';
 }
 
 function bufToBase64(buf){

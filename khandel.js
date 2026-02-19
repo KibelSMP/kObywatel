@@ -8,6 +8,14 @@ let priceMax = '';
 let groupMode = 'none';
 const PAGE_SIZE = 60;
 
+// Klucz sortowania ofert – identyfikator oferty (fallback na nazwę przedmiotu)
+const getIdentifier = (p)=>{
+  if(!p) return '';
+  const offerId = p.offerId || p.offerID || p.id || p.uuid || p.identifier;
+  const raw = offerId || p.product?.item || p.productName || p.productNameEn || '';
+  return String(raw).toLowerCase();
+};
+
 const breadcrumbEl = null;
 const productsEl = document.getElementById('khandel-products');
 const emptyEl = document.getElementById('empty');
@@ -221,6 +229,10 @@ function createOfferCard(p, includeMeta=true){
   if(p.storeOwner){
     const ownerLine = document.createElement('div'); ownerLine.style.marginTop='.25rem';
     const badge = document.createElement('span'); badge.textContent=p.storeOwner; badge.style.display='inline-block'; badge.style.fontSize='.55rem'; badge.style.fontWeight='600'; badge.style.letterSpacing='.4px'; badge.style.padding='.25rem .55rem'; badge.style.borderRadius='999px'; badge.style.background='linear-gradient(135deg,#1f2a35,#16212b)'; badge.style.border='1px solid #26313d'; badge.style.boxShadow='0 2px 6px -2px rgba(0,0,0,.4)'; badge.style.color='#e6edf3'; ownerLine.appendChild(badge); box.appendChild(ownerLine);
+  }
+  if(p.villageName){
+    const villagerLine = document.createElement('div'); villagerLine.style.marginTop='.25rem';
+    const badge = document.createElement('span'); badge.textContent=p.villageName; badge.style.display='inline-block'; badge.style.fontSize='.55rem'; badge.style.fontWeight='600'; badge.style.letterSpacing='.4px'; badge.style.padding='.25rem .55rem'; badge.style.borderRadius='999px'; badge.style.background='linear-gradient(135deg,#1e2a36,#141c24)'; badge.style.border='1px solid #26313d'; badge.style.boxShadow='0 2px 6px -2px rgba(0,0,0,.4)'; badge.style.color='#e6edf3'; villagerLine.appendChild(badge); box.appendChild(villagerLine);
   }
   if(Number.isFinite(p.x)&&Number.isFinite(p.y)&&Number.isFinite(p.z)){
     const btn = document.createElement('button'); btn.type='button'; btn.innerHTML = `<img src="/icns_ui/map_search.svg" alt="" aria-hidden="true" style="width:16px;height:16px;vertical-align:middle;margin-right:.4rem;filter:drop-shadow(0 0 1px rgba(0,0,0,.4));"/> ${p.x},${p.y},${p.z}`; btn.style.marginTop='.3rem'; btn.style.fontSize='.55rem'; btn.style.background='#1a2632'; btn.style.border='1px solid #26313d'; btn.style.color='#e6edf3'; btn.style.padding='.35rem .55rem'; btn.style.borderRadius='8px'; btn.style.cursor='pointer'; btn.style.fontWeight='600';
@@ -506,6 +518,7 @@ async function load(){
   try {
     const list = await window.__db.fetchJson('data/khandel-products.json');
     allProducts = Array.isArray(list)? list: [];
+    allProducts.sort((a,b)=> getIdentifier(a).localeCompare(getIdentifier(b), 'pl', { sensitivity:'base', numeric:true }));
     updateLocationFilter(); updateStoreFilter(); setGroupMode('none'); updatePriceToggleVisual(); renderAll();
   } catch(e){ emptyEl.hidden=false; emptyEl.textContent='Błąd ładowania produktów: '+e.message; }
 }

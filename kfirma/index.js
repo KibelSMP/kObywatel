@@ -27,21 +27,27 @@ async function fetchJson(url, label){
 	if(!r.ok) throw new Error(`Błąd pobierania ${label || 'danych'} (${r.status})`);
 	return r.json();
 }
+function cleanField(val){
+	const v = String(val || '').trim();
+	return v === '-' ? '' : v;
+}
 
 function normalizeCompanies(data){
 	if(!Array.isArray(data)) return [];
 	return data.map(item => {
 		const addr = item?.location?.address || {};
 		const coords = item?.location?.coordinates || {};
+		const dimensionRaw = cleanField(item?.location?.dimension || '');
 		return {
 			name: String(item?.name || 'Nieznana firma').trim(),
 			symbols: Array.isArray(item?.symbols) ? item.symbols.map(s => String(s).trim()).filter(Boolean) : [],
 			knip: item?.knip ?? '',
 			registrar: item?.registrar_kesel ?? item?.registrarKesel ?? '',
+			dimension: dimensionRaw || 'Overworld',
 			address: {
-				street: String(addr.street || '').trim(),
-				city: String(addr.city || '').trim(),
-				voiv: String(addr.voivodeship || addr.wojewodztwo || '').trim()
+				street: cleanField(addr.street),
+				city: cleanField(addr.city),
+				voiv: cleanField(addr.voivodeship || addr.wojewodztwo)
 			},
 			coords: {
 				x: coords?.x ?? null,
@@ -152,7 +158,10 @@ function renderList(companies){
 		const symbolsData = c.symbols.map(s => escapeHtml(s)).join('|');
 		const hasCoords = (c.coords.x||c.coords.x===0) && (c.coords.y||c.coords.y===0);
 		const coordsLabel = hasCoords ? `${c.coords.x}, ${c.coords.y}` : 'Brak współrzędnych';
-		const mapLink = `/map/?company=${encodeURIComponent(c.knip)}`;
+		const mapLink = c.dimension === 'Overworld' && hasCoords ? `/map/?company=${encodeURIComponent(c.knip)}` : '';
+		const addressLines = [c.address.city, c.address.street, c.address.voiv].filter(Boolean);
+		const addressHtml = addressLines.length ? addressLines.map(line => `<div>${escapeHtml(line)}</div>`).join('') : '<div>Adres nieznany</div>';
+		const dimensionLabel = c.dimension && c.dimension !== 'Overworld' ? `<span class="kf-dim">${escapeHtml(c.dimension)}</span>` : '';
 		article.innerHTML = `
 		  <div class="kf-card-head">
 			<div>
@@ -172,14 +181,12 @@ function renderList(companies){
 			<div class="kf-tag">
 			  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 1 1 18 0Z"/><circle cx="12" cy="10" r="3"/></svg>
 			  <div class="kf-addr">
-				<div>${escapeHtml(c.address.city || 'Miasto nieznane')}</div>
-				<div>${escapeHtml(c.address.street || 'Adres nieznany')}</div>
-				<div>${escapeHtml(c.address.voiv || 'Województwo nieznane')}</div>
+				${addressHtml}
 			  </div>
 			</div>
 			<div class="kf-tag">
 			  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
-			  <div class="kf-coords">${mapLink ? `<a href="${mapLink}" class="kf-coords-link" target="_blank" rel="noopener">${escapeHtml(coordsLabel)}</a>` : escapeHtml(coordsLabel)}</div>
+			  <div class="kf-coords">${dimensionLabel}${mapLink ? `<a href="${mapLink}" class="kf-coords-link" target="_blank" rel="noopener">${escapeHtml(coordsLabel)}</a>` : escapeHtml(coordsLabel)}</div>
 			</div>
 		  </div>
 		`;

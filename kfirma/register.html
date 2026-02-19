@@ -62,7 +62,7 @@
               </div>
               <div class="kfreg-field">
                 <label for="kfreg-registrar">KESEL osoby rejestrującej</label>
-                <input id="kfreg-registrar" name="registrar" type="number" inputmode="numeric" placeholder="55475590" required />
+                <input id="kfreg-registrar" name="registrar" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="55475590" value="" required />
               </div>
             </div>
           </div>
@@ -77,12 +77,12 @@
             <h3>Lokalizacja</h3>
             <div class="kfreg-grid">
               <div class="kfreg-field">
-                <label for="kfreg-city">Miasto</label>
-                <input id="kfreg-city" name="city" type="text" placeholder="Spawnowice" required />
-              </div>
-              <div class="kfreg-field">
                 <label for="kfreg-voiv">Województwo</label>
                 <input id="kfreg-voiv" name="voiv" type="text" placeholder="Międzyrzeckie" required />
+              </div>
+              <div class="kfreg-field">
+                <label for="kfreg-city">Miasto</label>
+                <input id="kfreg-city" name="city" type="text" placeholder="Spawnowice" required />
               </div>
               <div class="kfreg-field">
                 <label for="kfreg-street">Ulica</label>
@@ -90,6 +90,15 @@
               </div>
             </div>
             <div class="kfreg-grid">
+              <div class="kfreg-field">
+                <label for="kfreg-dimension">Wymiar</label>
+                <select id="kfreg-dimension" name="dimension" required>
+                  <option value="" disabled selected>Wybierz wymiar</option>
+                  <option value="Overworld">Overworld</option>
+                  <option value="Nether">Nether</option>
+                  <option value="The End">The End</option>
+                </select>
+              </div>
               <div class="kfreg-field">
                 <label for="kfreg-x">Koordynaty (X)</label>
                 <input id="kfreg-x" name="x" type="number" inputmode="numeric" placeholder="-178" required />
@@ -124,5 +133,17 @@
   <script src="/db-adapter.js"></script>
   <script>window.__db && window.__db.loadConfig && window.__db.loadConfig().catch(()=>{});</script>
   <script type="module" src="/kfirma/register.js"></script>
+  <div class="kfreg-overlay" id="kfreg-overlay" aria-hidden="true">
+    <div class="kfreg-overlay-backdrop"></div>
+    <div class="kfreg-overlay-dialog" role="dialog" aria-modal="true" aria-labelledby="kfreg-overlay-title">
+      <div class="kfreg-overlay-content">
+        <h3 id="kfreg-overlay-title">Plik .kobcomreg został pobrany</h3>
+        <p>Wyślij wygenerowany plik do <strong>@Miersetnik</strong> na Discordzie. Jeśli korzystasz z telefonu, sprawdź folder „Pobrane”. Zachowaj plik jako kopię zapasową na dysku.</p>
+        <div class="kfreg-overlay-actions">
+          <button type="button" class="kfreg-btn" id="kfreg-overlay-close">OK, rozumiem</button>
+        </div>
+      </div>
+    </div>
+  </div>
 </body>
 </html>
