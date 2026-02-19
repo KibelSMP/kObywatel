@@ -107,8 +107,20 @@
 /* Uniwersalna siatka ofert – używana w trybie Wszystkie / Miasta / Sklepy */
 .offers-grid {
 	display: grid;
-	grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+	grid-template-columns: 1fr;
 	gap: 1.1rem;
+}
+
+@media (min-width: 640px) {
+	.offers-grid {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+}
+
+@media (min-width: 1024px) {
+	.offers-grid {
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+	}
 }
 
 .kf-coords-link {
