@@ -164,22 +164,18 @@ function validate(data){
 }
 
 function buildPayload(data){
-	const name = simplifyPolish(data.name);
-	const street = simplifyPolish(data.street);
-	const city = simplifyPolish(data.city);
-	const voiv = simplifyPolish(data.voiv);
 	return {
 		version: FILE_VERSION,
-		name,
+		name: data.name,
 		symbols: data.symbols,
 		registrar_kesel: data.registrar,
 		location: {
 			dimension: data.dimension,
 			coordinates: { x: data.x, z: data.z },
 			address: {
-				street,
-				city,
-				voivodeship: voiv
+				street: data.street,
+				city: data.city,
+				voivodeship: data.voiv
 			}
 		}
 	};
