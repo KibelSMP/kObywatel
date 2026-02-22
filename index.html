@@ -102,70 +102,93 @@
             </div>
           </div>
         </form>
-        <div class="home-tiles" aria-label="Główne funkcje">
-          <a class="tile tile-mapa" href="/map" id="tile-mapa">
-            <div class="tile-head">
-              <img src="/icns_ui/map.svg" alt="" aria-hidden="true" class="tile-icon" />
-              <h2 class="tile-title">Mapa</h2>
-            </div>
-            <p class="tile-desc">Przeglądaj punkty, linie i wyszukuj miejsca.</p>
-          </a>
-          <a class="tile tile-khandel" href="/khandel" id="tile-khandel">
-            <div class="tile-head">
-              <img src="/icns_ui/storefront.svg" alt="" aria-hidden="true" class="tile-icon" />
-              <h2 class="tile-title">kHandel</h2>
-            </div>
-            <p class="tile-desc">Sprawdź co gdzie kupisz – od bazarków po AdminShopy.</p>
-          </a>
-          <a class="tile tile-kwiedza" href="/kwiedza" id="tile-kwiedza">
-            <div class="tile-head">
-              <img src="/icns_ui/book.svg" alt="" aria-hidden="true" class="tile-icon" />
-              <h2 class="tile-title">kWiedza</h2>
-            </div>
-            <p class="tile-desc">Przeglądaj dokumenty i poradniki dotyczące serwera.</p>
-          </a>
-          <a class="tile tile-ksef" href="/ksef" id="tile-ksef">
-            <div class="tile-head">
-              <img src="/icns_ui/invoice.svg" alt="" aria-hidden="true" class="tile-icon" />
-              <h2 class="tile-title">kSeF</h2>
-            </div>
-            <p class="tile-desc">Wystaw Fakturę KAT w PDF na podstawie prostego formularza.</p>
-          </a>
-          <a class="tile tile-kfirma" href="/kfirma" id="tile-kfirma">
-            <div class="tile-head">
-              <img src="/icns_ui/company.svg" alt="" aria-hidden="true" class="tile-icon" />
-              <h2 class="tile-title">kFirma</h2>
-            </div>
-            <p class="tile-desc">Przeglądaj zarejestrowane firmy i generuj pliki .kobcomreg.</p>
-          </a>
-          <a class="tile tile-kdokumenty" href="/kdokumenty" id="tile-kdokumenty">
-            <div class="tile-head">
-              <img src="/icns_ui/document.svg" alt="" aria-hidden="true" class="tile-icon" />
-              <h2 class="tile-title">kDokumenty</h2>
-            </div>
-            <p class="tile-desc">Przygotuj dokumenty i zapisz je do PDF.</p>
-          </a>
-          <a class="tile tile-kpack" href="https://modrinth.com/modpack/kpack" id="tile-kpack" target="_blank" rel="noopener">
-            <div class="tile-head">
-              <img src="/icns_ui/package.svg" alt="" aria-hidden="true" class="tile-icon" />
-              <h2 class="tile-title">kPack</h2>
-            </div>
-            <p class="tile-desc">Paczka modów stworzona specjalnie dla graczy KibelSMP. Zwiększony render distance, mapa świata czy shadery – wszystko to i wiele więcej.</p>
-          </a>
-          <a class="tile tile-report" href="/report" id="tile-report">
-            <div class="tile-head">
-              <img src="/icns_ui/bug_report.svg" alt="" aria-hidden="true" class="tile-icon" />
-              <h2 class="tile-title">Zgłoszenia</h2>
-            </div>
-            <p class="tile-desc">Zgłaszaj problemy oraz sugestie dotyczące kObywatela.</p>
-          </a>
-          <a class="tile tile-creators" href="/creators" id="tile-creators">
-            <div class="tile-head">
-              <img src="/icns_ui/people.svg" alt="" aria-hidden="true" class="tile-icon" />
-              <h2 class="tile-title">Twórcy</h2>
-            </div>
-            <p class="tile-desc">Poznaj osoby, które tworzą i rozwijają aplikację kObywatel.</p>
-          </a>
+        <div id="home-tiles-root" class="home-tiles-root">
+          <div class="home-tiles home-tiles-primary" data-zone="primary" aria-label="Główne funkcje">
+            <a class="tile tile-primary tile-mapa" href="/map" id="tile-mapa">
+              <div class="tile-head">
+                <div class="tile-icon-wrap">
+                  <img src="/icns_ui/map.svg" alt="" aria-hidden="true" class="tile-icon" />
+                </div>
+                <h2 class="tile-title">Mapa</h2>
+              </div>
+              <p class="tile-desc">Przeglądaj punkty, linie i wyszukuj miejsca.</p>
+            </a>
+            <a class="tile tile-primary tile-khandel" href="/khandel" id="tile-khandel">
+              <div class="tile-head">
+                <div class="tile-icon-wrap">
+                  <img src="/icns_ui/storefront.svg" alt="" aria-hidden="true" class="tile-icon" />
+                </div>
+                <h2 class="tile-title">kHandel</h2>
+              </div>
+              <p class="tile-desc">Sprawdź co gdzie kupisz – od bazarków po AdminShopy.</p>
+            </a>
+            <a class="tile tile-primary tile-kwiedza" href="/kwiedza" id="tile-kwiedza">
+              <div class="tile-head">
+                <div class="tile-icon-wrap">
+                  <img src="/icns_ui/book.svg" alt="" aria-hidden="true" class="tile-icon" />
+                </div>
+                <h2 class="tile-title">kWiedza</h2>
+              </div>
+              <p class="tile-desc">Przeglądaj dokumenty i poradniki dotyczące serwera.</p>
+            </a>
+          </div>
+          <div class="home-tiles home-tiles-compact" data-zone="compact" aria-label="Szybkie skróty">
+            <a class="tile tile-ksef" href="/ksef" id="tile-ksef">
+              <div class="tile-head">
+                <div class="tile-icon-wrap">
+                  <img src="/icns_ui/invoice.svg" alt="" aria-hidden="true" class="tile-icon" />
+                </div>
+                <h2 class="tile-title">kSeF</h2>
+              </div>
+              <p class="tile-desc tile-desc--hidden-compact">Wystaw Fakturę KAT w PDF na podstawie prostego formularza.</p>
+            </a>
+            <a class="tile tile-kfirma" href="/kfirma" id="tile-kfirma">
+              <div class="tile-head">
+                <div class="tile-icon-wrap">
+                  <img src="/icns_ui/company.svg" alt="" aria-hidden="true" class="tile-icon" />
+                </div>
+                <h2 class="tile-title">kFirma</h2>
+              </div>
+              <p class="tile-desc tile-desc--hidden-compact">Przeglądaj zarejestrowane firmy i generuj pliki .kobcomreg.</p>
+            </a>
+            <a class="tile tile-kdokumenty" href="/kdokumenty" id="tile-kdokumenty">
+              <div class="tile-head">
+                <div class="tile-icon-wrap">
+                  <img src="/icns_ui/document.svg" alt="" aria-hidden="true" class="tile-icon" />
+                </div>
+                <h2 class="tile-title">kDokumenty</h2>
+              </div>
+              <p class="tile-desc tile-desc--hidden-compact">Przygotuj dokumenty i zapisz je do PDF.</p>
+            </a>
+            <a class="tile tile-kpack" href="https://modrinth.com/modpack/kpack" id="tile-kpack" target="_blank" rel="noopener">
+              <div class="tile-head">
+                <div class="tile-icon-wrap">
+                  <img src="/icns_ui/package.svg" alt="" aria-hidden="true" class="tile-icon" />
+                </div>
+                <h2 class="tile-title">kPack</h2>
+              </div>
+              <p class="tile-desc tile-desc--hidden-compact">Paczka modów stworzona specjalnie dla graczy KibelSMP.</p>
+              <span class="ext-badge">W nowej karcie</span>
+            </a>
+            <a class="tile tile-report" href="/report" id="tile-report">
+              <div class="tile-head">
+                <div class="tile-icon-wrap">
+                  <img src="/icns_ui/bug_report.svg" alt="" aria-hidden="true" class="tile-icon" />
+                </div>
+                <h2 class="tile-title">Zgłoszenia</h2>
+              </div>
+              <p class="tile-desc tile-desc--hidden-compact">Zgłaszaj problemy oraz sugestie dotyczące kObywatela.</p>
+            </a>
+            <a class="tile tile-creators" href="/creators" id="tile-creators">
+              <div class="tile-head">
+                <div class="tile-icon-wrap">
+                  <img src="/icns_ui/people.svg" alt="" aria-hidden="true" class="tile-icon" />
+                </div>
+                <h2 class="tile-title">Twórcy</h2>
+              </div>
+              <p class="tile-desc tile-desc--hidden-compact">Poznaj osoby, które tworzą i rozwijają aplikację kObywatel.</p>
+            </a>
+          </div>
         </div>
       </div>
       <section id="layout-editor" class="layout-editor" aria-label="Personalizacja strony głównej" role="dialog" aria-modal="true" hidden>
