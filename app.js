@@ -143,7 +143,9 @@ const btnObywatel = document.getElementById('btn-obywatel');
 const btnFirma = document.getElementById('btn-firma');
 const btnKDonos = document.getElementById('btn-kdonos');
 const tileWnioski = document.getElementById('tile-wnioski');
-const homeTiles = document.querySelector('.home-tiles');
+const homeTilesRoot = document.getElementById('home-tiles-root');
+const homeTilesPrimary = document.querySelector('.home-tiles-primary');
+const homeTilesCompact = document.querySelector('.home-tiles-compact');
 const layoutEditBtn = document.getElementById('layout-edit-btn');
 const layoutEditor = document.getElementById('layout-editor');
 const layoutTilesList = document.getElementById('layout-tiles-list');
@@ -179,15 +181,15 @@ function hideFormBrowser(){
 }
 
 function hideHomeTiles(){
-  if(homeTiles){
-    homeTiles.setAttribute('data-hidden','true');
+  if(homeTilesRoot){
+    homeTilesRoot.setAttribute('data-hidden','true');
     document.body.setAttribute('data-home-tiles-hidden','true');
   }
 }
 
 function showHomeTiles(){
-  if(homeTiles){
-    homeTiles.removeAttribute('data-hidden');
+  if(homeTilesRoot){
+    homeTilesRoot.removeAttribute('data-hidden');
   }
   document.body.removeAttribute('data-home-tiles-hidden');
 }
@@ -410,7 +412,7 @@ function escapeHtml(str){
 }
 
 function layoutDefaults(){
-  const domTiles = [...document.querySelectorAll('.home-tiles .tile')]
+  const domTiles = [...(homeTilesRoot?.querySelectorAll('.tile') || [])]
     .map(tile=>({ id: tile.id, label: (tile.querySelector('.tile-title')?.textContent || tile.id || '').trim() || tile.id, hidden: false }))
     .filter(t=> t.id);
   if(!layoutDefaultsCache){
@@ -459,26 +461,40 @@ function saveLayoutState(state){
 
 function applyLayoutState(state, opts={}){
   const { persist = true, syncUI = true } = opts;
-  if(homeTiles){
-    const map = new Map([...homeTiles.children].map(el=> [el.id, el]));
-    const frag = document.createDocumentFragment();
+  if(homeTilesRoot && homeTilesPrimary && homeTilesCompact){
+    const map = new Map([...homeTilesRoot.querySelectorAll('.tile')].map(el=> [el.id, el]));
+    const visible = [];
+    const hidden = [];
     state.tiles.forEach(tile => {
-      const locked = LOCKED_TILES.has(tile.id) || tile.locked;
-      if(locked) tile.hidden = false;
       const el = map.get(tile.id);
       if(!el) return;
-      el.dataset.hidden = tile.hidden ? 'true' : 'false';
-      el.style.display = tile.hidden ? 'none' : '';
-      frag.appendChild(el);
+      const locked = LOCKED_TILES.has(tile.id) || tile.locked;
+      if(locked) tile.hidden = false;
+      const isHidden = locked ? false : !!tile.hidden;
+      el.dataset.hidden = isHidden ? 'true' : 'false';
+      el.style.display = isHidden ? 'none' : '';
+      if(isHidden){ hidden.push(el); } else { visible.push(el); }
       map.delete(tile.id);
     });
     map.forEach(el=>{
       el.dataset.hidden = 'false';
       el.style.display = '';
-      frag.appendChild(el);
+      visible.push(el);
     });
-    homeTiles.innerHTML = '';
-    homeTiles.appendChild(frag);
+    const fragPrimary = document.createDocumentFragment();
+    const fragCompact = document.createDocumentFragment();
+    visible.forEach((el, idx)=>{
+      if(idx < 3){
+        fragPrimary.appendChild(el);
+      } else {
+        fragCompact.appendChild(el);
+      }
+    });
+    hidden.forEach(el=> fragCompact.appendChild(el));
+    homeTilesPrimary.innerHTML = '';
+    homeTilesCompact.innerHTML = '';
+    homeTilesPrimary.appendChild(fragPrimary);
+    homeTilesCompact.appendChild(fragCompact);
   }
   if(state.searchHidden){
     body.setAttribute('data-search-hidden','true');
@@ -530,7 +546,7 @@ function toggleLayoutEditor(open){
 }
 
 function initLayoutEditor(){
-  if(!homeTiles) return;
+  if(!homeTilesRoot || !homeTilesPrimary || !homeTilesCompact) return;
   layoutState = loadLayoutState();
   applyLayoutState(layoutState, { persist:false });
   syncLayoutEditor(layoutState);
