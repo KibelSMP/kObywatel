@@ -284,6 +284,23 @@ body.light {
   width: 100%;
 }
 
+/* separate toggle for live vehicles below main legend */
+#train-overlay-toggle {
+  margin-top: 0.6rem;
+}
+
+/* small beta badge next to special toggles */
+.beta-badge {
+  font-size: 0.5rem;
+  font-weight: 700;
+  margin-left: 0.25rem;
+  background: var(--accent);
+  color: #fff;
+  padding: 0 0.2rem;
+  border-radius: 3px;
+  vertical-align: text-top;
+}
+
 .legend-item {
   display: grid;
   grid-template-columns: auto auto 1fr;
@@ -309,6 +326,10 @@ body.light {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+#train-overlay-toggle {
+  margin-top: 0.6rem; /* separate from main legend */
 }
 
 .legend-heading {
@@ -568,6 +589,109 @@ body.light .shop-marker .marker-btn {
 
 body.light .company-marker .marker-btn {
   color: #111;
+}
+
+/* Pociągi na żywo */
+.train-marker {
+  transition: left 2s linear, top 2s linear;
+}
+
+.train-marker .marker-btn {
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #f97316, #ea580c);
+  box-shadow: 0 6px 14px -6px rgba(0,0,0,.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* colored variants */
+.train-marker.train-ic .marker-btn {
+  background: linear-gradient(135deg, #3b82f6, #1e40af);
+}
+.train-marker.train-regio .marker-btn {
+  background: linear-gradient(135deg, #facc15, #eab308);
+}
+.train-marker.train-other .marker-btn {
+  background: linear-gradient(135deg, #ec4899, #be185d);
+}
+
+.train-marker .marker-btn::after {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: #fff;
+  opacity: .9;
+}
+
+body.light .train-marker .marker-btn {
+  color: #111;
+}
+
+.train-status-banner {
+  position: fixed;
+  inset: 0;
+  z-index: 4000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,.45);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.train-status-banner[hidden] { display: none; }
+
+.train-status-box {
+  background: linear-gradient(145deg, #0f172a, #111827);
+  color: #e2e8f0;
+  padding: 1rem 1.4rem;
+  border-radius: 16px;
+  border: 1px solid rgba(148,163,184,.35);
+  box-shadow: 0 22px 40px -18px rgba(0,0,0,.65);
+  min-width: 260px;
+  max-width: 420px;
+  display: grid;
+  gap: .75rem;
+}
+
+.train-status-text {
+  font-size: .95rem;
+  font-weight: 700;
+  letter-spacing: .15px;
+}
+
+.train-status-action {
+  justify-self: start;
+  padding: .55rem 1.05rem;
+  border-radius: 12px;
+  border: 1px solid #2d3542;
+  background: linear-gradient(145deg, #202832, #161b22);
+  color: #e6edf3;
+  font-weight: 800;
+  letter-spacing: .35px;
+  cursor: pointer;
+  box-shadow: 0 14px 28px -14px rgba(0,0,0,.65);
+  transition: border-color .2s, transform .2s, filter .2s;
+}
+
+.train-status-action:hover { border-color: var(--accent); filter: brightness(1.05); }
+.train-status-action:active { transform: translateY(1px); filter: brightness(.96); }
+
+body.light .train-status-box {
+  background: linear-gradient(145deg, #ffffff, #f3f4f6);
+  color: #0f172a;
+  border-color: rgba(148,163,184,.5);
+}
+
+body.light .train-status-action {
+  border-color: rgba(148,163,184,.5);
+  background: linear-gradient(145deg, #f8fafc, #e5e7eb);
+  color: #0f172a;
 }
 
 /* Gracze */
