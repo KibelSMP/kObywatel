@@ -8,6 +8,7 @@ const crosshairEl = document.getElementById('map-crosshair');
 let markersMainLayer = null; // standardowe punkty mapy
 let markersShopsLayer = null; // sklepy kHandel
 let markersCompaniesLayer = null; // firmy kFirma
+let markersTrainsLayer = null; // pociągi na żywo
 const linesCanvas = document.getElementById('lines-layer');
 const linesCtx = linesCanvas ? linesCanvas.getContext('2d') : null;
 const loadingEl = document.getElementById('loading');
@@ -170,6 +171,29 @@ let showCompanies = true;
 let lastCompanyClusteringActive = false;
 let lastCompanyScaleForEval = scale;
 
+// --- Pociągi na żywo ---
+const TRAIN_API_URL = 'https://kibel.killers.dev/api/trains';
+let showTrains = false; // włącznik w legendzie
+let trainsData = []; // Array<{ id,name,x,z }>
+let trainsPollTimer = null;
+// audio for live vehicles
+let trainsAudio = null; // Audio element, created lazily
+let trainsFetchInFlight = false;
+let trainsLastTimestamp = null;
+let trainsRenderRaf = null;
+let trainsStatusEl = null;
+let stationIndex = null; // Map<code, { id, name }>
+
+function disableTrainsOverlayAction(){
+  showTrains = false;
+  saveLegendState();
+  stopTrainsPolling();
+  buildLegend();
+  buildTrainToggle();
+  buildTrainMarkers();
+  updateTrainStatus(null);
+}
+
 // Snapshot poprzedniego stanu dla animacji
 let previousClusterSnapshot = {
   clusters: new Map(), // key -> { cx, cy, count, members:Set }
@@ -211,6 +235,11 @@ function ensureMarkerSublayers(){
     markersCompaniesLayer.className = 'markers-sub markers-companies';
     markersLayer.appendChild(markersCompaniesLayer);
   }
+  if(!markersTrainsLayer){
+    markersTrainsLayer = document.createElement('div');
+    markersTrainsLayer.className = 'markers-sub markers-trains';
+    markersLayer.appendChild(markersTrainsLayer);
+  }
 }
 
 function clusteringCurrentlyEnabled(){
@@ -251,6 +280,7 @@ function saveLegendState(){
     }
     localStorage.setItem('map.legend.showShops', JSON.stringify(!!showShops));
     localStorage.setItem('map.legend.showCompanies', JSON.stringify(!!showCompanies));
+    localStorage.setItem('map.legend.showTrains', JSON.stringify(!!showTrains));
   } catch(_) {}
 }
 
@@ -301,6 +331,8 @@ function loadLegendState(){
     if(ss !== null){ showShops = !!JSON.parse(ss); found = true; }
     const sc = localStorage.getItem('map.legend.showCompanies');
     if(sc !== null){ showCompanies = !!JSON.parse(sc); found = true; }
+    const st = localStorage.getItem('map.legend.showTrains');
+    if(st !== null){ showTrains = !!JSON.parse(st); found = true; }
   } catch(_) {}
   hasLoadedLegendState = found;
   // Ustal pochodną scaloną
@@ -317,6 +349,39 @@ function applyInitialCategoryVisibility(){
   activeCategories.add('kolej');
   activeCategories.add('metro');
   activeCategories.add('airport');
+}
+
+// Separate builder for train toggle UI placed below the main legend
+function buildTrainToggle(){
+  const container = document.getElementById('train-overlay-toggle');
+  if(!container) return;
+  container.innerHTML = '';
+  const row = document.createElement('label');
+  row.className = 'legend-item';
+  const cb = document.createElement('input');
+  cb.type = 'checkbox'; cb.style.marginRight = '.35rem'; cb.checked = !!showTrains;
+  cb.addEventListener('change', ()=>{
+    showTrains = cb.checked;
+    saveLegendState();
+    if(showTrains){
+      startTrainsPolling(); scheduleTrainMarkersRender(); updateTrainStatus(null);
+      // play background audio
+      if(!trainsAudio){
+        trainsAudio = new Audio('/assets/pozsbznd.ogg');
+        trainsAudio.loop = false;
+        trainsAudio.volume = 0.3;
+      }
+      trainsAudio.play().catch(()=>{});
+    } else {
+      stopTrainsPolling();
+      if(trainsAudio){ trainsAudio.pause(); trainsAudio.currentTime = 0; }
+    }
+  });
+  const lab = document.createElement('span'); lab.className = 'legend-label'; lab.textContent = 'Podgląd pojazdów na żywo';
+  const beta = document.createElement('span'); beta.className='beta-badge'; beta.textContent='BETA';
+  lab.appendChild(beta);
+  row.appendChild(cb); row.appendChild(lab);
+  container.appendChild(row);
 }
 
 function saveThemeState(){ try { localStorage.setItem('map.theme', currentTheme); } catch(_){} }
@@ -374,6 +439,7 @@ function applyTransform(){
   // Aktualizacja klastrów sklepów przy zmianach transformacji
   try { maybeUpdateShopClusters(); } catch(_){ }
   try { maybeUpdateCompanyClusters(); } catch(_){ }
+  try { refreshTrainsAfterTransform(); } catch(_){ }
 }
 // Progi dla podbijania rozdzielczości (wartość scale*dpr)
 const HI_RES_THRESHOLD_2X = 1.15;
@@ -801,6 +867,306 @@ function logicalToPx(x,z){
   }
   return { x, y: z };
 }
+
+function mapPxToLogical(pxX, pxY){
+  if(!mapData || !imgWidth || !imgHeight) return { x:0, z:0 };
+  const meta = mapData.meta || {}; const unitsPerPixel = meta.unitsPerPixel || 4; const originMode = meta.origin || 'top-left';
+  if(originMode === 'center'){
+    return { x: (pxX - imgWidth/2) * unitsPerPixel, z: (pxY - imgHeight/2) * unitsPerPixel };
+  }
+  return { x: pxX, z: pxY };
+}
+
+function buildStationIndexOnce(){
+  if(stationIndex) return stationIndex;
+  const map = new Map();
+  try {
+    if(Array.isArray(mapData?.points)){
+      mapData.points.forEach(pt => {
+        if(!pt || !pt.id || !pt.name) return;
+        const codeFull = String(pt.id).trim().toUpperCase();
+        const codeShort = codeFull.replace(/^ST[-_]?/,'');
+        if(codeFull) map.set(codeFull, { id: pt.id, name: pt.name });
+        if(codeShort) map.set(codeShort, { id: pt.id, name: pt.name });
+      });
+    }
+  } catch(_){ /* ignore */ }
+  stationIndex = map;
+  return stationIndex;
+}
+
+function findLineForEndpoints(aCode, bCode){
+  if(!linesData || !Array.isArray(linesData.lines)) return null;
+  const norm = (v)=> String(v||'').toUpperCase().replace(/^ST[-_]?/,'');
+  const a = norm(aCode);
+  const b = norm(bCode);
+  for(const ln of linesData.lines){
+    const stations = Array.isArray(ln.stations)
+      ? ln.stations.map(s=> String(s||'').replace(/\*$/,'').toUpperCase().replace(/^ST[-_]?/,''))
+      : [];
+    if(stations.includes(a) && stations.includes(b)) return ln;
+  }
+  return null;
+}
+
+function parseTrainEndpoints(rawName){
+  if(!rawName) return null;
+  const up = String(rawName).toUpperCase();
+  const m = up.match(/([A-Z0-9]{2,6})-([A-Z0-9]{2,6})/);
+  if(!m) return null;
+  const stripNum = (s)=> s.replace(/\d+$/,'');
+  return [stripNum(m[1]), stripNum(m[2])];
+}
+
+function isTrainRecognized(rawName){
+  const endpoints = parseTrainEndpoints(rawName);
+  if(!endpoints) return false;
+  const [aCode, bCode] = endpoints;
+  const idx = buildStationIndexOnce();
+  const lookup = (code)=> idx.get(code) || idx.get(code.replace(/^ST[-_]?/,''));
+  const hasStations = !!lookup(aCode) && !!lookup(bCode);
+  if(!hasStations) return false;
+  const line = findLineForEndpoints(aCode, bCode);
+  return !!line;
+}
+
+function normalizeTrainProductTag(rawType){
+  if(!rawType) return null;
+  const up = String(rawType).trim().toUpperCase();
+  if(!up) return null;
+  if(up === 'R' || up === 'REGIO') return 'REGIO';
+  if(up === 'IC') return 'IC';
+  return up;
+}
+
+function computeTrainDisplayName(rawName){
+  const endpoints = parseTrainEndpoints(rawName);
+  const line = endpoints ? findLineForEndpoints(...endpoints) : null;
+  const prefixFromLine = (()=>{
+    if(!line || !line.category) return null;
+    const cat = String(line.category).toUpperCase();
+    if(/IC/.test(cat)) return 'IC';
+    if(/REGIO|R/.test(cat)) return 'REGIO';
+    return cat;
+  })();
+  const productTag = (()=>{
+    if(prefixFromLine) return prefixFromLine;
+    const up = String(rawName||'').toUpperCase();
+    const productMatch = up.match(/^([A-Z]{1,6})[_-]/);
+    if(productMatch) return normalizeTrainProductTag(productMatch[1]) || productMatch[1];
+    return null;
+  })();
+  if(!endpoints){
+    const prefix = productTag ? `[${productTag}] ` : '';
+    return `${prefix}${rawName || 'Pociąg'}`.trim();
+  }
+  const [aCode, bCode] = endpoints;
+  const idx = buildStationIndexOnce();
+  const lookup = (code)=> idx.get(code) || idx.get(code.replace(/^ST[-_]?/,''));
+  const startName = lookup(aCode)?.name || aCode;
+  const endName = lookup(bCode)?.name || bCode;
+  const prefix = productTag ? `[${productTag}] ` : (line && line.id ? `[${line.id}] ` : '');
+  return `${prefix}${startName} - ${endName}`.trim();
+}
+
+// --- Pociągi na żywo ---
+function getVisibleMapBoundsPx(margin = 0){
+  if(!viewport) return null;
+  const left = -originX/scale - margin;
+  const top = -originY/scale - margin;
+  const right = left + viewport.clientWidth/scale + margin*2;
+  const bottom = top + viewport.clientHeight/scale + margin*2;
+  return { left, top, right, bottom };
+}
+
+function scheduleTrainMarkersRender(){
+  if(trainsRenderRaf) return;
+  trainsRenderRaf = requestAnimationFrame(()=>{
+    trainsRenderRaf = null;
+    buildTrainMarkers();
+  });
+}
+
+function buildTrainMarkers(){
+  ensureMarkerSublayers();
+  if(!markersTrainsLayer) return;
+  if(!showTrains){ markersTrainsLayer.innerHTML=''; updateTrainStatus(null); return; }
+  if(!mapData || !imgWidth || !imgHeight || !viewport){ markersTrainsLayer.innerHTML=''; return; }
+  if(!Array.isArray(trainsData) || trainsData.length === 0){ markersTrainsLayer.innerHTML=''; return; }
+  const bounds = getVisibleMapBoundsPx(32);
+  if(!bounds) return;
+  // timestamp not shown in tooltip
+  const updatedLabel = '';
+  const existing = new Map(Array.from(markersTrainsLayer.children || []).map(el => [el.dataset.trainId, el]));
+  for(const t of trainsData){
+    const pos = logicalToPx(t.x, t.z);
+    if(!Number.isFinite(pos.x) || !Number.isFinite(pos.y)) continue;
+    // Wyświetlaj tylko w aktualnie widocznym fragmencie mapy (z niewielkim marginesem)
+    if(pos.x < bounds.left || pos.x > bounds.right || pos.y < bounds.top || pos.y > bounds.bottom) continue;
+    // Odrzuć punkty spoza bazowego obszaru mapy (z zapasem)
+    if(pos.x < -120 || pos.x > imgWidth + 120 || pos.y < -120 || pos.y > imgHeight + 120) continue;
+    let wrap = existing.get(t.id);
+    if(wrap){ existing.delete(t.id); }
+    else {
+      wrap = document.createElement('div');
+      wrap.className = 'marker train-marker';
+      // derive simple color tag from displayName
+      const colTag = (()=>{
+        if(typeof t.displayName === 'string'){
+          if(/\[IC\]/.test(t.displayName)) return 'ic';
+          if(/\[REGIO\]/.test(t.displayName)) return 'regio';
+        }
+        return 'other';
+      })();
+      wrap.classList.add(`train-${colTag}`);
+      wrap.dataset.trainId = t.id;
+      wrap.dataset.px = String(pos.x);
+      wrap.dataset.py = String(pos.y);
+      const btn = document.createElement('button');
+      btn.className='marker-btn train-btn';
+      const display = t.displayName || t.name || 'Pociąg';
+      btn.title = display;
+      btn.setAttribute('aria-label', display);
+      const label = document.createElement('div'); label.className='marker-label'; label.textContent = display;
+      wrap.appendChild(btn); wrap.appendChild(label);
+      markersTrainsLayer.appendChild(wrap);
+    }
+    // Aktualizuj pozycję (z CSS transition 2s)
+    wrap.style.left = pos.x + 'px';
+    wrap.style.top = pos.y + 'px';
+    wrap.dataset.px = String(pos.x);
+    wrap.dataset.py = String(pos.y);
+    // Aktualizuj tooltip czasu
+    const btnEl = wrap.querySelector('button');
+    if(btnEl){
+      const display = t.displayName || t.name || 'Pociąg';
+      btnEl.title = display;
+      btnEl.setAttribute('aria-label', display);
+    }
+  }
+  // Usuń markery, które nie wystąpiły w bieżącej odpowiedzi
+  for(const [,el] of existing){ el.remove(); }
+}
+
+function ensureTrainStatusEl(){
+  if(trainsStatusEl && trainsStatusEl.isConnected) return trainsStatusEl;
+  const el = document.createElement('div');
+  el.className = 'train-status-banner';
+  el.hidden = true;
+  el.setAttribute('role','alert');
+  const inner = document.createElement('div'); inner.className = 'train-status-box';
+  const text = document.createElement('div'); text.className = 'train-status-text';
+  const action = document.createElement('button'); action.type='button'; action.className='train-status-action'; action.textContent='Wyłącz podgląd pociągów';
+  action.addEventListener('click', ()=> disableTrainsOverlayAction());
+  inner.appendChild(text); inner.appendChild(action); el.appendChild(inner);
+  const parent = appRoot || document.body || document.documentElement;
+  parent.appendChild(el);
+  trainsStatusEl = el;
+  return trainsStatusEl;
+}
+
+function updateTrainStatus(message){
+  if(!message){
+    if(trainsStatusEl){ trainsStatusEl.hidden = true; }
+    return;
+  }
+  const el = ensureTrainStatusEl();
+  const textEl = el.querySelector('.train-status-text');
+  if(textEl){ textEl.textContent = message; }
+  el.hidden = false;
+}
+
+function normalizeTrainRecord(raw){
+  if(!raw) return null;
+  const x = Number(raw.x);
+  const z = Number(raw.z ?? raw.y);
+  if(!Number.isFinite(x) || !Number.isFinite(z)) return null;
+  const world = String(raw.world || '').toLowerCase();
+  if(world.includes('nether') || world.includes('the_end')) return null;
+  const id = raw.uuid || `${raw.name || 'train'}|${x}|${z}`;
+  const name = raw.name || 'Pociąg';
+  return { id, name, x, z };
+}
+
+async function fetchTrainsData(){
+  if(!showTrains) return;
+  if(trainsFetchInFlight) return;
+  trainsFetchInFlight = true;
+  try {
+    // Ustal bieżące granice widocznego obszaru mapy i wyślij je jako bounding box
+    const boundsPx = getVisibleMapBoundsPx(0);
+    let minx=-100, maxx=100, minz=-100, maxz=100;
+    if(boundsPx){
+      const topLeft = mapPxToLogical(boundsPx.left, boundsPx.top);
+      const bottomRight = mapPxToLogical(boundsPx.right, boundsPx.bottom);
+      minx = Math.min(topLeft.x, bottomRight.x);
+      maxx = Math.max(topLeft.x, bottomRight.x);
+      minz = Math.min(topLeft.z, bottomRight.z);
+      maxz = Math.max(topLeft.z, bottomRight.z);
+    }
+    const params = new URLSearchParams({
+      world: 'world2',
+      minx: Math.floor(minx),
+      maxx: Math.ceil(maxx),
+      minz: Math.floor(minz),
+      maxz: Math.ceil(maxz)
+    });
+    // if zoomed out (scale less than threshold) ask backend to omit duplicates
+    if(typeof scale === 'number' && scale < 3){
+      params.set('nodupe', 'true');
+    }
+    const res = await fetch(`${TRAIN_API_URL}?${params.toString()}`, { cache:'no-store' });
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const json = await res.json();
+    const list = Array.isArray(json?.minecarts) ? json.minecarts : [];
+    if(!showTrains) return;
+    buildStationIndexOnce();
+    trainsData = list
+      .map(normalizeTrainRecord)
+      .filter(Boolean)
+      .filter(t => isTrainRecognized(t.name))
+      .map(t => ({ ...t, displayName: computeTrainDisplayName(t.name) }));
+    trainsLastTimestamp = typeof json?.timestamp === 'number' ? json.timestamp : Date.now();
+    scheduleTrainMarkersRender();
+    updateTrainStatus(null);
+  } catch(e){
+    console.warn('[map] trains fetch failed', e?.message || e);
+    updateTrainStatus('Nie można załadować danych pociągów.');
+  } finally {
+    trainsFetchInFlight = false;
+  }
+}
+
+function startTrainsPolling(){
+  if(!showTrains) return;
+  if(trainsPollTimer) return;
+  fetchTrainsData();
+  trainsPollTimer = setInterval(()=>{ fetchTrainsData(); }, 2000);
+}
+
+function stopTrainsPolling(clearMarkers = true){
+  if(trainsPollTimer){ clearInterval(trainsPollTimer); trainsPollTimer = null; }
+  if(clearMarkers){
+    trainsData = [];
+    if(markersTrainsLayer) markersTrainsLayer.innerHTML = '';
+  }
+  updateTrainStatus(null);
+}
+
+function refreshTrainsAfterTransform(){
+  if(!showTrains) return;
+  scheduleTrainMarkersRender();
+}
+
+// Wstrzymaj odpytywanie gdy karta jest w tle, wznów po powrocie
+document.addEventListener('visibilitychange', ()=>{
+  if(document.visibilityState === 'hidden'){
+    stopTrainsPolling(false);
+  } else if(showTrains){
+    startTrainsPolling();
+    scheduleTrainMarkersRender();
+  }
+});
 
 function buildShopMarkers(){
   ensureMarkerSublayers();
@@ -2091,6 +2457,7 @@ async function load(){
     lastGeneralShowLines = !!(showRailLines || showFlightLines);
   }
   buildLegend();
+  buildTrainToggle();
   buildLinesLegend();
   // Info bubble: desktop zawsze widoczny, mobile otwierany przyciskiem
   const infoMobileMql = window.matchMedia('(max-width: 860px)');
@@ -2139,6 +2506,7 @@ async function load(){
   ensureTilesContainer();
     // Dopiero teraz budujemy warstwy (znamy środek)
     await fetchLinesData(false);
+  buildStationIndexOnce();
   // Po wczytaniu linii dobuduj sekcję kategorii linii
   buildLegend();
   buildLinesLegend();
@@ -2148,6 +2516,8 @@ async function load(){
   try { if(showShops){ await ensureShopsLoaded(); buildShopMarkers(); } } catch(_){ }
   // Firmy kFirma (jeśli włączone)
   try { if(showCompanies){ await ensureCompaniesLoaded(); buildCompanyMarkers(); } } catch(_){ }
+  // Pociągi na żywo (opcjonalne – tylko po włączeniu w legendzie)
+  try { if(showTrains){ startTrainsPolling(); } } catch(_){ }
     // Fallback gdy viewport ma 0 wysokości (np. brak rozciągnięcia rodzica)
     requestAnimationFrame(()=>{
       const rect = viewport.getBoundingClientRect();
