@@ -995,6 +995,9 @@ function buildTrainMarkers(){
   if(!Array.isArray(trainsData) || trainsData.length === 0){ markersTrainsLayer.innerHTML=''; return; }
   const bounds = getVisibleMapBoundsPx(32);
   if(!bounds) return;
+   // Scal etykiety, gdy identyczne pociągi są blisko siebie – wyświetl tylko jedną
+  const labelBuckets = new Map(); // name -> [{x,y}]
+  const LABEL_MERGE_DISTANCE = 14; // px
   // timestamp not shown in tooltip
   const updatedLabel = '';
   const existing = new Map(Array.from(markersTrainsLayer.children || []).map(el => [el.dataset.trainId, el]));
@@ -1003,6 +1006,17 @@ function buildTrainMarkers(){
     if(!Number.isFinite(pos.x) || !Number.isFinite(pos.y)) continue;
     // Wyświetlaj tylko w aktualnie widocznym fragmencie mapy (z niewielkim marginesem)
     if(pos.x < bounds.left || pos.x > bounds.right || pos.y < bounds.top || pos.y > bounds.bottom) continue;
+    // Ustal, czy etykieta dla tego pociągu powinna być wyświetlona, czy scalona z sąsiednią
+    const display = t.displayName || t.name || 'Pociąg';
+    let showLabel = true;
+    if(display){
+      const bucket = labelBuckets.get(display) || [];
+      const near = bucket.some(p => {
+        const dx = p.x - pos.x; const dy = p.y - pos.y; return (dx*dx + dy*dy) <= (LABEL_MERGE_DISTANCE*LABEL_MERGE_DISTANCE);
+      });
+      if(near){ showLabel = false; }
+      else { bucket.push({ x: pos.x, y: pos.y }); labelBuckets.set(display, bucket); }
+    }
     // Odrzuć punkty spoza bazowego obszaru mapy (z zapasem)
     if(pos.x < -120 || pos.x > imgWidth + 120 || pos.y < -120 || pos.y > imgHeight + 120) continue;
     let wrap = existing.get(t.id);
@@ -1024,10 +1038,9 @@ function buildTrainMarkers(){
       wrap.dataset.py = String(pos.y);
       const btn = document.createElement('button');
       btn.className='marker-btn train-btn';
-      const display = t.displayName || t.name || 'Pociąg';
       btn.title = display;
       btn.setAttribute('aria-label', display);
-      const label = document.createElement('div'); label.className='marker-label'; label.textContent = display;
+      const label = document.createElement('div'); label.className='marker-label'; label.textContent = display; label.hidden = !showLabel;
       wrap.appendChild(btn); wrap.appendChild(label);
       markersTrainsLayer.appendChild(wrap);
     }
@@ -1039,10 +1052,11 @@ function buildTrainMarkers(){
     // Aktualizuj tooltip czasu
     const btnEl = wrap.querySelector('button');
     if(btnEl){
-      const display = t.displayName || t.name || 'Pociąg';
       btnEl.title = display;
       btnEl.setAttribute('aria-label', display);
     }
+    const labelEl = wrap.querySelector('.marker-label');
+    if(labelEl){ labelEl.hidden = !showLabel; labelEl.textContent = display; }
   }
   // Usuń markery, które nie wystąpiły w bieżącej odpowiedzi
   for(const [,el] of existing){ el.remove(); }
@@ -1118,15 +1132,24 @@ async function fetchTrainsData(){
     const res = await fetch(`${TRAIN_API_URL}?${params.toString()}`, { cache:'no-store' });
     if(!res.ok) throw new Error('HTTP '+res.status);
     const json = await res.json();
-    const list = Array.isArray(json?.minecarts) ? json.minecarts : [];
+    const rawList = Array.isArray(json) ? json : Array.isArray(json?.minecarts) ? json.minecarts : [];
     if(!showTrains) return;
     buildStationIndexOnce();
-    trainsData = list
-      .map(normalizeTrainRecord)
-      .filter(Boolean)
+    const normalized = rawList
+      .map(raw => {
+        if(raw?.isExpired) return null;
+        const rec = normalizeTrainRecord(raw);
+        if(!rec) return null;
+        const updatedAt = raw?.lastUpdate ? Date.parse(raw.lastUpdate) : null;
+        return { ...rec, updatedAt: Number.isFinite(updatedAt) ? updatedAt : null };
+      })
+      .filter(Boolean);
+    trainsData = normalized
       .filter(t => isTrainRecognized(t.name))
       .map(t => ({ ...t, displayName: computeTrainDisplayName(t.name) }));
-    trainsLastTimestamp = typeof json?.timestamp === 'number' ? json.timestamp : Date.now();
+    const apiTimestamp = typeof json?.timestamp === 'number' ? json.timestamp : null;
+    const latestUpdate = normalized.reduce((max, t)=> Math.max(max, t.updatedAt || 0), 0);
+    trainsLastTimestamp = apiTimestamp || (latestUpdate || Date.now());
     scheduleTrainMarkersRender();
     updateTrainStatus(null);
   } catch(e){
