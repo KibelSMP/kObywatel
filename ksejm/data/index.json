@@ -49,6 +49,22 @@
           "url": "docs/Rozporzadzenie_MC_w_sprawie_nadania_organizacji_CYFRA_PSK_uprawnien_UP_20.02.2026.pdf"
         }
       ]
+    },
+    {
+      "id": "UST-08-03-2026",
+      "kind": "ustawa",
+      "title": "Ustawa o Regulaminie Sejmu",
+      "category": "Legislacja",
+      "dotyczy": "Zmiana regulaminu Sejmu.",
+      "date": "2026-03-08",
+      "contentMd": "docs/Ustawa_Regulamin_Sejmu_RPM.md",
+      "attachments": [
+        {
+          "title": "Regulamin Sejmu",
+          "type": "markdown",
+          "url": "docs/Regulamin_Sejmu_RPM.md"
+        }
+      ]
     }
   ]
 }
