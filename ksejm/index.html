@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>kSejm</title>
+  <link rel="apple-touch-icon" href="/assets/apple-touch-icon/apple-touch-icon.png" />
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="icon" type="image/png" href="/favicon.png" />
+  <meta property="og:title" content="kSejm" />
+  <meta property="og:description" content="Uchwały i ustawy KibelSMP z podglądem Markdown i załącznikami." />
+  <meta property="og:image" content="/assets/og/OG-Standard-kSejm.png" />
+  <meta property="og:url" content="/ksejm" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="kObywatel" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:image" content="/assets/og/OG-Twitter-kSejm.png" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            kobg: '#0b121a',
+            koelev: '#111b26',
+            koelev2: '#162230',
+            koborder: '#243244',
+            kotext: '#e7edf4',
+            kodim: '#9fb0c3',
+            koaccent: '#ac1943',
+            koaccent2: '#cc2d5a'
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    .subtle-scrollbar {
+      scrollbar-width: thin;
+      scrollbar-color: rgba(159, 176, 195, 0.35) transparent;
+    }
+
+    .subtle-scrollbar::-webkit-scrollbar {
+      height: 6px;
+    }
+
+    .subtle-scrollbar::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .subtle-scrollbar::-webkit-scrollbar-thumb {
+      background: rgba(159, 176, 195, 0.28);
+      border-radius: 9999px;
+    }
+
+    .subtle-scrollbar::-webkit-scrollbar-thumb:hover {
+      background: rgba(159, 176, 195, 0.45);
+    }
+  </style>
+</head>
+<body class="min-h-screen bg-kobg text-kotext selection:bg-koaccent/40">
+  <div class="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 pb-8 pt-4 sm:px-6 lg:px-8">
+    <header class="sticky top-2 z-20 mb-4 rounded-2xl border border-koborder/90 bg-koelev/90 px-4 py-3 backdrop-blur">
+      <div class="flex items-center justify-between gap-3">
+        <div class="flex items-center gap-3">
+          <a href="/" class="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-koborder bg-koelev2 text-kotext transition hover:border-koaccent/80 hover:text-white" aria-label="Powrót">
+            <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6" /></svg>
+          </a>
+          <a href="/" class="inline-flex items-center gap-2">
+            <img src="/logo.png" alt="Logo kObywatel" class="h-8 w-8 rounded-lg" />
+            <span class="text-sm font-semibold tracking-wide text-kotext/95">kObywatel</span><span class="text-sm font-light tracking-wide text-kotext/95">/ kSejm</span>
+          </a>
+        </div>
+        <a id="ksejm-detail-register" href="#" target="_blank" rel="noopener" class="inline-flex items-center justify-center gap-2 rounded-xl border border-koaccent/70 bg-koaccent/15 px-3 py-2 text-sm font-semibold text-rose-200 transition hover:bg-koaccent/25 hover:text-white">
+          Rejestr obrad Sejmu
+          <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" /></svg>
+        </a>
+      </div>
+    </header>
+
+    <main class="grid flex-1 grid-cols-1 gap-4 lg:grid-cols-[360px_minmax(0,1fr)]">
+      <section class="rounded-2xl border border-koborder bg-koelev p-4">
+        <div class="mb-3">
+          <h1 class="text-xl font-bold tracking-wide">Akty prawne</h1>
+          <p class="mt-1 text-sm text-kodim">Rejestr ustaw, uchwał i rozporządzeń, podgląd treści oraz załączników.</p>
+        </div>
+
+        <div class="space-y-3">
+          <input id="ksejm-search" type="search" placeholder="Szukaj po tytule, kategorii, zakresie..." class="w-full rounded-xl border border-koborder bg-koelev2 px-3 py-2 text-sm text-kotext outline-none ring-koaccent/40 placeholder:text-kodim/80 focus:border-koaccent focus:ring-2" />
+
+          <div id="ksejm-kind-filters" class="subtle-scrollbar flex w-full items-center gap-1 overflow-x-auto rounded-xl border border-koborder bg-koelev2 p-1">
+            <button type="button" data-kind="all" class="ksejm-kind-filter whitespace-nowrap rounded-lg border border-koaccent bg-koaccent px-3 py-2 text-xs font-semibold text-white">Wszystkie</button>
+            <button type="button" data-kind="ustawa" class="ksejm-kind-filter whitespace-nowrap rounded-lg border border-koborder bg-koelev2 px-3 py-2 text-xs font-semibold text-kotext">Ustawy</button>
+            <button type="button" data-kind="uchwala" class="ksejm-kind-filter whitespace-nowrap rounded-lg border border-koborder bg-koelev2 px-3 py-2 text-xs font-semibold text-kotext">Uchwały</button>
+            <button type="button" data-kind="rozporzadzenie" class="ksejm-kind-filter whitespace-nowrap rounded-lg border border-koborder bg-koelev2 px-3 py-2 text-xs font-semibold text-kotext">Rozporządzenia</button>
+          </div>
+
+          <select id="ksejm-category-filter" class="w-full rounded-xl border border-koborder bg-koelev2 px-3 py-2 text-sm text-kotext outline-none ring-koaccent/40 focus:border-koaccent focus:ring-2">
+            <option value="all">Wszystkie kategorie</option>
+          </select>
+
+          <select id="ksejm-sort" class="w-full rounded-xl border border-koborder bg-koelev2 px-3 py-2 text-sm text-kotext outline-none ring-koaccent/40 focus:border-koaccent focus:ring-2">
+            <option value="date_desc">Sortowanie: najnowsze</option>
+            <option value="date_asc">Sortowanie: najstarsze</option>
+            <option value="title_asc">Sortowanie: tytuł A-Z</option>
+            <option value="title_desc">Sortowanie: tytuł Z-A</option>
+          </select>
+        </div>
+
+        <div id="ksejm-list" class="mt-4 space-y-2" aria-live="polite"></div>
+      </section>
+
+      <section class="rounded-2xl border border-koborder bg-koelev p-5">
+        <div id="ksejm-detail-empty" class="flex min-h-[460px] items-center justify-center rounded-2xl border border-dashed border-koborder bg-koelev2/35 p-8 text-center text-sm text-kodim">
+          Wybierz akt prawny z listy, aby zobaczyć pełną treść i załączniki.
+        </div>
+
+        <article id="ksejm-detail" class="hidden">
+          <div class="mb-4 flex flex-wrap items-center gap-2">
+            <span id="ksejm-detail-kind" class="rounded-full border border-koaccent/70 bg-koaccent/20 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-rose-200"></span>
+            <span id="ksejm-detail-category" class="rounded-full border border-koborder bg-koelev2 px-3 py-1 text-xs font-semibold text-kodim"></span>
+          </div>
+
+          <h2 id="ksejm-detail-title" class="text-2xl font-bold leading-tight"></h2>
+          <p class="mt-2 text-sm text-kodim"><span class="font-semibold text-kotext">Dotyczy:</span> <span id="ksejm-detail-dotyczy"></span></p>
+
+          <div id="ksejm-markdown" class="mt-6 space-y-4 text-[15px] leading-7 text-kotext/95"></div>
+
+          <section class="mt-8 rounded-2xl border border-koborder bg-koelev2/40 p-4">
+            <h3 class="text-sm font-semibold uppercase tracking-wide text-kodim">Załączniki</h3>
+            <div id="ksejm-attachments" class="mt-3 space-y-2"></div>
+          </section>
+
+          <section id="ksejm-attachment-preview-wrap" class="mt-6 hidden rounded-2xl border border-koborder bg-koelev2/40 p-4">
+            <div class="mb-3 flex items-center justify-between gap-2">
+              <h3 id="ksejm-attachment-preview-title" class="text-sm font-semibold uppercase tracking-wide text-kodim"></h3>
+              <button id="ksejm-attachment-preview-close" type="button" class="rounded-lg border border-koborder px-2 py-1 text-xs font-semibold text-kodim transition hover:border-koaccent hover:text-kotext">Zamknij</button>
+            </div>
+            <div id="ksejm-attachment-preview" class="space-y-4 text-[15px] leading-7 text-kotext/95"></div>
+          </section>
+        </article>
+      </section>
+    </main>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/markdown-it@14.1.0/dist/markdown-it.min.js"></script>
+  <script type="module" src="/ksejm/index.js"></script>
+</body>
+</html>

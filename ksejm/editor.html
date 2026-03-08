@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>kSejm Editor</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            kobg: '#0b121a',
+            koelev: '#111b26',
+            koelev2: '#162230',
+            koborder: '#243244',
+            kotext: '#e7edf4',
+            kodim: '#9fb0c3',
+            koaccent: '#ac1943'
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="min-h-screen bg-kobg text-kotext">
+  <main class="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
+    <header class="mb-4 rounded-2xl border border-koborder bg-koelev p-4">
+      <h1 class="text-xl font-bold">kSejm – Edytor index.json</h1>
+      <p class="mt-1 text-sm text-kodim">Narzędzie techniczne. Strona nie jest podlinkowana w nawigacji.</p>
+    </header>
+
+    <section class="rounded-2xl border border-koborder bg-koelev p-4">
+      <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+        <label class="space-y-1">
+          <span class="text-xs font-semibold uppercase tracking-wide text-kodim">updatedAt</span>
+          <input id="editor-updatedAt" type="date" class="w-full rounded-xl border border-koborder bg-koelev2 px-3 py-2 text-sm outline-none focus:border-koaccent" />
+        </label>
+        <label class="space-y-1">
+          <span class="text-xs font-semibold uppercase tracking-wide text-kodim">registerUrl</span>
+          <input id="editor-registerUrl" type="url" placeholder="https://..." class="w-full rounded-xl border border-koborder bg-koelev2 px-3 py-2 text-sm outline-none focus:border-koaccent" />
+        </label>
+      </div>
+
+      <div class="mt-4 flex flex-wrap gap-2">
+        <button id="editor-load-current" type="button" class="rounded-xl border border-koborder bg-koelev2 px-3 py-2 text-sm font-semibold hover:border-koaccent">Wczytaj aktualny index.json</button>
+        <button id="editor-add-entry" type="button" class="rounded-xl border border-koaccent bg-koaccent/15 px-3 py-2 text-sm font-semibold text-rose-200 hover:bg-koaccent/25">Dodaj wpis</button>
+        <button id="editor-generate" type="button" class="rounded-xl border border-koaccent bg-koaccent px-3 py-2 text-sm font-semibold text-white">Generuj JSON</button>
+        <button id="editor-download" type="button" class="rounded-xl border border-koborder bg-koelev2 px-3 py-2 text-sm font-semibold hover:border-koaccent">Pobierz index.json</button>
+      </div>
+    </section>
+
+    <section class="mt-4 rounded-2xl border border-koborder bg-koelev p-4">
+      <h2 class="text-sm font-semibold uppercase tracking-wide text-kodim">Wpisy</h2>
+      <div id="editor-entries" class="mt-3 space-y-4"></div>
+    </section>
+
+    <section class="mt-4 rounded-2xl border border-koborder bg-koelev p-4">
+      <h2 class="text-sm font-semibold uppercase tracking-wide text-kodim">Podgląd JSON</h2>
+      <textarea id="editor-output" readonly class="mt-3 min-h-[280px] w-full rounded-xl border border-koborder bg-koelev2 px-3 py-2 font-mono text-xs outline-none"></textarea>
+      <p id="editor-status" class="mt-2 text-xs text-kodim"></p>
+    </section>
+  </main>
+
+  <script type="module" src="/ksejm/editor.js"></script>
+</body>
+</html>

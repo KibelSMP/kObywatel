@@ -173,6 +173,7 @@ let lastCompanyScaleForEval = scale;
 
 // --- Pociągi na żywo ---
 const TRAIN_API_URL = 'https://kibel.killers.dev/api/trains';
+const TRAIN_METADATA_URL = 'https://raw.githubusercontent.com/KibelSMP/kObywatel-db/refs/heads/main/data/trains.json';
 let showTrains = false; // włącznik w legendzie
 let trainsData = []; // Array<{ id,name,x,z }>
 let trainsPollTimer = null;
@@ -183,6 +184,8 @@ let trainsLastTimestamp = null;
 let trainsRenderRaf = null;
 let trainsStatusEl = null;
 let stationIndex = null; // Map<code, { id, name }>
+let trainMetadata = null; // Map<name, metadata>
+let trainMetadataPromise = null;
 
 function disableTrainsOverlayAction(){
   showTrains = false;
@@ -895,79 +898,77 @@ function buildStationIndexOnce(){
   return stationIndex;
 }
 
-function findLineForEndpoints(aCode, bCode){
-  if(!linesData || !Array.isArray(linesData.lines)) return null;
-  const norm = (v)=> String(v||'').toUpperCase().replace(/^ST[-_]?/,'');
-  const a = norm(aCode);
-  const b = norm(bCode);
-  for(const ln of linesData.lines){
-    const stations = Array.isArray(ln.stations)
-      ? ln.stations.map(s=> String(s||'').replace(/\*$/,'').toUpperCase().replace(/^ST[-_]?/,''))
-      : [];
-    if(stations.includes(a) && stations.includes(b)) return ln;
+function lookupTrainMetadata(rawName){
+  if(!trainMetadata || !rawName) return null;
+  const upper = String(rawName).trim().toUpperCase();
+  if(!upper) return null;
+  const candidates = new Set([upper]);
+  const stripped = upper.replace(/\d+$/, '');
+  if(stripped) candidates.add(stripped);
+  for(const key of candidates){
+    if(trainMetadata.has(key)){
+      return trainMetadata.get(key);
+    }
   }
   return null;
 }
 
-function parseTrainEndpoints(rawName){
-  if(!rawName) return null;
-  const up = String(rawName).toUpperCase();
-  const m = up.match(/([A-Z0-9]{2,6})-([A-Z0-9]{2,6})/);
-  if(!m) return null;
-  const stripNum = (s)=> s.replace(/\d+$/,'');
-  return [stripNum(m[1]), stripNum(m[2])];
+const TRAIN_CATEGORY_SYMBOLS = {
+  METRO: 'M',
+  METRO_TRAIN: 'M',
+  TRAMWAJ: 'T',
+  REGIO: 'R',
+  IC: 'IC',
+  CARGO: 'A',
+  PROM: 'P',
+  KKL: 'K',
+  KG: 'K',
+  KLL: 'X'
+};
+
+function formatTrainLabel(meta, fallback){
+  if(!meta) return fallback || 'Pociąg';
+  const rawCategory = String(meta.category || '').trim().toUpperCase();
+  const symbol = TRAIN_CATEGORY_SYMBOLS[rawCategory] || rawCategory || 'Pociąg';
+  const connection = String(meta.connection || '').trim() || String(meta.lineNumber || '').trim() || fallback || 'Pociąg';
+  return `[${symbol}] ${connection}`.trim();
 }
 
-function isTrainRecognized(rawName){
-  const endpoints = parseTrainEndpoints(rawName);
-  if(!endpoints) return false;
-  const [aCode, bCode] = endpoints;
-  const idx = buildStationIndexOnce();
-  const lookup = (code)=> idx.get(code) || idx.get(code.replace(/^ST[-_]?/,''));
-  const hasStations = !!lookup(aCode) && !!lookup(bCode);
-  if(!hasStations) return false;
-  const line = findLineForEndpoints(aCode, bCode);
-  return !!line;
+async function ensureTrainMetadata(){
+  if(trainMetadata) return trainMetadata;
+  if(trainMetadataPromise) return trainMetadataPromise;
+  trainMetadataPromise = (async ()=>{
+    const res = await fetch(TRAIN_METADATA_URL, { cache:'no-store' });
+    if(!res.ok) throw new Error('HTTP ' + res.status);
+    const json = await res.json();
+    if(!json || typeof json !== 'object') throw new Error('Invalid train metadata');
+    const map = new Map();
+    Object.entries(json).forEach(([key, value])=>{
+      const normalizedKey = String(key || '').trim().toUpperCase();
+      if(!normalizedKey) return;
+      const entry = {
+        category: String(value?.category || '').trim(),
+        connection: String(value?.connection || '').trim(),
+        lineNumber: String(value?.lineNumber || '').trim()
+      };
+      map.set(normalizedKey, entry);
+      const stripped = normalizedKey.replace(/\d+$/, '');
+      if(stripped && stripped !== normalizedKey && !map.has(stripped)){
+        map.set(stripped, entry);
+      }
+    });
+    trainMetadata = map;
+    return map;
+  })().catch(err=>{
+    console.warn('[map] train metadata load failed', err?.message || err);
+    trainMetadata = null;
+    throw err;
+  }).finally(()=>{
+    trainMetadataPromise = null;
+  });
+  return trainMetadataPromise;
 }
 
-function normalizeTrainProductTag(rawType){
-  if(!rawType) return null;
-  const up = String(rawType).trim().toUpperCase();
-  if(!up) return null;
-  if(up === 'R' || up === 'REGIO') return 'REGIO';
-  if(up === 'IC') return 'IC';
-  return up;
-}
-
-function computeTrainDisplayName(rawName){
-  const endpoints = parseTrainEndpoints(rawName);
-  const line = endpoints ? findLineForEndpoints(...endpoints) : null;
-  const prefixFromLine = (()=>{
-    if(!line || !line.category) return null;
-    const cat = String(line.category).toUpperCase();
-    if(/IC/.test(cat)) return 'IC';
-    if(/REGIO|R/.test(cat)) return 'REGIO';
-    return cat;
-  })();
-  const productTag = (()=>{
-    if(prefixFromLine) return prefixFromLine;
-    const up = String(rawName||'').toUpperCase();
-    const productMatch = up.match(/^([A-Z]{1,6})[_-]/);
-    if(productMatch) return normalizeTrainProductTag(productMatch[1]) || productMatch[1];
-    return null;
-  })();
-  if(!endpoints){
-    const prefix = productTag ? `[${productTag}] ` : '';
-    return `${prefix}${rawName || 'Pociąg'}`.trim();
-  }
-  const [aCode, bCode] = endpoints;
-  const idx = buildStationIndexOnce();
-  const lookup = (code)=> idx.get(code) || idx.get(code.replace(/^ST[-_]?/,''));
-  const startName = lookup(aCode)?.name || aCode;
-  const endName = lookup(bCode)?.name || bCode;
-  const prefix = productTag ? `[${productTag}] ` : (line && line.id ? `[${line.id}] ` : '');
-  return `${prefix}${startName} - ${endName}`.trim();
-}
 
 // --- Pociągi na żywo ---
 function getVisibleMapBoundsPx(margin = 0){
@@ -985,6 +986,16 @@ function scheduleTrainMarkersRender(){
     trainsRenderRaf = null;
     buildTrainMarkers();
   });
+}
+
+function deriveTrainColorTag(category){
+  if(!category) return 'other';
+  const normalized = String(category || '').trim().toUpperCase();
+  if(normalized === 'IC') return 'ic';
+  if(normalized === 'REGIO') return 'regio';
+  if(normalized === 'METRO') return 'metro';
+  if(normalized === 'TRAMWAJ') return 'tram';
+  return 'other';
 }
 
 function buildTrainMarkers(){
@@ -1024,14 +1035,7 @@ function buildTrainMarkers(){
     else {
       wrap = document.createElement('div');
       wrap.className = 'marker train-marker';
-      // derive simple color tag from displayName
-      const colTag = (()=>{
-        if(typeof t.displayName === 'string'){
-          if(/\[IC\]/.test(t.displayName)) return 'ic';
-          if(/\[REGIO\]/.test(t.displayName)) return 'regio';
-        }
-        return 'other';
-      })();
+      const colTag = deriveTrainColorTag(t.meta?.category);
       wrap.classList.add(`train-${colTag}`);
       wrap.dataset.trainId = t.id;
       wrap.dataset.px = String(pos.x);
@@ -1107,6 +1111,11 @@ async function fetchTrainsData(){
   if(trainsFetchInFlight) return;
   trainsFetchInFlight = true;
   try {
+    await ensureTrainMetadata();
+    if(!trainMetadata || !trainMetadata.size){
+      updateTrainStatus('Brak danych etykiet pociągów.');
+      return;
+    }
     // Ustal bieżące granice widocznego obszaru mapy i wyślij je jako bounding box
     const boundsPx = getVisibleMapBoundsPx(0);
     let minx=-100, maxx=100, minz=-100, maxz=100;
@@ -1141,12 +1150,13 @@ async function fetchTrainsData(){
         const rec = normalizeTrainRecord(raw);
         if(!rec) return null;
         const updatedAt = raw?.lastUpdate ? Date.parse(raw.lastUpdate) : null;
-        return { ...rec, updatedAt: Number.isFinite(updatedAt) ? updatedAt : null };
+        const metadata = lookupTrainMetadata(rec.name);
+        if(!metadata) return null;
+        const displayName = formatTrainLabel(metadata, raw.name);
+        return { ...rec, updatedAt: Number.isFinite(updatedAt) ? updatedAt : null, meta: metadata, displayName };
       })
       .filter(Boolean);
-    trainsData = normalized
-      .filter(t => isTrainRecognized(t.name))
-      .map(t => ({ ...t, displayName: computeTrainDisplayName(t.name) }));
+    trainsData = normalized;
     const apiTimestamp = typeof json?.timestamp === 'number' ? json.timestamp : null;
     const latestUpdate = normalized.reduce((max, t)=> Math.max(max, t.updatedAt || 0), 0);
     trainsLastTimestamp = apiTimestamp || (latestUpdate || Date.now());

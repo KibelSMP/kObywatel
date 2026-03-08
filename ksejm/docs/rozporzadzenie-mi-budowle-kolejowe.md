@@ -1,0 +1,1 @@
+Dokument dostępny wyłącznie do pobrania jako PDF. Kliknij "Otwórz PDF" poniżej.
