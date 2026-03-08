@@ -1,0 +1,54 @@
+{
+  "updatedAt": "2026-03-08",
+  "registerUrl": "https://docs.google.com/spreadsheets/d/10_8fQjtE6gXk-tbOMPjbMjirCEkA5uJf7d2foK_ekOc/",
+  "entries": [
+    {
+      "id": "ROZ-2024-04-11",
+      "kind": "rozporzadzenie",
+      "title": "Rozporządzenie Ministerstwa Infrastruktury w sprawie szczegółowych warunków technicznych dla wskaźników kolejowych i znaków drogowych oraz warunków ich umieszczania",
+      "category": "Transport",
+      "dotyczy": "Wskaźniki kolejowe i znaki drogowe oraz warunki ich umieszczania.",
+      "date": "2024-04-11",
+      "contentMd": "docs/rozporzadzenie-mi-wskazniki-kolejowe.md",
+      "attachments": [
+        {
+          "title": "Treść rozporządzenia",
+          "type": "pdf",
+          "url": "docs/Rozporzadzenie_MI_w_sprawie_szczegolowych_warunkow_technicznych_dla_wskaznikow_kolejowych_i_znakow_drogowych_11.04.24.pdf"
+        }
+      ]
+    },
+    {
+      "id": "ROZ-2024-04-11-2",
+      "kind": "rozporzadzenie",
+      "title": "Rozporządzenie MI w sprawie szczegółowych warunków technicznych, jakim powinny odpowiadać budowle kolejowe i ich usytuowanie",
+      "category": "Transport",
+      "dotyczy": "Budowle kolejowe i ich usytuowanie.",
+      "date": "2024-04-11",
+      "contentMd": "docs/rozporzadzenie-mi-budowle-kolejowe.md",
+      "attachments": [
+        {
+          "title": "Treść rozporządzenia",
+          "type": "pdf",
+          "url": "docs/Rozporzadzenie_MI_w_sprawie_szczegolowych_warunkow_technicznych_jakim_powinny_odpowiadac_budowle_kolejowe_i_ich_usytuowanie_11.04.24.pdf"
+        }
+      ]
+    },
+    {
+      "id": "ROZ-2026-02-20",
+      "kind": "rozporzadzenie",
+      "title": "Rozporządzenie Ministra Cyfryzacji w sprawie nadania organizacji CYFRA PSK uprawnień Urzędu Patentowego",
+      "category": "Organizacje",
+      "dotyczy": "Nadanie CYFRA PSK uprawnień Urzędu Patentowego.",
+      "date": "2026-02-20",
+      "contentMd": "docs/rozporzadzenie-mc-cyfra-psk-up.md",
+      "attachments": [
+        {
+          "title": "Treść rozporządzenia",
+          "type": "pdf",
+          "url": "docs/Rozporzadzenie_MC_w_sprawie_nadania_organizacji_CYFRA_PSK_uprawnien_UP_20.02.2026.pdf"
+        }
+      ]
+    }
+  ]
+}

@@ -7,6 +7,7 @@ Aplikacja webowa stanowiąca system e-governance dla społeczności Minecraft SM
 - **Wyszukiwarka**: Miasta, stacje, linie transportowe
 - **kHandel**: Katalog produktów i sklepów w świecie gry
 - **kWiedza**: Dokumentacja i poradniki w formacie Markdown
+- **kSejm**: Uchwały i ustawy z kategoriami, zakresem oraz załącznikami Markdown/PDF
 - **Mapa**: Interaktywna mapa z punktami i liniami kolejowymi
 - **Twórcy**: Informacje o zespole deweloperskim
 
