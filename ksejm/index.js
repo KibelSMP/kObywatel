@@ -67,7 +67,7 @@ function stylizeMarkdown(container) {
   container.querySelectorAll('li').forEach((el) => el.className = 'text-kotext/95');
   container.querySelectorAll('blockquote').forEach((el) => el.className = 'border-l-4 border-koaccent pl-4 italic text-kodim');
   container.querySelectorAll('hr').forEach((el) => el.className = 'my-6 border-koborder');
-  container.querySelectorAll('code').forEach((el) => el.className = 'rounded bg-koelev2 px-1.5 py-0.5 text-sm text-rose-200');
+  container.querySelectorAll('code').forEach((el) => el.className = 'rounded bg-koelev2 px-1.5 py-0.5 text-sm text-koaccent');
   container.querySelectorAll('pre').forEach((el) => {
     el.className = 'overflow-x-auto rounded-xl border border-koborder bg-koelev2 p-3';
     const code = el.querySelector('code');
@@ -76,7 +76,7 @@ function stylizeMarkdown(container) {
     }
   });
   container.querySelectorAll('a').forEach((el) => {
-    el.className = 'font-medium text-rose-300 underline underline-offset-2 hover:text-rose-200';
+    el.className = 'font-medium text-koaccent underline underline-offset-2 hover:text-koaccent2';
     el.target = '_blank';
     el.rel = 'noopener';
   });
@@ -146,7 +146,7 @@ function renderList() {
     return `
       <button type="button" data-entry-id="${escapeHtml(entry.id)}" class="w-full rounded-xl border px-3 py-3 text-left transition ${selected ? 'border-koaccent bg-koaccent/10' : 'border-koborder bg-koelev2/35 hover:border-koaccent/70'}">
         <div class="mb-2 flex flex-wrap items-center gap-2">
-          <span class="rounded-full border border-koaccent/60 bg-koaccent/20 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-rose-200">${kindLabel(entry.kind)}</span>
+          <span class="rounded-full border border-koaccent/60 bg-koaccent/20 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-koaccenttext">${kindLabel(entry.kind)}</span>
           <span class="rounded-full border border-koborder bg-koelev2 px-2 py-0.5 text-[11px] font-semibold text-kodim">${escapeHtml(entry.category || 'Inne')}</span>
         </div>
         <h3 class="line-clamp-2 text-sm font-semibold leading-5 text-kotext">${escapeHtml(entry.title || entry.id)}</h3>
@@ -212,7 +212,7 @@ async function renderEntry(entry) {
             <p class="text-sm font-semibold text-kotext">${escapeHtml(attachment.title || 'Załącznik')}</p>
             <p class="text-xs text-kodim">Format: ${type}</p>
           </div>
-          <button type="button" data-attachment-type="markdown" data-attachment-url="${escapeHtml(attachment.url || '')}" data-attachment-title="${escapeHtml(attachment.title || 'Załącznik')}" class="rounded-lg border border-koborder bg-koelev2 px-3 py-1.5 text-xs font-semibold text-kotext transition hover:border-koaccent hover:text-white">Podgląd</button>
+          <button type="button" data-attachment-type="markdown" data-attachment-url="${escapeHtml(attachment.url || '')}" data-attachment-title="${escapeHtml(attachment.title || 'Załącznik')}" class="rounded-lg border border-koborder bg-koelev2 px-3 py-1.5 text-xs font-semibold text-kotext transition hover:border-koaccent">Podgląd</button>
         </div>
       `;
     }
@@ -223,7 +223,7 @@ async function renderEntry(entry) {
           <p class="text-sm font-semibold text-kotext">${escapeHtml(attachment.title || 'Załącznik')}</p>
           <p class="text-xs text-kodim">Format: ${type}</p>
         </div>
-        <a href="${escapeHtml(attachment.url || '#')}" target="_blank" rel="noopener" class="rounded-lg border border-koborder bg-koelev2 px-3 py-1.5 text-xs font-semibold text-kotext transition hover:border-koaccent hover:text-white">Otwórz PDF</a>
+        <a href="${escapeHtml(attachment.url || '#')}" target="_blank" rel="noopener" class="rounded-lg border border-koborder bg-koelev2 px-3 py-1.5 text-xs font-semibold text-kotext transition hover:border-koaccent">Otwórz PDF</a>
       </div>
     `;
   }).join('');
