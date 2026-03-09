@@ -10,18 +10,44 @@
       theme: {
         extend: {
           colors: {
-            kobg: '#0b121a',
-            koelev: '#111b26',
-            koelev2: '#162230',
-            koborder: '#243244',
-            kotext: '#e7edf4',
-            kodim: '#9fb0c3',
-            koaccent: '#ac1943'
+            kobg: 'rgb(var(--kobg-rgb) / <alpha-value>)',
+            koelev: 'rgb(var(--koelev-rgb) / <alpha-value>)',
+            koelev2: 'rgb(var(--koelev2-rgb) / <alpha-value>)',
+            koborder: 'rgb(var(--koborder-rgb) / <alpha-value>)',
+            kotext: 'rgb(var(--kotext-rgb) / <alpha-value>)',
+            kodim: 'rgb(var(--kodim-rgb) / <alpha-value>)',
+            koaccent: 'rgb(var(--koaccent-rgb) / <alpha-value>)',
+            koaccenttext: 'rgb(var(--koaccenttext-rgb) / <alpha-value>)'
           }
         }
       }
     }
   </script>
+  <style>
+    :root {
+      --kobg-rgb: 11 18 26;
+      --koelev-rgb: 17 27 38;
+      --koelev2-rgb: 22 34 48;
+      --koborder-rgb: 36 50 68;
+      --kotext-rgb: 231 237 244;
+      --kodim-rgb: 159 176 195;
+      --koaccent-rgb: 172 25 67;
+      --koaccenttext-rgb: 252 231 243;
+    }
+
+    @media (prefers-color-scheme: light) {
+      :root {
+        --kobg-rgb: 244 247 251;
+        --koelev-rgb: 255 255 255;
+        --koelev2-rgb: 238 242 247;
+        --koborder-rgb: 196 207 222;
+        --kotext-rgb: 22 33 46;
+        --kodim-rgb: 84 102 124;
+        --koaccent-rgb: 172 25 67;
+        --koaccenttext-rgb: 76 12 30;
+      }
+    }
+  </style>
 </head>
 <body class="min-h-screen bg-kobg text-kotext">
   <main class="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
@@ -44,7 +70,7 @@
 
       <div class="mt-4 flex flex-wrap gap-2">
         <button id="editor-load-current" type="button" class="rounded-xl border border-koborder bg-koelev2 px-3 py-2 text-sm font-semibold hover:border-koaccent">Wczytaj aktualny index.json</button>
-        <button id="editor-add-entry" type="button" class="rounded-xl border border-koaccent bg-koaccent/15 px-3 py-2 text-sm font-semibold text-rose-200 hover:bg-koaccent/25">Dodaj wpis</button>
+        <button id="editor-add-entry" type="button" class="rounded-xl border border-koaccent bg-koaccent/15 px-3 py-2 text-sm font-semibold text-koaccenttext hover:bg-koaccent/25">Dodaj wpis</button>
         <button id="editor-generate" type="button" class="rounded-xl border border-koaccent bg-koaccent px-3 py-2 text-sm font-semibold text-white">Generuj JSON</button>
         <button id="editor-download" type="button" class="rounded-xl border border-koborder bg-koelev2 px-3 py-2 text-sm font-semibold hover:border-koaccent">Pobierz index.json</button>
       </div>
