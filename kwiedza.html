@@ -19,8 +19,9 @@
   <style>
     /* kWiedza wykorzystuje zmienne kolorów (dark/light automatycznie przez style.css) */
     body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--text);}
-    header{display:flex;align-items:center;justify-content:space-between;padding:.75rem 1rem;border-bottom:1px solid var(--border);background:color-mix(in srgb,var(--bg-alt) 85%, transparent);backdrop-filter:blur(14px) saturate(160%);position:sticky;top:0;z-index:50;}
-    header h1{margin:0;font-size:1rem;letter-spacing:.6px;font-weight:600;display:flex;gap:.55rem;align-items:center;}
+    .app-header{display:flex;align-items:center;justify-content:space-between;height:60px;padding:.7rem 1rem;gap:.6rem;border:1px solid color-mix(in srgb,var(--border) 90%, transparent);border-radius:16px;background:color-mix(in srgb,var(--bg-alt) 88%, transparent);backdrop-filter:blur(18px) saturate(160%);position:fixed;top:.4rem;left:max(.75rem, calc((100vw - 1200px) / 2));right:max(.75rem, calc((100vw - 1200px) / 2));z-index:50;box-shadow:0 12px 30px -20px rgba(0, 0, 0, .7);}
+    .back-btn{width:36px;height:36px;border-radius:12px;margin-right:.6rem;}
+    .app-header h1{margin:0;font-size:1rem;letter-spacing:.6px;font-weight:600;display:flex;gap:.55rem;align-items:center;}
     .container{max-width:1100px;margin:1rem auto;padding:0 1rem;}
     .kw-toolbar{display:flex;gap:.6rem;flex-wrap:wrap;align-items:center;margin:0 0 1rem;}
     .kw-toolbar input[type="search"]{flex:1 1 300px;max-width:520px;background:var(--bg-elev);border:1px solid var(--border);color:var(--text);padding:.5rem .6rem;border-radius:10px;font-size:.9rem;transition:border-color .25s, box-shadow .25s;}
@@ -63,6 +64,7 @@
     @media (min-width: 900px){ .kw-bottom-bar{display:none;} }
     /* Ukryj górny pasek wyszukiwania na małych ekranach (korzystamy z dolnego) */
     @media (max-width: 899px){ .kw-toolbar{display:none;} }
+    @media (max-width: 720px){ .app-header{height:auto;min-height:56px;} }
   </style>
   <!-- OpenGraph meta tags -->
   <meta property="og:title" content="kWiedza" />

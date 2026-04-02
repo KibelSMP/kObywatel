@@ -88,7 +88,7 @@
 <body class="min-h-screen bg-kobg text-kotext selection:bg-koaccent/40">
   <div class="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 pb-8 pt-4 sm:px-6 lg:px-8">
     <header class="sticky top-2 z-20 mb-4 rounded-2xl border border-koborder/90 bg-koelev/90 px-4 py-3 backdrop-blur">
-      <div class="flex items-center justify-between gap-3">
+      <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div class="flex items-center gap-3">
           <a href="/" class="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-koborder bg-koelev2 text-kotext transition hover:border-koaccent/80 hover:text-white" aria-label="Powrót">
             <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6" /></svg>
@@ -98,10 +98,16 @@
             <span class="text-sm font-semibold tracking-wide text-kotext/95">kObywatel</span>
           </a>
         </div>
-        <a id="ksejm-detail-register" href="#" target="_blank" rel="noopener" class="inline-flex items-center justify-center gap-2 rounded-xl border border-koaccent/70 bg-koaccent/15 px-3 py-2 text-sm font-semibold text-koaccenttext transition hover:bg-koaccent/25 hover:text-kotext">
-          Rejestr obrad Sejmu
-          <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" /></svg>
-        </a>
+        <div class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+          <a href="/ksejm/deputy/" class="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-koborder bg-koelev2 px-3 py-2 text-sm font-semibold text-kotext transition hover:border-koaccent hover:text-koaccenttext sm:w-auto" aria-label="Przejdź do podstrony Dla posła">
+            Dla posła
+            <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14" /><path d="m13 6 6 6-6 6" /></svg>
+          </a>
+          <a id="ksejm-detail-register" href="#" target="_blank" rel="noopener" class="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-koaccent/70 bg-koaccent/15 px-3 py-2 text-sm font-semibold text-koaccenttext transition hover:bg-koaccent/25 hover:text-kotext sm:w-auto">
+            Rejestr obrad Sejmu
+            <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" /></svg>
+          </a>
+        </div>
       </div>
     </header>
 

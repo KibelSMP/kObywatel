@@ -135,14 +135,9 @@ const resultsDiv = document.getElementById('results');
 const skeleton = document.getElementById('skeleton');
 const body = document.body;
 const resultsSection = document.getElementById('results-section');
-const backBtn = document.getElementById('back-btn');
 const formBrowser = document.getElementById('form-browser');
 const formListEl = document.getElementById('form-list');
 const formViewEl = document.getElementById('form-view');
-const btnObywatel = document.getElementById('btn-obywatel');
-const btnFirma = document.getElementById('btn-firma');
-const btnKDonos = document.getElementById('btn-kdonos');
-const tileWnioski = document.getElementById('tile-wnioski');
 const homeTilesRoot = document.getElementById('home-tiles-root');
 const homeTilesPrimary = document.querySelector('.home-tiles-primary');
 const homeTilesCompact = document.querySelector('.home-tiles-compact');
@@ -742,39 +737,6 @@ function markdownToHtml(src=''){
   return `<div class="md-block">${s.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,'<br/>')}</div>`;
 }
 
-function handleCategoryClick(cat){
-  showFormBrowser();
-  loadCategory(cat);
-  if(!body.dataset.mode || body.dataset.mode !== 'condensed'){
-    requestAnimationFrame(()=> body.setAttribute('data-mode','condensed'));
-  }
-  body.setAttribute('data-search-hidden','true');
-  hideHomeTiles();
-  // Hide search results if any
-  resultsDiv.innerHTML='';
-}
-
-// Przyciski w kafelku Wnioski
-// if(btnObywatel){ btnObywatel.addEventListener('click', ()=> handleCategoryClick('citizen')); }
-if(btnFirma){ btnFirma.addEventListener('click', ()=> handleCategoryClick('company')); }
-// if(btnKDonos){ btnKDonos.addEventListener('click', (e)=>{ e.preventDefault(); handleCategoryClick('cbs'); hideHomeTiles(); }); }
-
-// Toggle rozkładania kafelka "Wnioski"
-// if(tileWnioski){
-//   const actions = tileWnioski.querySelector('.tile-wnioski-actions');
-//   function toggle(open){
-//     const isOpen = open!==undefined ? open : tileWnioski.getAttribute('aria-expanded') !== 'true';
-//     tileWnioski.setAttribute('aria-expanded', String(isOpen));
-//     if(actions){ actions.hidden = !isOpen; }
-//   }
-//   tileWnioski.addEventListener('click', (e)=>{
-//     // jeżeli klik był na przycisku w środku – nie toggluj dwukrotnie
-//     if(e.target.closest('.app-btn')) return;
-//     toggle();
-//   });
-//   tileWnioski.addEventListener('keydown', e=>{ if(e.key==='Enter' || e.key===' '){ e.preventDefault(); toggle(); } });
-// }
-
 function buildCard(p){
   const nickMC = p.nickMinecraft || 'Nieznany';
   const adresParts = [p.ulica, p.mieszkanie, p.miasto, p.wojewodztwo].filter(Boolean);
@@ -1028,26 +990,8 @@ function bindSearch(){
   });
 }
 
-function bindBack(){
-  if(!backBtn) return;
-  if(backBtn.__bound) return; backBtn.__bound = true;
-  backBtn.addEventListener('click', ()=>{
-    queryInput && (queryInput.value='');
-    resultsDiv && (resultsDiv.innerHTML='');
-    hideSkeleton();
-    showHomeTiles();
-    body.removeAttribute('data-mode');
-    hideFormBrowser();
-    toggleLayoutEditor(false);
-    if(layoutState){
-      applyLayoutState(layoutState, { persist:false });
-    }
-  });
-}
-
 initLayoutEditor();
 bindSearch();
-bindBack();
 // Aktywacja inputu po kliknięciu ikony lupy
 function bindSearchIcon(){
   const icon = document.querySelector('.search-icon');
