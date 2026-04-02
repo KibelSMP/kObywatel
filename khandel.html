@@ -33,23 +33,30 @@
     body {
       margin: 0;
       font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-      background: #0d1117;
-      color: #e6edf3;
+      background: var(--bg);
+      color: var(--text);
     }
 
-    header {
+    .app-header {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: .75rem 1rem;
-      border-bottom: 1px solid #26313d;
-      background: #121c1f;
-      position: sticky;
-      top: 0;
+      height: 60px;
+      padding: .7rem 1rem;
+      gap: .6rem;
+      border: 1px solid color-mix(in srgb, var(--border) 90%, transparent);
+      border-radius: 16px;
+      background: color-mix(in srgb, var(--bg-alt) 88%, transparent);
+      backdrop-filter: blur(18px) saturate(160%);
+      position: fixed;
+      top: .4rem;
+      left: max(.75rem, calc((100vw - 1200px) / 2));
+      right: max(.75rem, calc((100vw - 1200px) / 2));
       z-index: 50;
+      box-shadow: 0 12px 30px -20px rgba(0, 0, 0, .7);
     }
 
-    header h1 {
+    .app-header h1 {
       margin: 0;
       font-size: 1rem;
       letter-spacing: .6px;
@@ -1044,6 +1051,11 @@
     }
 
     @media (max-width:640px) {
+      .app-header {
+        height: auto;
+        min-height: 56px;
+      }
+
       .khandel-grid {
         grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
         gap: .65rem;

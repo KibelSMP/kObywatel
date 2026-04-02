@@ -5,7 +5,12 @@ const CACHE = "pwabuilder-page";
 const offlineAssets = [
     "/manifest.json",
     "offline.html",
-    "/errors.css"
+    "/errors.css",
+    "/ksejm/deputy/",
+    "/ksejm/deputy/download/Szablon%20projektu%20ustawy.md",
+    "/ksejm/deputy/download/Szablon%20projektu%20ustawy.odt",
+    "/ksejm/deputy/download/Szablon%20projektu%20uchwa%C5%82y.md",
+    "/ksejm/deputy/download/Szablon%20projektu%20uchwa%C5%82y.odt"
 ];
 
 const offlineFallbackPage = "offline.html";
