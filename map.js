@@ -829,10 +829,21 @@ async function ensureShopsLoaded(){
 }
 
 function normalizeCompanyRecord(item){
+  const BUSINESS_TYPE_LABELS = {
+    JDG: 'JDG',
+	  SPOLKA: 'Spółka',
+    PSK: 'PSK'
+  };
+  const normalizeBusinessType = (val) => {
+    const raw = String(val || '').trim().toUpperCase();
+    if(raw === 'JDG' || raw === 'SPOLKA') return raw;
+    return '';
+  };
   const addr = item?.location?.address || {};
   const coords = item?.location?.coordinates || {};
   const dimension = String(item?.location?.dimension || 'Overworld').trim();
   const name = String(item?.name || 'Firma').trim();
+  const businessType = normalizeBusinessType(item?.business_type ?? item?.businessType ?? item?.legal_form ?? item?.legalForm ?? item?.type ?? item?.rodzaj_dzialalnosci ?? item?.rodzajDzialalnosci);
   const knip = String(item?.knip || '').trim();
   const registrar = String(item?.registrar_kesel ?? item?.registrarKesel ?? '').trim();
   const symbols = Array.isArray(item?.symbols) ? item.symbols.map(s=> String(s||'').trim()).filter(Boolean) : [];
@@ -842,7 +853,7 @@ function normalizeCompanyRecord(item){
   const x = Number(coords.x);
   const z = Number(coords.y ?? coords.z);
   const id = knip || `${name}|${city}|${street}`;
-  return { id, name, city, street, voiv, knip, registrar, symbols, dimension, x: Number.isFinite(x)? x : undefined, z: Number.isFinite(z)? z : undefined };
+  return { id, name, city, street, voiv, knip, registrar, businessType, symbols, dimension, x: Number.isFinite(x)? x : undefined, z: Number.isFinite(z)? z : undefined };
 }
 
 async function ensureCompaniesLoaded(){
@@ -1354,6 +1365,10 @@ function openCompanyInSearch(companyId){
 }
 
 function renderCompanyDetail(company){
+  const BUSINESS_TYPE_LABELS = {
+    JDG: 'JDG',
+    SPOLKA: 'Spółka'
+  };
   if(!pointDetailEl) return;
   if(!company){ pointDetailEl.innerHTML=''; pointDetailEl.hidden = true; return; }
   pointDetailEl.hidden = false;
@@ -1364,7 +1379,8 @@ function renderCompanyDetail(company){
   const parts = [
     Number.isFinite(company.x)? `X:${company.x}`:'',
     Number.isFinite(company.z)? `Z:${company.z}`:'',
-    company.knip? `KNIP:${company.knip}`:''
+    company.knip? `KNIP:${company.knip}`:'',
+    company.businessType ? `Rodzaj:${BUSINESS_TYPE_LABELS[company.businessType] || company.businessType}` : ''
   ].filter(Boolean);
   parts.forEach(txt=>{ const span=document.createElement('span'); span.textContent = txt; meta.appendChild(span); });
   pointDetailEl.appendChild(meta);

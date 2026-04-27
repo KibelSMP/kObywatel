@@ -5,10 +5,18 @@ const listEl = document.getElementById('kf-list');
 const statusEl = document.getElementById('kf-status');
 const statsEl = document.getElementById('kf-stats');
 const searchEl = document.getElementById('kf-search');
+const businessTypeEl = document.getElementById('kf-business-type');
 const symbolEl = document.getElementById('kf-symbol');
 const voivEl = document.getElementById('kf-voiv');
 const backBtn = document.getElementById('back-btn');
 let modalEl = null;
+
+const BUSINESS_TYPE_LABELS = {
+	JDG: 'JDG',
+	SPOLKA: 'Spółka',
+    PSK: 'PSK'
+};
+const BUSINESS_TYPES = Object.keys(BUSINESS_TYPE_LABELS);
 
 const state = {
 	companies: [],
@@ -32,14 +40,34 @@ function cleanField(val){
 	return v === '-' ? '' : v;
 }
 
+function normalizeBusinessType(val){
+	const raw = String(val || '').trim().toUpperCase();
+	if(raw === 'JDG' || raw === 'SPOLKA') return raw;
+	return '';
+}
+
+function readBusinessType(item){
+	return normalizeBusinessType(
+		item?.business_type
+		?? item?.businessType
+		?? item?.legal_form
+		?? item?.legalForm
+		?? item?.type
+		?? item?.rodzaj_dzialalnosci
+		?? item?.rodzajDzialalnosci
+	);
+}
+
 function normalizeCompanies(data){
 	if(!Array.isArray(data)) return [];
 	return data.map(item => {
 		const addr = item?.location?.address || {};
 		const coords = item?.location?.coordinates || {};
 		const dimensionRaw = cleanField(item?.location?.dimension || '');
+		const businessType = readBusinessType(item);
 		return {
 			name: String(item?.name || 'Nieznana firma').trim(),
+			businessType,
 			symbols: Array.isArray(item?.symbols) ? item.symbols.map(s => String(s).trim()).filter(Boolean) : [],
 			knip: item?.knip ?? '',
 			registrar: item?.registrar_kesel ?? item?.registrarKesel ?? '',
@@ -55,6 +83,12 @@ function normalizeCompanies(data){
 			}
 		};
 	});
+}
+
+function renderBusinessTypesSelect(){
+	if(!businessTypeEl) return;
+	const opts = ['<option value="">Dowolny rodzaj</option>', ...BUSINESS_TYPES.map(type => `<option value="${escapeHtml(type)}">${escapeHtml(BUSINESS_TYPE_LABELS[type])}</option>`)];
+	businessTypeEl.innerHTML = opts.join('');
 }
 
 function renderSymbolsSelect(){
@@ -156,6 +190,7 @@ function renderList(companies){
 		article.className = 'kf-card';
 		const symbolsLabel = c.symbols.length ? c.symbols.join(', ') : 'Brak symboli';
 		const symbolsData = c.symbols.map(s => escapeHtml(s)).join('|');
+		const businessTypeLabel = c.businessType ? (BUSINESS_TYPE_LABELS[c.businessType] || c.businessType) : 'Nie podano';
 		const hasCoords = (c.coords.x||c.coords.x===0) && (c.coords.y||c.coords.y===0);
 		const coordsLabel = hasCoords ? `${c.coords.x}, ${c.coords.y}` : 'Brak współrzędnych';
 		const mapLink = c.dimension === 'Overworld' && hasCoords ? `/map/?company=${encodeURIComponent(c.knip)}` : '';
@@ -175,6 +210,7 @@ function renderList(companies){
 			</div>
 			<div class="kf-ids">
 			  <span title="KNIP">KNIP: ${escapeHtml(c.knip || '—')}</span>
+			  <span title="Rodzaj działalności">Rodzaj: ${escapeHtml(businessTypeLabel)}</span>
 			</div>
 		  </div>
 		  <div class="kf-row">
@@ -204,13 +240,15 @@ function renderList(companies){
 
 function applyFilters(){
 	const q = (searchEl?.value || '').trim().toLowerCase();
+	const businessType = businessTypeEl?.value || '';
 	const sym = symbolEl?.value || '';
 	const voiv = voivEl?.value || '';
 	const filtered = state.companies.filter(c => {
+		if(businessType && c.businessType !== businessType) return false;
 		if(sym && !c.symbols.includes(sym)) return false;
 		if(voiv && c.address.voiv !== voiv) return false;
 		if(!q) return true;
-		const hay = [c.name, c.address.city, c.address.voiv, c.address.street, String(c.knip||''), String(c.registrar||''), c.symbols.join(' ')].join(' ').toLowerCase();
+		const hay = [c.name, c.address.city, c.address.voiv, c.address.street, String(c.knip||''), String(c.registrar||''), c.businessType, BUSINESS_TYPE_LABELS[c.businessType] || '', c.symbols.join(' ')].join(' ').toLowerCase();
 		return hay.includes(q);
 	});
 	renderList(filtered);
@@ -222,6 +260,7 @@ function applyFilters(){
 function bindFilters(){
 	let t = null; const DEBOUNCE = 220;
 	searchEl?.addEventListener('input', ()=>{ clearTimeout(t); t = setTimeout(applyFilters, DEBOUNCE); });
+	businessTypeEl?.addEventListener('change', applyFilters);
 	symbolEl?.addEventListener('change', applyFilters);
 	voivEl?.addEventListener('change', applyFilters);
 }
@@ -241,6 +280,7 @@ async function init(){
 		]);
 		state.symbols = new Map((Array.isArray(symbolsRaw)? symbolsRaw : []).map(item => [String(item.symbol||'').trim(), String(item.name||'').trim()]).filter(([k])=> !!k));
 		state.companies = normalizeCompanies(companiesRaw);
+		renderBusinessTypesSelect();
 		renderSymbolsSelect();
 		renderVoivSelect();
 		renderStats();
