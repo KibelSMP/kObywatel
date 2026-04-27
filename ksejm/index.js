@@ -1,8 +1,9 @@
+import { sortByDateDesc } from './sort-utils.js';
+
 const searchEl = document.getElementById('ksejm-search');
 const listEl = document.getElementById('ksejm-list');
 const kindFilters = Array.from(document.querySelectorAll('.ksejm-kind-filter'));
 const categoryFilterEl = document.getElementById('ksejm-category-filter');
-const sortEl = document.getElementById('ksejm-sort');
 
 const detailEmptyEl = document.getElementById('ksejm-detail-empty');
 const detailEl = document.getElementById('ksejm-detail');
@@ -25,7 +26,6 @@ const state = {
   query: '',
   kind: 'all',
   category: 'all',
-  sortBy: 'date_desc',
   selectedId: null
 };
 
@@ -55,6 +55,12 @@ function updateDocParam(docId) {
     url.searchParams.delete('doc');
   }
   window.history.replaceState({}, '', url.toString());
+}
+
+function syncRegisterLinkState() {
+  detailRegisterEl.href = state.registerUrl || '#';
+  detailRegisterEl.classList.toggle('pointer-events-none', !state.registerUrl);
+  detailRegisterEl.classList.toggle('opacity-50', !state.registerUrl);
 }
 
 function stylizeMarkdown(container) {
@@ -90,6 +96,7 @@ async function loadEntries() {
   const data = await response.json();
   state.entries = Array.isArray(data?.entries) ? data.entries : [];
   state.registerUrl = typeof data?.registerUrl === 'string' ? data.registerUrl : '';
+  syncRegisterLinkState();
   hydrateCategoryFilter();
   renderList();
 }
@@ -117,20 +124,7 @@ function getFilteredEntries() {
       return haystack.includes(query);
     });
 
-  filtered.sort((a, b) => {
-    if (state.sortBy === 'date_asc') {
-      return String(a.date || '').localeCompare(String(b.date || ''));
-    }
-    if (state.sortBy === 'title_asc') {
-      return String(a.title || '').localeCompare(String(b.title || ''), 'pl');
-    }
-    if (state.sortBy === 'title_desc') {
-      return String(b.title || '').localeCompare(String(a.title || ''), 'pl');
-    }
-    return String(b.date || '').localeCompare(String(a.date || ''));
-  });
-
-  return filtered;
+  return sortByDateDesc(filtered);
 }
 
 function renderList() {
@@ -182,9 +176,7 @@ async function renderEntry(entry) {
   detailCategoryEl.textContent = entry.category || 'Inne';
   detailTitleEl.textContent = entry.title || entry.id;
   detailDotyczyEl.textContent = entry.dotyczy || 'Brak opisu.';
-  detailRegisterEl.href = state.registerUrl || '#';
-  detailRegisterEl.classList.toggle('pointer-events-none', !state.registerUrl);
-  detailRegisterEl.classList.toggle('opacity-50', !state.registerUrl);
+  syncRegisterLinkState();
 
   markdownEl.innerHTML = '<p class="text-sm text-kodim">Ładowanie treści...</p>';
   closeAttachmentPreview();
@@ -271,11 +263,6 @@ searchEl.addEventListener('input', () => {
 
 categoryFilterEl.addEventListener('change', () => {
   state.category = categoryFilterEl.value;
-  renderList();
-});
-
-sortEl.addEventListener('change', () => {
-  state.sortBy = sortEl.value || 'date_desc';
   renderList();
 });
 

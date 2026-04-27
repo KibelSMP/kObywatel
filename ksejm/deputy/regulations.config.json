@@ -1,12 +1,18 @@
 {
-  "updatedAt": "2026-03-08",
-  "activeRegulationId": "REG-2026-03-08",
+  "updatedAt": "2026-04-26",
+  "activeRegulationId": "REG-2026-04-26",
   "regulations": [
     {
       "id": "REG-2026-03-08",
       "title": "Regulamin Sejmu RPM (08.03.2026)",
       "date": "2026-03-08",
       "url": "docs/Regulamin_Sejmu_RPM_08-03-2026.md"
+    },
+    {
+      "id": "REG-2026-04-26",
+      "title": "Regulamin Sejmu RPM (26.04.2026)",
+      "date": "2026-04-26",
+      "url": "docs/Regulamin_Sejmu_RPM_26-04-2026.md"
     }
   ]
 }

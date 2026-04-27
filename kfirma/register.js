@@ -1,6 +1,11 @@
 const API_SYMBOLS = 'https://raw.githubusercontent.com/KibelSMP/kObywatel-db/refs/heads/main/data/companies_symbols.json';
 const FILE_VERSION = '1.1';
 const DIMENSIONS = ['Overworld', 'Nether', 'The End'];
+const BUSINESS_TYPE_LABELS = {
+	JDG: 'JDG',
+	SPOLKA: 'Spółka'
+};
+const BUSINESS_TYPES = Object.keys(BUSINESS_TYPE_LABELS);
 
 const overlayEl = document.getElementById('kfreg-overlay');
 const overlayCloseBtn = document.getElementById('kfreg-overlay-close');
@@ -32,6 +37,12 @@ function escapeHtml(str){
 function safeFileName(name){
 	const base = simplifyPolish(name || 'firma').toLowerCase().replace(/[^a-z0-9_-]+/g, '_').replace(/_+/g, '_').replace(/^_+|_+$/g, '');
 	return base || 'firma';
+}
+
+function normalizeBusinessType(val){
+	const raw = String(val || '').trim().toUpperCase();
+	if(raw === 'JDG' || raw === 'SPOLKA') return raw;
+	return '';
 }
 
 async function loadSymbols(){
@@ -79,6 +90,13 @@ function readPrefill(){
 		const v = params.get(name);
 		return v === null ? '' : String(v).trim();
 	};
+	const valAny = (...names) => {
+		for(const name of names){
+			const v = val(name);
+			if(v) return v;
+		}
+		return '';
+	};
 	const num = name => {
 		const v = val(name);
 		const n = Number(v);
@@ -91,9 +109,12 @@ function readPrefill(){
 	const symbols = Array.from(new Set(symbolsRaw.map(s => s.trim()).filter(Boolean)));
 	const dimensionParam = val('dimension');
 	const dimension = DIMENSIONS.includes(dimensionParam) ? dimensionParam : '';
+	const businessTypeParam = valAny('businessType', 'business_type', 'legalForm', 'type');
+	const businessType = normalizeBusinessType(businessTypeParam);
 	return {
 		name: val('name'),
 		registrar: num('registrar'),
+		businessType,
 		city: val('city'),
 		voiv: val('voiv'),
 		street: val('street'),
@@ -108,6 +129,7 @@ function applyPrefillBasic(){
 	if(!prefillData) return;
 	if(prefillData.name) form.name.value = prefillData.name;
 	if(Number.isFinite(prefillData.registrar)) form.registrar.value = prefillData.registrar;
+	if(prefillData.businessType) form.businessType.value = prefillData.businessType;
 	if(prefillData.city) form.city.value = prefillData.city;
 	if(prefillData.voiv) form.voiv.value = prefillData.voiv;
 	if(prefillData.street) form.street.value = prefillData.street;
@@ -136,6 +158,7 @@ function collectData(){
 	return {
 		name: form.name?.value.trim() || '',
 		registrar: Number(form.registrar?.value || ''),
+		businessType: normalizeBusinessType(form.businessType?.value),
 		symbols: collectSymbols(),
 		street: form.street?.value.trim() || '',
 		city: form.city?.value.trim() || '',
@@ -151,6 +174,7 @@ function collectData(){
 function validate(data){
 	const errors = [];
 	if(!data.name) errors.push('Podaj nazwę firmy.');
+	if(!data.businessType || !BUSINESS_TYPES.includes(data.businessType)) errors.push('Wybierz rodzaj działalności.');
 	if(!data.symbols.length) errors.push('Wybierz przynajmniej jeden symbol.');
 	if(!Number.isFinite(data.registrar)) errors.push('Podaj poprawny numer registrara.');
 	if(!data.city) errors.push('Podaj miasto.');
@@ -167,6 +191,7 @@ function buildPayload(data){
 	return {
 		version: FILE_VERSION,
 		name: data.name,
+		business_type: data.businessType,
 		symbols: data.symbols,
 		registrar_kesel: data.registrar,
 		location: {
@@ -229,5 +254,7 @@ function bindEvents(){
 
 prefillData = readPrefill();
 applyPrefillBasic();
-loadSymbols();
-bindEvents();
+(async () => {
+	await loadSymbols();
+	bindEvents();
+})();

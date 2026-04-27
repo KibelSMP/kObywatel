@@ -1,3 +1,5 @@
+import { sortByDateDesc } from '../sort-utils.js';
+
 const updatedEl = document.getElementById('deputy-regulations-updated');
 const alertEl = document.getElementById('deputy-regulation-alert');
 const titleEl = document.getElementById('deputy-regulation-title');
@@ -90,10 +92,6 @@ async function loadMarkdown(path) {
   return response.text();
 }
 
-function sortRegulations(regulations) {
-  return [...regulations].sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
-}
-
 function renderRegulationsList(regulations, activeId) {
   if (!listEl) return;
   if (!regulations.length) {
@@ -144,7 +142,7 @@ async function bootstrap() {
     clearAlert();
 
     const config = await loadConfig();
-    const list = Array.isArray(config?.regulations) ? sortRegulations(config.regulations) : [];
+    const list = Array.isArray(config?.regulations) ? sortByDateDesc(config.regulations) : [];
     const activeId = String(config?.activeRegulationId || '');
     const active = list.find((entry) => String(entry?.id || '') === activeId) || list[0];
 

@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-03-08",
+  "updatedAt": "2026-04-27",
   "registerUrl": "https://docs.google.com/spreadsheets/d/10_8fQjtE6gXk-tbOMPjbMjirCEkA5uJf7d2foK_ekOc/",
   "entries": [
     {
@@ -65,6 +65,26 @@
           "url": "docs/Regulamin_Sejmu_RPM_08-03-2026.md"
         }
       ]
+    },
+    {
+      "id": "UST-2026-04-26",
+      "kind": "ustawa",
+      "title": "Ustawa o zasadzie nieretroaktywności prawa",
+      "category": "Legislacja",
+      "dotyczy": "Wprowadza prawo \"lex retro non agit\", czyli że prawo nie może działać wstecz.",
+      "date": "2026-04-26",
+      "contentMd": "docs/Ustawa-o-zasadzie-nieretroaktywności-prawa_26-04-2026.md",
+      "attachments": []
+    },
+    {
+      "id": "UCH-2026-04-26",
+      "kind": "uchwala",
+      "title": "Uchwała o zmianie Regulaminu Sejmu",
+      "category": "Legislacja",
+      "dotyczy": "Zmiana sposobu i okresu ogłoszeń zwołań Posiedzeń Sejmu.",
+      "date": "2026-04-26",
+      "contentMd": "docs/Uchwala-o-zmianie-Regulaminu-Sejmu_26-04-2026.md",
+      "attachments": []
     }
   ]
 }
