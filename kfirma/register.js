@@ -2,8 +2,9 @@ const API_SYMBOLS = 'https://raw.githubusercontent.com/KibelSMP/kObywatel-db/ref
 const FILE_VERSION = '1.1';
 const DIMENSIONS = ['Overworld', 'Nether', 'The End'];
 const BUSINESS_TYPE_LABELS = {
-	JDG: 'JDG',
-	SPOLKA: 'Spółka'
+    JDG: 'Jednoosobowa Działalność Gospodarcza',
+	SPOLKA: 'Spółka Prywatna',
+    PSK: 'Państwowa Spółka Kiblowa'
 };
 const BUSINESS_TYPES = Object.keys(BUSINESS_TYPE_LABELS);
 
@@ -40,9 +41,9 @@ function safeFileName(name){
 }
 
 function normalizeBusinessType(val){
-	const raw = String(val || '').trim().toUpperCase();
-	if(raw === 'JDG' || raw === 'SPOLKA') return raw;
-	return '';
+    const raw = String(val || '').trim().toUpperCase();
+    if(raw === 'JDG' || raw === 'SPOLKA' || raw === 'PSK') return raw;
+    return '';
 }
 
 async function loadSymbols(){

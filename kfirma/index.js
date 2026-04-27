@@ -13,7 +13,8 @@ let modalEl = null;
 
 const BUSINESS_TYPE_LABELS = {
 	JDG: 'JDG',
-	SPOLKA: 'Spółka'
+	SPOLKA: 'Spółka',
+    PSK: 'PSK'
 };
 const BUSINESS_TYPES = Object.keys(BUSINESS_TYPE_LABELS);
 

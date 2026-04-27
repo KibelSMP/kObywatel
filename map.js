@@ -831,7 +831,8 @@ async function ensureShopsLoaded(){
 function normalizeCompanyRecord(item){
   const BUSINESS_TYPE_LABELS = {
     JDG: 'JDG',
-    SPOLKA: 'Spółka'
+	  SPOLKA: 'Spółka',
+    PSK: 'PSK'
   };
   const normalizeBusinessType = (val) => {
     const raw = String(val || '').trim().toUpperCase();
