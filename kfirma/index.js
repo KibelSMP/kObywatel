@@ -17,6 +17,15 @@ const BUSINESS_TYPE_LABELS = {
     PSK: 'PSK'
 };
 const BUSINESS_TYPES = Object.keys(BUSINESS_TYPE_LABELS);
+const BUSINESS_TYPE_ALIASES = {
+	JDG: 'JDG',
+	'JEDNOOSOBOWA DZIALALNOSC GOSPODARCZA': 'JDG',
+	SPOLKA: 'SPOLKA',
+	'SPOLKA PRYWATNA': 'SPOLKA',
+	'PRYWATNA SPOLKA': 'SPOLKA',
+	PSK: 'PSK',
+	'PANSTWOWA SPOLKA KIBLOWA': 'PSK'
+};
 
 const state = {
 	companies: [],
@@ -40,9 +49,15 @@ function cleanField(val){
 	return v === '-' ? '' : v;
 }
 
+function simplifyPolish(str){
+	return String(str || '').normalize('NFD').replace(/\p{Diacritic}+/gu, '').replace(/ł/g,'l').replace(/Ł/g,'L');
+}
+
 function normalizeBusinessType(val){
-	const raw = String(val || '').trim().toUpperCase();
-	if(raw === 'JDG' || raw === 'SPOLKA') return raw;
+	const raw = simplifyPolish(String(val || '')).trim().toUpperCase().replace(/\s+/g, ' ');
+	if(!raw) return '';
+	if(BUSINESS_TYPE_ALIASES[raw]) return BUSINESS_TYPE_ALIASES[raw];
+	if(BUSINESS_TYPES.includes(raw)) return raw;
 	return '';
 }
 
