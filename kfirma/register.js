@@ -7,6 +7,15 @@ const BUSINESS_TYPE_LABELS = {
     PSK: 'Państwowa Spółka Kiblowa'
 };
 const BUSINESS_TYPES = Object.keys(BUSINESS_TYPE_LABELS);
+const BUSINESS_TYPE_ALIASES = {
+	JDG: 'JDG',
+	'JEDNOOSOBOWA DZIALALNOSC GOSPODARCZA': 'JDG',
+	SPOLKA: 'SPOLKA',
+	'SPOLKA PRYWATNA': 'SPOLKA',
+	'PRYWATNA SPOLKA': 'SPOLKA',
+	PSK: 'PSK',
+	'PANSTWOWA SPOLKA KIBLOWA': 'PSK'
+};
 
 const overlayEl = document.getElementById('kfreg-overlay');
 const overlayCloseBtn = document.getElementById('kfreg-overlay-close');
@@ -41,9 +50,22 @@ function safeFileName(name){
 }
 
 function normalizeBusinessType(val){
-    const raw = String(val || '').trim().toUpperCase();
-    if(raw === 'JDG' || raw === 'SPOLKA' || raw === 'PSK') return raw;
+    const raw = simplifyPolish(String(val || '')).trim().toUpperCase().replace(/\s+/g, ' ');
+    if(!raw) return '';
+    if(BUSINESS_TYPE_ALIASES[raw]) return BUSINESS_TYPE_ALIASES[raw];
+    if(BUSINESS_TYPES.includes(raw)) return raw;
     return '';
+}
+
+function renderBusinessTypeOptions(){
+	const select = form?.businessType;
+	if(!select) return;
+	const options = ['<option value="" disabled>Wybierz rodzaj działalności</option>'];
+	BUSINESS_TYPES.forEach(type => {
+		const label = BUSINESS_TYPE_LABELS[type] || type;
+		options.push(`<option value="${escapeHtml(type)}">${escapeHtml(label)}</option>`);
+	});
+	select.innerHTML = options.join('');
 }
 
 async function loadSymbols(){
@@ -254,6 +276,7 @@ function bindEvents(){
 }
 
 prefillData = readPrefill();
+renderBusinessTypeOptions();
 applyPrefillBasic();
 (async () => {
 	await loadSymbols();
