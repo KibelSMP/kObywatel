@@ -1,18 +1,4 @@
-// Fetch utility (statyczne: ładujemy pełny plik i filtrujemy klientem)
-let __playersAll = null;
-async function loadAllPlayers(){
-  if(__playersAll) return __playersAll;
-  try { __playersAll = await window.__db.fetchJson('data/players.json'); }
-  catch(e){ __playersAll = []; }
-  return __playersAll;
-}
-async function fetchPlayers(q = '') {
-  const all = await loadAllPlayers();
-  const term = (q||'').trim().toLowerCase();
-  if(!term) return all;
-  // Filtrowanie: exact match w performSearch, tutaj zwracamy kandydatów
-  return all.filter(p => (p.kesel && String(p.kesel).includes(term)) || (p.nickMinecraft && p.nickMinecraft.toLowerCase().includes(term)));
-}
+// Wyszukiwarka strony głównej (statyczna: ładujemy pełne pliki i filtrujemy klientem).
 
 // --- Map points & lines search (miasta / infrastruktura / etykiety / linie) ---
 let __mapPointsCache = null; // { points: [...], categories: {...}, meta: {...} }
@@ -134,45 +120,12 @@ const form = document.getElementById('search-form');
 const resultsDiv = document.getElementById('results');
 const skeleton = document.getElementById('skeleton');
 const body = document.body;
-const resultsSection = document.getElementById('results-section');
-const formBrowser = document.getElementById('form-browser');
-const formListEl = document.getElementById('form-list');
-const formViewEl = document.getElementById('form-view');
 const homeTilesRoot = document.getElementById('home-tiles-root');
 const homeTilesPrimary = document.querySelector('.home-tiles-primary');
 const homeTilesCompact = document.querySelector('.home-tiles-compact');
-const layoutEditBtn = document.getElementById('layout-edit-btn');
-const layoutEditor = document.getElementById('layout-editor');
-const layoutTilesList = document.getElementById('layout-tiles-list');
-const layoutSearchToggle = document.getElementById('layout-search-toggle');
-const layoutResetBtn = document.getElementById('layout-reset-btn');
-const layoutCloseBtn = document.getElementById('layout-close-btn');
 
-let currentCategory = null;
-let currentForm = null;
-const LAYOUT_STORAGE_KEY = 'kob.home.layout.v1';
-let layoutState = null;
-let layoutDefaultsCache = null;
-const LOCKED_TILES = new Set(['tile-report','tile-creators']);
-
-async function fetchJson(url){
-  const r = await fetch(url);
-  if(!r.ok) throw new Error('Request failed');
-  return r.json();
-}
-
-function showFormBrowser(){
-  if(formBrowser){
-    formBrowser.hidden = false;
-  }
-}
-function hideFormBrowser(){
-  if(formBrowser){
-    formBrowser.hidden = true;
-    formListEl.innerHTML='';
-    formViewEl.innerHTML='';
-    currentCategory=null;currentForm=null;
-  }
+function escapeHtml(str){
+  return String(str).replace(/[&<>"']+/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;' }[c]));
 }
 
 function hideHomeTiles(){
@@ -189,273 +142,11 @@ function showHomeTiles(){
   document.body.removeAttribute('data-home-tiles-hidden');
 }
 
-async function loadCategory(cat){
-  currentCategory = cat;
-  currentForm = null;
-  // Placeholder ukrywamy w mobilnym redesignie – zostanie zastąpiony po wyborze
-  formViewEl.innerHTML = '<div class="form-empty form-placeholder" data-mobile-hide="true">Wybierz formularz...</div>';
-  formListEl.innerHTML = '<div class="form-empty">Ładowanie...</div>';
-  try {
-    const data = await fetchJson(`/api/forms/${encodeURIComponent(cat)}`);
-    if(!data.forms.length){
-      formListEl.innerHTML = '<div class="form-empty">Brak formularzy</div>';
-      return;
-    }
-    formListEl.innerHTML = '';
-    // Dodaj nagłówek zwijany dla mobile
-    const mobileToggle = document.createElement('button');
-    mobileToggle.type='button';
-    mobileToggle.className='form-list-toggle';
-    mobileToggle.setAttribute('aria-expanded','true');
-    mobileToggle.innerHTML = '<span class="flt-label">Formularze</span><span class="flt-state" data-open="Zwiń" data-closed="Pokaż">Zwiń</span>';
-    formListEl.appendChild(mobileToggle);
-    const listBox = document.createElement('div');
-    listBox.className = 'form-list-items';
-    formListEl.appendChild(listBox);
-    data.forms.forEach(f => {
-      const btn = document.createElement('button');
-      btn.className = 'form-item-btn';
-      const display = f.title || f.name || f.slug;
-      btn.textContent = display;
-      btn.setAttribute('data-form', f.slug);
-      btn.addEventListener('click', ()=> selectForm(f.slug, btn));
-      listBox.appendChild(btn);
-    });
-    // Animacje rozwijania/zwijania
-    function collapseList(){
-      if(listBox.hidden) return;
-      const h = listBox.scrollHeight;
-      listBox.style.height = h+'px';
-      listBox.style.opacity = '1';
-      requestAnimationFrame(()=>{
-        listBox.classList.add('animating');
-        listBox.style.height = '0px';
-        listBox.style.opacity = '0';
-      });
-      const end = (e)=>{
-        if(e.propertyName!=='height') return;
-        listBox.hidden = true;
-        listBox.classList.remove('animating');
-        listBox.style.height='';
-        listBox.style.opacity='';
-        listBox.removeEventListener('transitionend', end);
-      };
-      listBox.addEventListener('transitionend', end);
-    }
-    function expandList(){
-      if(!listBox.hidden && !listBox.style.height) return; // już rozwinięta
-      listBox.hidden = false;
-      listBox.style.height = '0px';
-      listBox.style.opacity = '0';
-      const target = listBox.scrollHeight;
-      requestAnimationFrame(()=>{
-        listBox.classList.add('animating');
-        listBox.style.height = target+'px';
-        listBox.style.opacity = '1';
-      });
-      const end = (e)=>{
-        if(e.propertyName!=='height') return;
-        listBox.classList.remove('animating');
-        listBox.style.height='';
-        listBox.style.opacity='';
-        listBox.removeEventListener('transitionend', end);
-      };
-      listBox.addEventListener('transitionend', end);
-    }
-    // Mobile toggle logic (z animacją)
-    mobileToggle.addEventListener('click', ()=>{
-      const expanded = mobileToggle.getAttribute('aria-expanded')==='true';
-      if(expanded){
-        collapseList();
-        mobileToggle.setAttribute('aria-expanded','false');
-      } else {
-        expandList();
-        mobileToggle.setAttribute('aria-expanded','true');
-      }
-      const stateEl = mobileToggle.querySelector('.flt-state');
-      if(stateEl){
-        stateEl.textContent = mobileToggle.getAttribute('aria-expanded')==='true' ? stateEl.getAttribute('data-open') : stateEl.getAttribute('data-closed');
-      }
-    });
-    // Ekspozycja pomocnicza dla selectForm
-    mobileToggle.__collapseList = collapseList;
-    mobileToggle.__expandList = expandList;
-  } catch(e){
-    formListEl.innerHTML = '<div class="form-empty">Błąd ładowania</div>';
-  }
-}
-
-async function selectForm(slug, btnEl){
-  if(!currentCategory) return;
-  currentForm = slug;
-  [...formListEl.querySelectorAll('.form-item-btn')].forEach(b=> b.classList.toggle('active', b===btnEl));
-  formViewEl.innerHTML = '<div class="form-empty">Ładowanie...</div>';
-  // Po wyborze formularza – na mobile zwiń listę
-  const toggleBtn = formListEl.querySelector('.form-list-toggle');
-  const listBox = formListEl.querySelector('.form-list-items');
-  if(toggleBtn && listBox){
-    // Zwiń tylko jeśli toggle jest faktycznie widoczny (mobile) – na desktopie zostaw listę otwartą
-    const toggleVisible = window.getComputedStyle(toggleBtn).display !== 'none';
-    if(toggleVisible){
-      toggleBtn.setAttribute('aria-expanded','false');
-      if(typeof toggleBtn.__collapseList === 'function') toggleBtn.__collapseList(); else { listBox.hidden = true; }
-      const stateEl = toggleBtn.querySelector('.flt-state');
-      if(stateEl){ stateEl.textContent = stateEl.getAttribute('data-closed'); }
-    }
-  }
-  try {
-    const data = await fetchJson(`/api/forms/${encodeURIComponent(currentCategory)}/${encodeURIComponent(slug)}`);
-    const parsed = data.data;
-    const title = parsed?.title || parsed?.name || slug;
-    const description = parsed?.description ? `<p class="form-desc">${escapeHtml(parsed.description)}</p>` : '';
-    const fields = Array.isArray(parsed?.body) ? parsed.body : [];
-    const authMode = (parsed?.auth || 'none').trim();
-    const formId = `dyn-form-${Date.now()}`;
-    const htmlFields = fields.map(block => renderField(block)).join('');
-    // Tożsamość (opcjonalna) – UI tylko gdy auth=optional
-    const identityToggle = authMode === 'optional' ? `<label class="identity-opt"><input type="checkbox" id="identity-toggle" /> <span>Dołącz moją tożsamość</span></label>` : '';
-    const identityInfo = authMode === 'required' ? `<div class="identity-info required">Twoja tożsamość zostanie dołączona do zgłoszenia.</div>` : (authMode === 'none' ? `<div class="identity-info anon">Zgłoszenie będzie anonimowe.</div>` : '<div class="identity-info optional">Możesz zdecydować czy dołączyć tożsamość.</div>');
-  formViewEl.innerHTML = `<h3>${escapeHtml(title)}</h3>${description}<form id="${formId}" class="dynamic-form" novalidate>${htmlFields}<div class="identity-bar">${identityInfo}${identityToggle}</div><div class="form-actions"><button type="submit" class="app-btn submit-btn" disabled>Wyślij</button><div class="submit-extra" role="note">Po kliknięciu „Wyślij” pojawi się prośba o autoryzację.</div></div><div class="form-status" aria-live="polite"></div></form>`;
-    const dynForm = document.getElementById(formId);
-    if(dynForm){
-      const fieldsDef = fields;
-      dynForm.addEventListener('input', ()=>{
-        const allValid = validateDynamicForm(dynForm, fieldsDef);
-        const submit = dynForm.querySelector('.submit-btn');
-        if(submit) submit.disabled = !allValid; 
-      });
-      dynForm.addEventListener('submit', e => {
-        e.preventDefault();
-        const submitBtn = dynForm.querySelector('.submit-btn');
-        const statusEl = dynForm.querySelector('.form-status');
-        if(!submitBtn || submitBtn.disabled) return;
-        const dataOut = collectDynamicFormData(dynForm, fieldsDef);
-        const labelsMap = {};
-        fieldsDef.forEach(f=>{ if(f.id && f.attributes?.label) labelsMap[f.id] = f.attributes.label; });
-        dataOut.internal_labels = labelsMap;
-        const includeIdentity = authMode === 'required' ? true : (authMode === 'optional' ? !!dynForm.querySelector('#identity-toggle')?.checked : false);
-        // Krok 1: rozpocznij reautoryzację
-        submitBtn.disabled = true;
-        submitBtn.textContent = 'Autoryzacja...';
-        statusEl.textContent = '';
-        let challengeId = null;
-        fetch('/api/forms/reauth/begin',{ method:'POST' }).then(r=>r.json()).then(info => {
-          if(!info.challengeId || !info.authUrl) throw new Error('Błąd startu autoryzacji');
-          challengeId = info.challengeId;
-          // Otwórz popup
-          const w = 600, h = 700;
-          const left = window.screenX + Math.max(0,(window.outerWidth - w)/2);
-          const top = window.screenY + Math.max(0,(window.outerHeight - h)/2);
-          const popup = window.open(info.authUrl+'&popup=1','reauth','popup=yes,width='+w+',height='+h+',left='+left+',top='+top);
-          if(!popup){ throw new Error('Nie udało się otworzyć okna – odblokuj popupy'); }
-          // Nasłuch na message (opcjonalny – fallback na polling)
-          let verified = false; let closedInterval=null; let pollInterval=null;
-          function finishIfVerified(){
-            if(!verified) return;
-            clearInterval(pollInterval); clearInterval(closedInterval);
-            statusEl.innerHTML = '<div class="reauth-step"><span class="reauth-info">Autoryzacja zakończona – wysyłam wniosek...</span></div>';
-            submitBtn.textContent = 'Wysyłanie...';
-            // Automatyczna wysyłka po weryfikacji
-            fetch(`/api/forms/${encodeURIComponent(currentCategory)}/${encodeURIComponent(currentForm)}/submit`, {
-              method:'POST',
-              headers:{ 'Content-Type':'application/json' },
-              body: JSON.stringify({ fields: dataOut, includeIdentity, reauthChallenge: challengeId })
-            }).then(async r => {
-              if(!r.ok){
-                const j = await r.json().catch(()=>({error:'Błąd'}));
-                throw new Error(j.error || 'Błąd wysyłki');
-              }
-              return r.json();
-            }).then(resp => {
-              submitBtn.textContent = 'Wysłano';
-              dynForm.classList.add('submitted');
-              statusEl.innerHTML = `<div class=\"status-ok\">Wniosek wysłany (ID: ${escapeHtml(resp.submissionId)}) – oczekuje na decyzję.</div>`;
-              if(typeof refreshSubs === 'function') setTimeout(()=>{ try { refreshSubs(); } catch(_){} }, 200);
-            }).catch(err => {
-              submitBtn.disabled = false;
-              submitBtn.textContent = 'Wyślij ponownie';
-              statusEl.innerHTML = `<div class=\"status-err\">${escapeHtml(err.message||'Błąd wysyłki')}</div>`;
-            });
-          }
-          window.addEventListener('message', ev => {
-            if(ev.data && ev.data.type === 'reauth-complete' && ev.data.challenge === challengeId){
-              verified = true;
-              finishIfVerified();
-            }
-          }, { once:false });
-          // Polling status (fallback jeśli postMessage nie zadziała)
-          pollInterval = setInterval(()=>{
-            fetch(`/api/forms/reauth/status?challenge=${encodeURIComponent(challengeId)}`).then(r=>r.json()).then(s => {
-              if(s.verified){ verified = true; finishIfVerified(); }
-            }).catch(()=>{});
-          }, 1500);
-          closedInterval = setInterval(()=>{ if(popup.closed){ clearInterval(closedInterval); } }, 500);
-        }).catch(err => {
-          submitBtn.disabled = false;
-          submitBtn.textContent = 'Wyślij ponownie';
-          statusEl.innerHTML = `<div class="status-err">${escapeHtml(err.message||'Błąd autoryzacji')}</div>`;
-        });
-      });
-    }
-  } catch(e){
-    formViewEl.innerHTML = '<div class="form-empty">Błąd pobierania formularza</div>';
-  }
-}
-
-function escapeHtml(str){
-  return str.replace(/[&<>"']+/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;' }[c]));
-}
-
-function layoutDefaults(){
-  const domTiles = [...(homeTilesRoot?.querySelectorAll('.tile') || [])]
-    .map(tile=>({ id: tile.id, label: (tile.querySelector('.tile-title')?.textContent || tile.id || '').trim() || tile.id, hidden: false }))
-    .filter(t=> t.id);
-  if(!layoutDefaultsCache){
-    layoutDefaultsCache = { searchHidden: false, tiles: domTiles };
-  } else {
-    const known = new Set(layoutDefaultsCache.tiles.map(t=> t.id));
-    const hasNew = domTiles.some(t=> !known.has(t.id));
-    if(hasNew){
-      const merged = [...layoutDefaultsCache.tiles];
-      domTiles.forEach(t=>{ if(!known.has(t.id)) merged.push(t); });
-      layoutDefaultsCache = { searchHidden: false, tiles: merged };
-    }
-  }
-  return { searchHidden: false, tiles: layoutDefaultsCache.tiles.map(t=> ({ ...t })) };
-}
-
-function normalizeLayout(raw){
-  const base = layoutDefaults();
-  const storedTiles = Array.isArray(raw?.tiles) ? raw.tiles : [];
-  const ordered = [];
-  const available = new Map(base.tiles.map(t=> [t.id, t]));
-  storedTiles.forEach(t=>{
-    if(!t?.id || !available.has(t.id)) return;
-    const ref = available.get(t.id);
-    const locked = LOCKED_TILES.has(ref.id);
-    ordered.push({ id: ref.id, label: ref.label, hidden: locked ? false : !!t.hidden, locked });
-    available.delete(t.id);
-  });
-  available.forEach(t=> ordered.push({ ...t, hidden:false, locked: LOCKED_TILES.has(t.id) }));
-  return { searchHidden: !!raw?.searchHidden, tiles: ordered };
-}
-
-function loadLayoutState(){
-  try {
-    const raw = localStorage.getItem(LAYOUT_STORAGE_KEY);
-    if(!raw) return normalizeLayout({});
-    return normalizeLayout(JSON.parse(raw));
-  } catch(_){
-    return normalizeLayout({});
-  }
-}
-
-function saveLayoutState(state){
-  try { localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(state)); } catch(_){ /* ignore */ }
-}
-
-function applyLayoutState(state, opts={}){
-  const { persist = true, syncUI = true } = opts;
+// --- Zastosowanie zapisanej personalizacji strony głównej (edycja żyje w /settings) ---
+function applyHomeLayout(){
+  if(!window.HomeLayout) return;
+  const state = window.HomeLayout.load();
+  const LOCKED = window.HomeLayout.LOCKED;
   if(homeTilesRoot && homeTilesPrimary && homeTilesCompact){
     const map = new Map([...homeTilesRoot.querySelectorAll('.tile')].map(el=> [el.id, el]));
     const visible = [];
@@ -463,14 +154,14 @@ function applyLayoutState(state, opts={}){
     state.tiles.forEach(tile => {
       const el = map.get(tile.id);
       if(!el) return;
-      const locked = LOCKED_TILES.has(tile.id) || tile.locked;
-      if(locked) tile.hidden = false;
+      const locked = LOCKED.has(tile.id) || tile.locked;
       const isHidden = locked ? false : !!tile.hidden;
       el.dataset.hidden = isHidden ? 'true' : 'false';
       el.style.display = isHidden ? 'none' : '';
       if(isHidden){ hidden.push(el); } else { visible.push(el); }
       map.delete(tile.id);
     });
+    // Kafelki nieobecne w zapisanym stanie (np. nowo dodane) – pokaż na końcu.
     map.forEach(el=>{
       el.dataset.hidden = 'false';
       el.style.display = '';
@@ -479,11 +170,7 @@ function applyLayoutState(state, opts={}){
     const fragPrimary = document.createDocumentFragment();
     const fragCompact = document.createDocumentFragment();
     visible.forEach((el, idx)=>{
-      if(idx < 3){
-        fragPrimary.appendChild(el);
-      } else {
-        fragCompact.appendChild(el);
-      }
+      if(idx < 3){ fragPrimary.appendChild(el); } else { fragCompact.appendChild(el); }
     });
     hidden.forEach(el=> fragCompact.appendChild(el));
     homeTilesPrimary.innerHTML = '';
@@ -496,284 +183,6 @@ function applyLayoutState(state, opts={}){
   } else {
     body.removeAttribute('data-search-hidden');
   }
-  if(persist) saveLayoutState(state);
-  if(syncUI) syncLayoutEditor(state);
-}
-
-function syncLayoutEditor(state){
-  if(layoutSearchToggle){
-    layoutSearchToggle.checked = !state.searchHidden;
-  }
-  if(!layoutTilesList) return;
-  layoutTilesList.innerHTML = state.tiles.map((tile, idx) => {
-    const upDisabled = idx === 0 ? 'disabled' : '';
-    const downDisabled = idx === state.tiles.length - 1 ? 'disabled' : '';
-    const safeLabel = escapeHtml(tile.label || tile.id);
-    const safeId = escapeHtml(tile.id);
-    const upIcon = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 15 12 9 18 15"></polyline></svg>';
-    const downIcon = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>';
-    const locked = LOCKED_TILES.has(tile.id) || tile.locked;
-    const visIcon = locked ? '/icns_ui/visibility_lock.svg' : (tile.hidden ? '/icns_ui/visibility_off.svg' : '/icns_ui/visibility.svg');
-    return `<div class="layout-item" role="listitem" data-tile="${safeId}" data-hidden="${tile.hidden ? '1' : '0'}" data-locked="${locked ? '1' : '0'}">`
-      + `<div class="layout-labels"><div class="layout-title">${safeLabel}</div></div>`
-      + `<div class="layout-actions">`
-      + `<button type="button" class="mini-btn ghost layout-vis-btn" data-tile-vis="${safeId}" data-hidden="${tile.hidden ? '1' : '0'}" data-locked="${locked ? '1' : '0'}" ${locked?'disabled':''} aria-label="${locked ? 'Ten kafelek jest zawsze widoczny' : (tile.hidden ? 'Pokaż' : 'Ukryj') + ' ' + safeLabel}"><img src="${visIcon}" alt="" aria-hidden="true" class="layout-vis-icon" /></button>`
-      + `<div class="layout-move">`
-      + `<button type="button" class="mini-btn ghost" data-move="up" data-tile="${safeId}" ${upDisabled} aria-label="Przesuń ${safeLabel} w górę">${upIcon}</button>`
-      + `<button type="button" class="mini-btn ghost" data-move="down" data-tile="${safeId}" ${downDisabled} aria-label="Przesuń ${safeLabel} w dół">${downIcon}</button>`
-      + `</div>`
-      + `</div>`
-      + `</div>`;
-  }).join('');
-}
-
-function toggleLayoutEditor(open){
-  if(!layoutEditor || !layoutEditBtn) return;
-  const next = open !== undefined ? open : layoutEditor.hidden;
-  layoutEditor.hidden = !next;
-  layoutEditor.dataset.open = next ? 'true' : 'false';
-  layoutEditBtn.setAttribute('aria-expanded', String(!!next));
-  if(next){
-    body.setAttribute('data-layout-open','true');
-  } else {
-    body.removeAttribute('data-layout-open');
-  }
-}
-
-function initLayoutEditor(){
-  if(!homeTilesRoot || !homeTilesPrimary || !homeTilesCompact) return;
-  layoutState = loadLayoutState();
-  applyLayoutState(layoutState, { persist:false });
-  syncLayoutEditor(layoutState);
-  toggleLayoutEditor(false);
-  if(layoutEditBtn && !layoutEditBtn.__bound){
-    layoutEditBtn.__bound = true;
-    layoutEditBtn.addEventListener('click', ()=>{
-      const isOpen = layoutEditBtn.getAttribute('aria-expanded') === 'true';
-      toggleLayoutEditor(!isOpen);
-    });
-  }
-  if(layoutCloseBtn && !layoutCloseBtn.__bound){
-    layoutCloseBtn.__bound = true;
-    layoutCloseBtn.addEventListener('click', ()=> toggleLayoutEditor(false));
-  }
-  if(layoutResetBtn && !layoutResetBtn.__bound){
-    layoutResetBtn.__bound = true;
-    layoutResetBtn.addEventListener('click', ()=>{
-      layoutState = normalizeLayout({});
-      applyLayoutState(layoutState);
-      toggleLayoutEditor(true);
-    });
-  }
-  if(layoutSearchToggle && !layoutSearchToggle.__bound){
-    layoutSearchToggle.__bound = true;
-    layoutSearchToggle.addEventListener('change', ()=>{
-      layoutState.searchHidden = !layoutSearchToggle.checked;
-      applyLayoutState(layoutState);
-    });
-  }
-  if(layoutTilesList && !layoutTilesList.__bound){
-    layoutTilesList.__bound = true;
-    layoutTilesList.addEventListener('click', e => {
-      const moveBtn = e.target.closest('[data-move]');
-      if(moveBtn && layoutState){
-        const id = moveBtn.getAttribute('data-tile');
-        const dir = moveBtn.getAttribute('data-move');
-        const idx = layoutState.tiles.findIndex(t=> t.id === id);
-        if(idx >= 0){
-          if(dir === 'up' && idx > 0){
-            [layoutState.tiles[idx-1], layoutState.tiles[idx]] = [layoutState.tiles[idx], layoutState.tiles[idx-1]];
-            applyLayoutState(layoutState);
-          }
-          if(dir === 'down' && idx < layoutState.tiles.length - 1){
-            [layoutState.tiles[idx+1], layoutState.tiles[idx]] = [layoutState.tiles[idx], layoutState.tiles[idx+1]];
-            applyLayoutState(layoutState);
-          }
-        }
-        return;
-      }
-      const visBtn = e.target.closest('[data-tile-vis]');
-      if(visBtn && layoutState){
-        if(visBtn.disabled || visBtn.getAttribute('data-locked') === '1') return;
-        const id = visBtn.getAttribute('data-tile-vis');
-        const entry = layoutState.tiles.find(t=> t.id === id);
-        if(entry){
-          entry.hidden = !entry.hidden;
-          applyLayoutState(layoutState);
-        }
-      }
-    });
-  }
-  if(layoutEditor && !layoutEditor.__bound){
-    layoutEditor.__bound = true;
-    layoutEditor.addEventListener('keydown', e=>{
-      if(e.key === 'Escape'){
-        toggleLayoutEditor(false);
-        if(layoutEditBtn) layoutEditBtn.focus();
-      }
-    });
-  }
-}
-
-function renderField(block){
-  if(!block || typeof block !== 'object') return '';
-  const type = block.type;
-  const id = block.id || `f-${Math.random().toString(36).slice(2)}`;
-  const attrs = block.attributes || {};
-  const label = attrs.label ? escapeHtml(attrs.label) : id;
-  const required = block.validations?.required ? 'required' : '';
-  const desc = attrs.description ? `<div class="f-help">${escapeHtml(attrs.description)}</div>` : '';
-  const placeholder = attrs.placeholder ? `placeholder="${escapeHtml(attrs.placeholder)}"` : '';
-  const minLength = block.validations?.minLength ? `minlength="${Number(block.validations.minLength)}"` : '';
-  const maxLength = block.validations?.maxLength ? `maxlength="${Number(block.validations.maxLength)}"` : '';
-  const pattern = block.validations?.pattern ? `pattern="${escapeHtml(block.validations.pattern)}"` : '';
-  const value = attrs.value !== undefined ? `value="${escapeHtml(attrs.value)}"` : '';
-  const readonly = block.validations?.readonly ? 'readonly' : '';
-
-  if(type === 'markdown'){
-    const body = attrs.value || attrs.text || block.value || '';
-    return `<div class="f-markdown">${markdownToHtml(body)}</div>`;
-  }
-  if(type === 'input'){
-    return `<div class="f-group"><label for="${id}" class="f-label">${label}${required?'<span class=\"req\">*</span>':''}</label><input id="${id}" name="${id}" type="text" class="f-control" ${placeholder} ${required} ${minLength} ${maxLength} ${pattern} ${value} ${readonly} /></div>${desc}`;
-  }
-  if(type === 'dropdown'){
-    const multiple = attrs.multiple ? 'multiple' : '';
-    const options = (attrs.options||[]).map(o=>{
-      const optLabel = typeof o === 'object' && o !== null ? (o.label||o.value||JSON.stringify(o)) : String(o);
-      const optValue = typeof o === 'object' && o !== null ? (o.value||o.label||optLabel) : String(o);
-      return `<option value="${escapeHtml(String(optValue))}">${escapeHtml(String(optLabel))}</option>`;
-    }).join('');
-    return `<div class="f-group"><label for="${id}" class="f-label">${label}${required?'<span class=\"req\">*</span>':''}${attrs.multiple?'<span class=\"f-multi-info\">(wiele)</span>':''}</label><select id="${id}" name="${id}" class="f-control" ${required} ${multiple}>${options}</select>${desc}</div>`;
-  }
-  if(type === 'textarea'){
-    const val = attrs.value !== undefined ? escapeHtml(attrs.value) : '';
-    return `<div class="f-group"><label for="${id}" class="f-label">${label}${required?'<span class=\"req\">*</span>':''}</label><textarea id="${id}" name="${id}" rows="5" class="f-control" ${placeholder} ${required} ${minLength} ${maxLength} ${readonly}>${val}</textarea>${desc}</div>`;
-  }
-  if(type === 'checkboxes'){
-    const options = (attrs.options||[]).map((o,i)=>{
-      const optLabel = typeof o === 'object' && o !== null ? (o.label||o.value||`Opcja ${i+1}`) : String(o);
-      const optValue = typeof o === 'object' && o !== null ? (o.value||o.label||optLabel) : String(o);
-      const optId = `${id}__${i}`;
-      return `<div class="f-choice"><input type="checkbox" id="${optId}" name="${id}" value="${escapeHtml(optValue)}" class="f-check" /> <label for="${optId}" class="f-choice-label">${escapeHtml(optLabel)}</label></div>`;
-    }).join('');
-    return `<fieldset class="f-group f-group-check" data-field-id="${id}"><legend class="f-label">${label}${required?'<span class=\"req\">*</span>':''}</legend>${options}${desc}</fieldset>`;
-  }
-  return `<div class="f-group"><div class="f-unknown">Nieobsługiwany typ: ${escapeHtml(type||'?')}</div></div>`;
-}
-
-function validateDynamicForm(formEl, fields){
-  return fields.every(f => {
-    // Obsługa readonly: jeśli pole readonly, sprawdź czy wartość nie została zmieniona
-    if(f.validations?.readonly) {
-      const el = formEl.querySelector(`[name="${f.id}"]`);
-      if(!el) return false;
-      let expected = '';
-      if(f.type === 'textarea' || f.type === 'input') {
-        expected = (f.attributes?.value ?? '');
-        if(el.value !== expected) return false;
-      }
-      // inne typy można dodać w razie potrzeby
-    }
-    if(!f.validations?.required) return true;
-    if(f.type === 'checkboxes'){
-      const boxes = formEl.querySelectorAll(`input[type=checkbox][name="${f.id}"]`);
-      return Array.from(boxes).some(b => b.checked);
-    }
-    const el = formEl.querySelector(`[name="${f.id}"]`);
-    if(!el) return false;
-    if(f.type === 'dropdown'){
-      if(el.multiple){
-        return Array.from(el.selectedOptions).length > 0;
-      }
-      return el.value.trim().length > 0;
-    }
-    if(['SELECT','TEXTAREA','INPUT'].includes(el.tagName)){
-      if(el.value.trim().length === 0) return false;
-      if(el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement){
-        if(!el.checkValidity()) return false;
-      }
-      return true;
-    }
-    return true;
-  });
-}
-
-function collectDynamicFormData(formEl, fields){
-  const out = {};
-  fields.forEach(f => {
-    if(f.type === 'checkboxes'){
-      const boxes = formEl.querySelectorAll(`input[type=checkbox][name="${f.id}"]`);
-      out[f.id] = Array.from(boxes).filter(b=>b.checked).map(b=>b.value);
-      return;
-    }
-    const el = formEl.querySelector(`[name="${f.id}"]`);
-    if(!el) return;
-    if(f.type === 'dropdown' && el.multiple){
-      out[f.id] = Array.from(el.selectedOptions).map(o=>o.value);
-    } else {
-      out[f.id] = el.value;
-    }
-  });
-  return out;
-}
-
-// Very light markdown to sanitized HTML (bold, italic, line breaks, lists)
-function markdownToHtml(src=''){
-  let s = escapeHtml(src);
-  s = s.replace(/^### (.*)$/gm,'<h4>$1</h4>')
-       .replace(/^## (.*)$/gm,'<h3>$1</h3>')
-       .replace(/^# (.*)$/gm,'<h2>$1</h2>')
-       .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
-       .replace(/\*(.+?)\*/g,'<em>$1</em>')
-       .replace(/`([^`]+)`/g,'<code>$1</code>');
-  // Lists
-  if(/^[-*] /m.test(s)){
-    s = s.replace(/^(?:[-*] .*(?:\n|$))+?/gm, block => {
-      const items = block.trim().split(/\n/).map(l=>l.replace(/^[-*] /,'').trim()).filter(Boolean);
-      return '<ul>' + items.map(i=>`<li>${i}</li>`).join('') + '</ul>';
-    });
-  }
-  return `<div class="md-block">${s.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,'<br/>')}</div>`;
-}
-
-function buildCard(p){
-  const nickMC = p.nickMinecraft || 'Nieznany';
-  const adresParts = [p.ulica, p.mieszkanie, p.miasto, p.wojewodztwo].filter(Boolean);
-  const adres = adresParts.length ? adresParts.join(', ') : '<span class="empty">–</span>';
-  const coords = (p.x||p.x===0) ? `${p.x} ${p.y} ${p.z}` : '<span class="empty">–</span>';
-  // Konwersja stringu zatrudnienia do linków firmowych (format "Stanowisko Firma" lub "Firma") oddzielone ;
-  let pracaHtml = '<span class="empty">–</span>';
-  if((p.employment||'').trim()){
-    const parts = p.employment.split(/\s*;\s*/).filter(Boolean);
-    pracaHtml = parts.map(seg => {
-      // Spróbuj wydzielić stanowisko (jeśli występuje spacja przed ostatnim słowem, które może być nazwą firmy wielowyrazową – zostaw całość jako firma bez dzielenia)
-      // Prostota: link całego segmentu wyszukuje firmę po fragmencie (pełny segment i fallback ostatnie słowa >=2 znaki)
-      const safe = seg.replace(/</g,'&lt;');
-      const query = encodeURIComponent(seg.trim());
-      return `<button type="button" class="inline-link link-firma" data-q="${query}" title="Pokaż firmę">${safe}</button>`;
-    }).join(', ');
-  }
-  const praca = pracaHtml;
-  const skinUrl = p.uuid ? `/skin/${p.uuid}` : '/logo.png';
-  const mapBtn = (p.x||p.x===0) ? `<div class="field field-map"><div class="label">MAPA</div><div class="value"><button type="button" class="mini-btn icon-btn goto-map" data-x="${p.x}" data-z="${(p.z??p.y) || 0}" data-nick="${nickMC.replace(/"/g,'&quot;')}" aria-label="Pokaż gracza ${nickMC} na mapie"><img src="/icns_ui/map_search.svg" alt="" class="icon" aria-hidden="true"/>Pokaż na mapie</button></div></div>` : '';
-  return `<article class="player-sheet" aria-labelledby="pl-${p.kesel}" tabindex="0">
-    <div class="sheet-grid">
-      <div class="sheet-cols">
-        <div class="field"><div class="label">NICK MINECRAFT</div><div class="value nick" id="pl-${p.kesel}">${nickMC}</div></div>
-        <div class="field"><div class="label">NUMER KESEL</div><div class="value mono">${p.kesel}</div></div>
-        <div class="field"><div class="label">ADRES ZAMIESZKANIA</div><div class="value">${adres}</div></div>
-        <div class="field"><div class="label">KOORDYNATY MIEJSCA ZAMIESZKANIA</div><div class="value">${coords}</div></div>
-        <div class="field"><div class="label">PRACA</div><div class="value">${praca}</div></div>
-        ${mapBtn}
-      </div>
-      <div class="sheet-avatar-wrap">
-        <div class="skin-frame">
-          <img src="${skinUrl}" alt="Twarz skina Minecraft" class="skin-face" loading="lazy"/>
-        </div>
-      </div>
-    </div>
-  </article>`;
 }
 
 function hideSkeleton(){
@@ -789,7 +198,7 @@ function showSkeleton(){
   }
 }
 
-// --- Przywrócone helpery wyszukiwarki punktów / mapy ---
+// --- Helpery wyszukiwarki punktów / mapy ---
 function attachMapButtons(){
   const btns = resultsDiv.querySelectorAll('.goto-map');
   btns.forEach(btn=>{
@@ -878,24 +287,6 @@ function renderPointsList(){
       renderPointsList();
     });
   }
-}
-
-let __companiesAll = null;
-async function loadAllCompanies(){
-  if(__companiesAll) return __companiesAll;
-  try { __companiesAll = await window.__db.fetchJson('data/companies.json'); }
-  catch(e){ __companiesAll = []; }
-  return __companiesAll;
-}
-async function fetchCompanies(q=''){
-  const term = (q||'').trim().toLowerCase(); if(!term) return [];
-  const all = await loadAllCompanies();
-  // Proste filtrowanie: po KNIP, nazwie, mieście
-  return all.filter(c => (c.knip && String(c.knip).includes(term))
-    || (c.nazwa && c.nazwa.toLowerCase().includes(term))
-    || (c.miasto && c.miasto.toLowerCase().includes(term))
-    || (Array.isArray(c.employees) && c.employees.some(e => (e.kesel && String(e.kesel).includes(term)) || (e.nick && e.nick.toLowerCase().includes(term))))
-  );
 }
 
 function render(results){
@@ -990,7 +381,7 @@ function bindSearch(){
   });
 }
 
-initLayoutEditor();
+applyHomeLayout();
 bindSearch();
 // Aktywacja inputu po kliknięciu ikony lupy
 function bindSearchIcon(){
