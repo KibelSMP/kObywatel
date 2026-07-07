@@ -2,33 +2,152 @@
 <html lang="pl">
 <head>
     <meta charset="UTF-8" />
-    <title>Jesteś offline</title>
+    <title>Jesteś offline • kObywatel</title>
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <link rel="apple-touch-icon" href="/assets/apple-touch-icon/apple-touch-icon.png" />
-    <link rel="apple-touch-icon" sizes="57x57" href="/assets/apple-touch-icon/apple-touch-icon-57x57.png" />
-    <link rel="apple-touch-icon" sizes="72x72" href="/assets/apple-touch-icon/apple-touch-icon-72x72.png" />
-    <link rel="apple-touch-icon" sizes="76x76" href="/assets/apple-touch-icon/apple-touch-icon-76x76.png" />
-    <link rel="apple-touch-icon" sizes="114x114" href="/assets/apple-touch-icon/apple-touch-icon-114x114.png" />
-    <link rel="apple-touch-icon" sizes="120x120" href="/assets/apple-touch-icon/apple-touch-icon-120x120.png" />
-    <link rel="apple-touch-icon" sizes="144x144" href="/assets/apple-touch-icon/apple-touch-icon-144x144.png" />
-    <link rel="apple-touch-icon" sizes="152x152" href="/assets/apple-touch-icon/apple-touch-icon-152x152.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/assets/apple-touch-icon/apple-touch-icon-180x180.png" />
     <link rel="manifest" href="/manifest.json" />
-    <link rel="stylesheet" href="/errors.css" />
+    <style>
+        :root {
+            --bg: #0d1117;
+            --elev: #162230;
+            --border: #243244;
+            --text: #e7edf4;
+            --dim: #9fb0c3;
+            --accent: #ac1943;
+            --accent2: #d33f6a;
+        }
+        @media (prefers-color-scheme: light) {
+            :root {
+                --bg: #f4f7fb; --elev: #ffffff; --border: #c4cfde;
+                --text: #16212e; --dim: #54667c;
+            }
+        }
+        * { box-sizing: border-box; }
+        body {
+            font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+            margin: 0; min-height: 100vh;
+            display: flex; align-items: center; justify-content: center;
+            background: radial-gradient(1200px 600px at 50% -10%, color-mix(in srgb, var(--accent) 12%, var(--bg)), var(--bg));
+            color: var(--text); padding: 1.5rem;
+        }
+        main {
+            width: 100%; max-width: 560px; text-align: center;
+        }
+        .badge-wrap { margin: 0 0 1.5rem; line-height: 1; }
+        .badge {
+            display: inline-flex; align-items: center; gap: .5rem;
+            font-size: .7rem; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
+            color: var(--dim); border: 1px solid var(--border);
+            padding: .35rem .7rem; border-radius: 60px;
+        }
+        .badge .pulse {
+            width: 8px; height: 8px; border-radius: 50%; background: var(--accent);
+            box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent);
+            animation: pulse 1.4s ease-in-out infinite;
+        }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+        .logo { display: block; width: 56px; height: 56px; border-radius: 14px; margin: 0 auto 1.1rem; }
+        h1 {
+            font-size: clamp(2rem, 8vw, 3rem); margin: .2rem 0 .6rem; font-weight: 800; letter-spacing: -.5px;
+            background: linear-gradient(90deg, var(--accent), var(--accent2));
+            -webkit-background-clip: text; background-clip: text; color: transparent;
+        }
+        p.lead { color: var(--dim); line-height: 1.55; margin: 0 auto 1.6rem; max-width: 44ch; font-size: .95rem; }
+        .actions { display: flex; flex-wrap: wrap; gap: .7rem; justify-content: center; margin-bottom: .9rem; }
+        .page-links { display: flex; flex-wrap: wrap; gap: .6rem; justify-content: center; margin-bottom: 2rem; }
+        .btn[hidden] { display: none; }
+        .corner-settings {
+            position: fixed; top: 1rem; right: 1rem; z-index: 5;
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 42px; height: 42px; border-radius: 12px;
+            color: var(--text); background: color-mix(in srgb, var(--elev) 70%, transparent);
+            border: 1px solid var(--border); text-decoration: none;
+            transition: border-color .3s, color .3s, transform .4s;
+        }
+        .corner-settings:hover { border-color: var(--accent); color: var(--accent); transform: rotate(35deg); }
+        .corner-settings svg { width: 22px; height: 22px; }
+        .btn {
+            display: inline-flex; align-items: center; gap: .5rem; cursor: pointer;
+            font: inherit; font-weight: 600; font-size: .85rem; text-decoration: none;
+            padding: .8rem 1.35rem; border-radius: 60px; border: 1px solid transparent;
+            transition: transform .3s, filter .3s, border-color .3s, color .3s;
+        }
+        .btn:hover { transform: translateY(-2px); }
+        .btn.primary { background: linear-gradient(135deg, var(--accent), var(--accent2)); color: #fff; box-shadow: 0 8px 24px -10px var(--accent); }
+        .btn.ghost { background: transparent; color: var(--text); border-color: var(--border); }
+        .btn.ghost:hover { border-color: var(--accent); color: var(--accent); }
+        .card {
+            text-align: left; background: color-mix(in srgb, var(--elev) 80%, transparent);
+            border: 1px solid var(--border); border-radius: 18px; padding: 1.1rem 1.2rem;
+        }
+        .card h2 { font-size: .78rem; text-transform: uppercase; letter-spacing: 1px; color: var(--dim); margin: 0 0 .8rem; }
+        ul.features { list-style: none; margin: 0; padding: 0; display: grid; gap: .55rem; }
+        ul.features li { display: flex; align-items: center; gap: .6rem; font-size: .88rem; }
+        ul.features li .mark { flex-shrink: 0; width: 18px; text-align: center; opacity: .8; }
+        ul.features li.ok .mark { color: #2ecc71; }
+        ul.features li.no { color: var(--dim); }
+        small { display: block; margin-top: 1.8rem; font-size: .62rem; letter-spacing: 1px; opacity: .5; text-transform: uppercase; }
+    </style>
 </head>
 
 <body>
+    <a class="corner-settings" href="/settings" aria-label="Ustawienia" title="Ustawienia">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+    </a>
     <main>
+        <img src="/logo.png" alt="" class="logo" onerror="this.style.display='none'" />
+        <div class="badge-wrap"><span class="badge"><span class="pulse"></span> Brak połączenia</span></div>
         <h1>Jesteś offline</h1>
-        <p>Wygląda na to, że nie masz połączenia z internetem.<br>Sprawdź swoje połączenie sieciowe i spróbuj ponownie.</p>
+        <p class="lead">Nie masz teraz połączenia z internetem, więc dane na żywo są niedostępne. Wróć, gdy złapiesz sieć.</p>
+
+        <div class="actions">
+            <button type="button" class="btn primary" id="retry-btn">Spróbuj ponownie</button>
+        </div>
+        <div class="page-links">
+            <a class="btn ghost" href="/ksef">kSeF</a>
+            <a class="btn ghost" href="/kdokumenty">kDokumenty</a>
+            <a class="btn ghost" id="map-link" href="/map" hidden>Mapa</a>
+        </div>
+
+        <div class="card">
+            <h2>Co działa bez internetu</h2>
+            <ul class="features">
+                <li class="ok" id="feat-map"><span class="mark">✓</span> <span>Mapa świata — jeśli pobrano ją w Ustawieniach</span></li>
+                <li class="ok"><span class="mark">✓</span> <span>Ustawienia — personalizacja i mapa offline</span></li>
+                <li class="ok"><span class="mark">✓</span> <span>kSeF — wystawianie faktur</span></li>
+                <li class="ok"><span class="mark">✓</span> <span>kDokumenty — tworzenie dokumentów</span></li>
+            </ul>
+            <h2 style="margin-top:1.1rem">Wymaga połączenia</h2>
+            <ul class="features">
+                <li class="no"><span class="mark">✕</span> <span>kHandel, kWiedza i kSejm</span></li>
+                <li class="no"><span class="mark">✕</span> <span>kFirma</span></li>
+                <li class="no"><span class="mark">✕</span> <span>Podgląd pojazdów na żywo na mapie</span></li>
+            </ul>
+        </div>
+
         <small>kObywatel</small>
     </main>
+
+    <script>
+        // Powrót do aplikacji po odzyskaniu połączenia.
+        window.addEventListener('online', () => { window.location.href = '/'; });
+        document.getElementById('retry-btn').addEventListener('click', () => { window.location.reload(); });
+
+        // Pokaż skrót do mapy tylko, gdy została pobrana offline.
+        (async () => {
+            try {
+                if (!('caches' in window)) return;
+                const cache = await caches.open('kobywatel-map-offline-v1');
+                const page = await cache.match('/map/index.html');
+                if (page) {
+                    const mapLink = document.getElementById('map-link');
+                    if (mapLink) mapLink.hidden = false;
+                    const feat = document.getElementById('feat-map');
+                    if (feat) feat.querySelector('span:last-child').textContent = 'Mapa świata — pobrana i gotowa do użycia';
+                }
+            } catch (_) {}
+        })();
+    </script>
 </body>
-
-<script>
-    window.addEventListener('online', () => {
-        window.location.href = '/';
-    });
-</script>
-
 </html>

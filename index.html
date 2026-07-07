@@ -82,9 +82,9 @@
         <span class="brand-name">kObywatel</span>
       </a>
     <nav class="main-nav" aria-label="Nawigacja">
-      <button type="button" id="layout-edit-btn" class="nav-link edit-layout-btn" aria-expanded="false" aria-controls="layout-editor" aria-label="Edycja" title="Edycja">
-        <img src="/icns_ui/edit.svg" alt="" aria-hidden="true" class="nav-icon" />
-      </button>
+      <a href="/settings" id="settings-link" class="nav-link settings-link" aria-label="Ustawienia" title="Ustawienia">
+        <img src="/icns_ui/settings.svg" alt="" aria-hidden="true" class="nav-icon" />
+      </a>
     </nav>
     </header>
     <main class="app-main">
@@ -197,36 +197,8 @@
           </div>
         </div>
       </div>
-      <section id="layout-editor" class="layout-editor" aria-label="Personalizacja strony głównej" role="dialog" aria-modal="true" hidden>
-        <div class="layout-editor__card">
-          <div class="layout-editor__head">
-            <div class="layout-editor__copy">
-              <p class="layout-editor__eyebrow">Ustawienia</p>
-              <h2 class="layout-editor__title">Personalizuj ekran główny</h2>
-              <p class="layout-editor__desc">Ukryj elementy lub zmień kolejność kafelków.</p>
-            </div>
-            <div class="layout-editor__actions">
-              <button type="button" class="mini-btn ghost" id="layout-reset-btn">Domyślne</button>
-              <button type="button" class="mini-btn layout-close-btn" id="layout-close-btn" aria-label="Zamknij" title="Zamknij">
-                <img src="/icns_ui/close.svg" alt="" aria-hidden="true" class="nav-icon" />
-              </button>
-            </div>
-          </div>
-          <div class="layout-editor__body">
-            <label class="layout-toggle" for="layout-search-toggle">
-              <input type="checkbox" id="layout-search-toggle" checked />
-              <span>Pokazuj pasek wyszukiwania</span>
-            </label>
-            <div class="layout-list" id="layout-tiles-list" role="list" aria-label="Kafelki"></div>
-          </div>
-        </div>
-      </section>
       <section id="results-section" aria-live="polite">
         <div id="results" class="results-grid"></div>
-        <div id="form-browser" class="form-browser" hidden>
-          <div class="form-list" id="form-list" aria-live="polite"></div>
-          <div class="form-view" id="form-view"></div>
-        </div>
         <div id="skeleton" class="skeleton hidden" aria-hidden="true">
           <div class="player-sheet skeleton-shell">
             <div class="sheet-grid">
@@ -252,6 +224,7 @@
       <script>
         window.__db && window.__db.loadConfig && window.__db.loadConfig().catch(()=>{});
       </script>
+      <script src="/home-layout.js"></script>
       <script src="/app.js"></script>
       <script>
         if (typeof navigator.serviceWorker !== 'undefined') {
@@ -260,5 +233,6 @@
       </script>
       <script src="/pwa-links.js" defer></script>
       <script src="/pwa-install.js" defer></script>
+  <script src="/offline-guard.js" defer></script>
 </body>
 </html>

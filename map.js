@@ -385,7 +385,23 @@ function buildTrainToggle(){
   lab.appendChild(beta);
   row.appendChild(cb); row.appendChild(lab);
   container.appendChild(row);
+  // Podgląd pojazdów na żywo wymaga sieci – ukryj przełącznik w trybie offline.
+  applyTrainToggleConnectivity(container);
 }
+
+// Ukrywa przełącznik pojazdów na żywo, gdy urządzenie jest offline (i zatrzymuje polling/audio).
+function applyTrainToggleConnectivity(container){
+  container = container || document.getElementById('train-overlay-toggle');
+  if(!container) return;
+  const offline = !navigator.onLine;
+  container.style.display = offline ? 'none' : '';
+  if(offline){
+    try { stopTrainsPolling(); } catch(_){}
+    if(trainsAudio){ try { trainsAudio.pause(); trainsAudio.currentTime = 0; } catch(_){} }
+  }
+}
+window.addEventListener('online', ()=> applyTrainToggleConnectivity());
+window.addEventListener('offline', ()=> applyTrainToggleConnectivity());
 
 function saveThemeState(){ try { localStorage.setItem('map.theme', currentTheme); } catch(_){} }
 function loadThemeState(){
