@@ -8,7 +8,6 @@ const crosshairEl = document.getElementById('map-crosshair');
 let markersMainLayer = null; // standardowe punkty mapy
 let markersShopsLayer = null; // sklepy kHandel
 let markersCompaniesLayer = null; // firmy kFirma
-let markersTrainsLayer = null; // pociągi na żywo
 const linesCanvas = document.getElementById('lines-layer');
 const linesCtx = linesCanvas ? linesCanvas.getContext('2d') : null;
 const loadingEl = document.getElementById('loading');
@@ -171,32 +170,6 @@ let showCompanies = true;
 let lastCompanyClusteringActive = false;
 let lastCompanyScaleForEval = scale;
 
-// --- Pociągi na żywo ---
-const TRAIN_API_URL = 'https://kibel.killers.dev/api/trains';
-const TRAIN_METADATA_URL = 'https://raw.githubusercontent.com/KibelSMP/kObywatel-db/refs/heads/main/data/trains.json';
-let showTrains = false; // włącznik w legendzie
-let trainsData = []; // Array<{ id,name,x,z }>
-let trainsPollTimer = null;
-// audio for live vehicles
-let trainsAudio = null; // Audio element, created lazily
-let trainsFetchInFlight = false;
-let trainsLastTimestamp = null;
-let trainsRenderRaf = null;
-let trainsStatusEl = null;
-let stationIndex = null; // Map<code, { id, name }>
-let trainMetadata = null; // Map<name, metadata>
-let trainMetadataPromise = null;
-
-function disableTrainsOverlayAction(){
-  showTrains = false;
-  saveLegendState();
-  stopTrainsPolling();
-  buildLegend();
-  buildTrainToggle();
-  buildTrainMarkers();
-  updateTrainStatus(null);
-}
-
 // Snapshot poprzedniego stanu dla animacji
 let previousClusterSnapshot = {
   clusters: new Map(), // key -> { cx, cy, count, members:Set }
@@ -238,11 +211,6 @@ function ensureMarkerSublayers(){
     markersCompaniesLayer.className = 'markers-sub markers-companies';
     markersLayer.appendChild(markersCompaniesLayer);
   }
-  if(!markersTrainsLayer){
-    markersTrainsLayer = document.createElement('div');
-    markersTrainsLayer.className = 'markers-sub markers-trains';
-    markersLayer.appendChild(markersTrainsLayer);
-  }
 }
 
 function clusteringCurrentlyEnabled(){
@@ -283,7 +251,6 @@ function saveLegendState(){
     }
     localStorage.setItem('map.legend.showShops', JSON.stringify(!!showShops));
     localStorage.setItem('map.legend.showCompanies', JSON.stringify(!!showCompanies));
-    localStorage.setItem('map.legend.showTrains', JSON.stringify(!!showTrains));
   } catch(_) {}
 }
 
@@ -334,8 +301,6 @@ function loadLegendState(){
     if(ss !== null){ showShops = !!JSON.parse(ss); found = true; }
     const sc = localStorage.getItem('map.legend.showCompanies');
     if(sc !== null){ showCompanies = !!JSON.parse(sc); found = true; }
-    const st = localStorage.getItem('map.legend.showTrains');
-    if(st !== null){ showTrains = !!JSON.parse(st); found = true; }
   } catch(_) {}
   hasLoadedLegendState = found;
   // Ustal pochodną scaloną
@@ -353,55 +318,6 @@ function applyInitialCategoryVisibility(){
   activeCategories.add('metro');
   activeCategories.add('airport');
 }
-
-// Separate builder for train toggle UI placed below the main legend
-function buildTrainToggle(){
-  const container = document.getElementById('train-overlay-toggle');
-  if(!container) return;
-  container.innerHTML = '';
-  const row = document.createElement('label');
-  row.className = 'legend-item';
-  const cb = document.createElement('input');
-  cb.type = 'checkbox'; cb.style.marginRight = '.35rem'; cb.checked = !!showTrains;
-  cb.addEventListener('change', ()=>{
-    showTrains = cb.checked;
-    saveLegendState();
-    if(showTrains){
-      startTrainsPolling(); scheduleTrainMarkersRender(); updateTrainStatus(null);
-      // play background audio
-      if(!trainsAudio){
-        trainsAudio = new Audio('/assets/pozsbznd.ogg');
-        trainsAudio.loop = false;
-        trainsAudio.volume = 0.3;
-      }
-      trainsAudio.play().catch(()=>{});
-    } else {
-      stopTrainsPolling();
-      if(trainsAudio){ trainsAudio.pause(); trainsAudio.currentTime = 0; }
-    }
-  });
-  const lab = document.createElement('span'); lab.className = 'legend-label'; lab.textContent = 'Podgląd pojazdów na żywo';
-  const beta = document.createElement('span'); beta.className='beta-badge'; beta.textContent='BETA';
-  lab.appendChild(beta);
-  row.appendChild(cb); row.appendChild(lab);
-  container.appendChild(row);
-  // Podgląd pojazdów na żywo wymaga sieci – ukryj przełącznik w trybie offline.
-  applyTrainToggleConnectivity(container);
-}
-
-// Ukrywa przełącznik pojazdów na żywo, gdy urządzenie jest offline (i zatrzymuje polling/audio).
-function applyTrainToggleConnectivity(container){
-  container = container || document.getElementById('train-overlay-toggle');
-  if(!container) return;
-  const offline = !navigator.onLine;
-  container.style.display = offline ? 'none' : '';
-  if(offline){
-    try { stopTrainsPolling(); } catch(_){}
-    if(trainsAudio){ try { trainsAudio.pause(); trainsAudio.currentTime = 0; } catch(_){} }
-  }
-}
-window.addEventListener('online', ()=> applyTrainToggleConnectivity());
-window.addEventListener('offline', ()=> applyTrainToggleConnectivity());
 
 function saveThemeState(){ try { localStorage.setItem('map.theme', currentTheme); } catch(_){} }
 function loadThemeState(){
@@ -458,7 +374,7 @@ function applyTransform(){
   // Aktualizacja klastrów sklepów przy zmianach transformacji
   try { maybeUpdateShopClusters(); } catch(_){ }
   try { maybeUpdateCompanyClusters(); } catch(_){ }
-  try { refreshTrainsAfterTransform(); } catch(_){ }
+  try { scheduleMarkersCullRender(); } catch(_){ }
 }
 // Progi dla podbijania rozdzielczości (wartość scale*dpr)
 const HI_RES_THRESHOLD_2X = 1.15;
@@ -907,97 +823,6 @@ function mapPxToLogical(pxX, pxY){
   return { x: pxX, z: pxY };
 }
 
-function buildStationIndexOnce(){
-  if(stationIndex) return stationIndex;
-  const map = new Map();
-  try {
-    if(Array.isArray(mapData?.points)){
-      mapData.points.forEach(pt => {
-        if(!pt || !pt.id || !pt.name) return;
-        const codeFull = String(pt.id).trim().toUpperCase();
-        const codeShort = codeFull.replace(/^ST[-_]?/,'');
-        if(codeFull) map.set(codeFull, { id: pt.id, name: pt.name });
-        if(codeShort) map.set(codeShort, { id: pt.id, name: pt.name });
-      });
-    }
-  } catch(_){ /* ignore */ }
-  stationIndex = map;
-  return stationIndex;
-}
-
-function lookupTrainMetadata(rawName){
-  if(!trainMetadata || !rawName) return null;
-  const upper = String(rawName).trim().toUpperCase();
-  if(!upper) return null;
-  const candidates = new Set([upper]);
-  const stripped = upper.replace(/\d+$/, '');
-  if(stripped) candidates.add(stripped);
-  for(const key of candidates){
-    if(trainMetadata.has(key)){
-      return trainMetadata.get(key);
-    }
-  }
-  return null;
-}
-
-const TRAIN_CATEGORY_SYMBOLS = {
-  METRO: 'M',
-  METRO_TRAIN: 'M',
-  TRAMWAJ: 'T',
-  REGIO: 'R',
-  IC: 'IC',
-  CARGO: 'A',
-  PROM: 'P',
-  KKL: 'K',
-  KG: 'K',
-  KLL: 'X'
-};
-
-function formatTrainLabel(meta, fallback){
-  if(!meta) return fallback || 'Pociąg';
-  const rawCategory = String(meta.category || '').trim().toUpperCase();
-  const symbol = TRAIN_CATEGORY_SYMBOLS[rawCategory] || rawCategory || 'Pociąg';
-  const connection = String(meta.connection || '').trim() || String(meta.lineNumber || '').trim() || fallback || 'Pociąg';
-  return `[${symbol}] ${connection}`.trim();
-}
-
-async function ensureTrainMetadata(){
-  if(trainMetadata) return trainMetadata;
-  if(trainMetadataPromise) return trainMetadataPromise;
-  trainMetadataPromise = (async ()=>{
-    const res = await fetch(TRAIN_METADATA_URL, { cache:'no-store' });
-    if(!res.ok) throw new Error('HTTP ' + res.status);
-    const json = await res.json();
-    if(!json || typeof json !== 'object') throw new Error('Invalid train metadata');
-    const map = new Map();
-    Object.entries(json).forEach(([key, value])=>{
-      const normalizedKey = String(key || '').trim().toUpperCase();
-      if(!normalizedKey) return;
-      const entry = {
-        category: String(value?.category || '').trim(),
-        connection: String(value?.connection || '').trim(),
-        lineNumber: String(value?.lineNumber || '').trim()
-      };
-      map.set(normalizedKey, entry);
-      const stripped = normalizedKey.replace(/\d+$/, '');
-      if(stripped && stripped !== normalizedKey && !map.has(stripped)){
-        map.set(stripped, entry);
-      }
-    });
-    trainMetadata = map;
-    return map;
-  })().catch(err=>{
-    console.warn('[map] train metadata load failed', err?.message || err);
-    trainMetadata = null;
-    throw err;
-  }).finally(()=>{
-    trainMetadataPromise = null;
-  });
-  return trainMetadataPromise;
-}
-
-
-// --- Pociągi na żywo ---
 function getVisibleMapBoundsPx(margin = 0){
   if(!viewport) return null;
   const left = -originX/scale - margin;
@@ -1007,226 +832,31 @@ function getVisibleMapBoundsPx(margin = 0){
   return { left, top, right, bottom };
 }
 
-function scheduleTrainMarkersRender(){
-  if(trainsRenderRaf) return;
-  trainsRenderRaf = requestAnimationFrame(()=>{
-    trainsRenderRaf = null;
-    buildTrainMarkers();
+// --- Wycinanie markerów spoza widocznego obszaru (punkty/sklepy/firmy) ---
+// Marker + etykieta mają stały rozmiar na ekranie (patrz --ui-scale), więc margines
+// liczony w px mapy musi być podzielony przez scale, inaczej przy oddaleniu byłby
+// za wąski, a przy przybliżeniu niepotrzebnie szeroki.
+const MARKER_CULL_SCREEN_MARGIN = 180;
+function getMarkerCullBounds(){
+  return getVisibleMapBoundsPx(MARKER_CULL_SCREEN_MARGIN / scale);
+}
+function withinCullBounds(bounds, pxX, pxY){
+  if(!bounds) return true;
+  return pxX >= bounds.left && pxX <= bounds.right && pxY >= bounds.top && pxY <= bounds.bottom;
+}
+
+let markersCullRaf = null;
+function scheduleMarkersCullRender(){
+  if(markersCullRaf) return;
+  markersCullRaf = requestAnimationFrame(()=>{
+    markersCullRaf = null;
+    // Nie przebudowuj w trakcie otwartego popovera klastra – rebuild go zamyka (patrz buildMarkers/buildShopMarkers/buildCompanyMarkers)
+    if(clusterPopoverEl) return;
+    try { buildMarkers(); } catch(_){ }
+    try { buildShopMarkers(); } catch(_){ }
+    try { buildCompanyMarkers(); } catch(_){ }
   });
 }
-
-function deriveTrainColorTag(category){
-  if(!category) return 'other';
-  const normalized = String(category || '').trim().toUpperCase();
-  if(normalized === 'IC') return 'ic';
-  if(normalized === 'REGIO') return 'regio';
-  if(normalized === 'METRO') return 'metro';
-  if(normalized === 'TRAMWAJ') return 'tram';
-  return 'other';
-}
-
-function buildTrainMarkers(){
-  ensureMarkerSublayers();
-  if(!markersTrainsLayer) return;
-  if(!showTrains){ markersTrainsLayer.innerHTML=''; updateTrainStatus(null); return; }
-  if(!mapData || !imgWidth || !imgHeight || !viewport){ markersTrainsLayer.innerHTML=''; return; }
-  if(!Array.isArray(trainsData) || trainsData.length === 0){ markersTrainsLayer.innerHTML=''; return; }
-  const bounds = getVisibleMapBoundsPx(32);
-  if(!bounds) return;
-   // Scal etykiety, gdy identyczne pociągi są blisko siebie – wyświetl tylko jedną
-  const labelBuckets = new Map(); // name -> [{x,y}]
-  const LABEL_MERGE_DISTANCE = 14; // px
-  // timestamp not shown in tooltip
-  const updatedLabel = '';
-  const existing = new Map(Array.from(markersTrainsLayer.children || []).map(el => [el.dataset.trainId, el]));
-  for(const t of trainsData){
-    const pos = logicalToPx(t.x, t.z);
-    if(!Number.isFinite(pos.x) || !Number.isFinite(pos.y)) continue;
-    // Wyświetlaj tylko w aktualnie widocznym fragmencie mapy (z niewielkim marginesem)
-    if(pos.x < bounds.left || pos.x > bounds.right || pos.y < bounds.top || pos.y > bounds.bottom) continue;
-    // Ustal, czy etykieta dla tego pociągu powinna być wyświetlona, czy scalona z sąsiednią
-    const display = t.displayName || t.name || 'Pociąg';
-    let showLabel = true;
-    if(display){
-      const bucket = labelBuckets.get(display) || [];
-      const near = bucket.some(p => {
-        const dx = p.x - pos.x; const dy = p.y - pos.y; return (dx*dx + dy*dy) <= (LABEL_MERGE_DISTANCE*LABEL_MERGE_DISTANCE);
-      });
-      if(near){ showLabel = false; }
-      else { bucket.push({ x: pos.x, y: pos.y }); labelBuckets.set(display, bucket); }
-    }
-    // Odrzuć punkty spoza bazowego obszaru mapy (z zapasem)
-    if(pos.x < -120 || pos.x > imgWidth + 120 || pos.y < -120 || pos.y > imgHeight + 120) continue;
-    let wrap = existing.get(t.id);
-    if(wrap){ existing.delete(t.id); }
-    else {
-      wrap = document.createElement('div');
-      wrap.className = 'marker train-marker';
-      const colTag = deriveTrainColorTag(t.meta?.category);
-      wrap.classList.add(`train-${colTag}`);
-      wrap.dataset.trainId = t.id;
-      wrap.dataset.px = String(pos.x);
-      wrap.dataset.py = String(pos.y);
-      const btn = document.createElement('button');
-      btn.className='marker-btn train-btn';
-      btn.title = display;
-      btn.setAttribute('aria-label', display);
-      const label = document.createElement('div'); label.className='marker-label'; label.textContent = display; label.hidden = !showLabel;
-      wrap.appendChild(btn); wrap.appendChild(label);
-      markersTrainsLayer.appendChild(wrap);
-    }
-    // Aktualizuj pozycję (z CSS transition 2s)
-    wrap.style.left = pos.x + 'px';
-    wrap.style.top = pos.y + 'px';
-    wrap.dataset.px = String(pos.x);
-    wrap.dataset.py = String(pos.y);
-    // Aktualizuj tooltip czasu
-    const btnEl = wrap.querySelector('button');
-    if(btnEl){
-      btnEl.title = display;
-      btnEl.setAttribute('aria-label', display);
-    }
-    const labelEl = wrap.querySelector('.marker-label');
-    if(labelEl){ labelEl.hidden = !showLabel; labelEl.textContent = display; }
-  }
-  // Usuń markery, które nie wystąpiły w bieżącej odpowiedzi
-  for(const [,el] of existing){ el.remove(); }
-}
-
-function ensureTrainStatusEl(){
-  if(trainsStatusEl && trainsStatusEl.isConnected) return trainsStatusEl;
-  const el = document.createElement('div');
-  el.className = 'train-status-banner';
-  el.hidden = true;
-  el.setAttribute('role','alert');
-  const inner = document.createElement('div'); inner.className = 'train-status-box';
-  const text = document.createElement('div'); text.className = 'train-status-text';
-  const action = document.createElement('button'); action.type='button'; action.className='train-status-action'; action.textContent='Wyłącz podgląd pociągów';
-  action.addEventListener('click', ()=> disableTrainsOverlayAction());
-  inner.appendChild(text); inner.appendChild(action); el.appendChild(inner);
-  const parent = appRoot || document.body || document.documentElement;
-  parent.appendChild(el);
-  trainsStatusEl = el;
-  return trainsStatusEl;
-}
-
-function updateTrainStatus(message){
-  if(!message){
-    if(trainsStatusEl){ trainsStatusEl.hidden = true; }
-    return;
-  }
-  const el = ensureTrainStatusEl();
-  const textEl = el.querySelector('.train-status-text');
-  if(textEl){ textEl.textContent = message; }
-  el.hidden = false;
-}
-
-function normalizeTrainRecord(raw){
-  if(!raw) return null;
-  const x = Number(raw.x);
-  const z = Number(raw.z ?? raw.y);
-  if(!Number.isFinite(x) || !Number.isFinite(z)) return null;
-  const world = String(raw.world || '').toLowerCase();
-  if(world.includes('nether') || world.includes('the_end')) return null;
-  const id = raw.uuid || `${raw.name || 'train'}|${x}|${z}`;
-  const name = raw.name || 'Pociąg';
-  return { id, name, x, z };
-}
-
-async function fetchTrainsData(){
-  if(!showTrains) return;
-  if(trainsFetchInFlight) return;
-  trainsFetchInFlight = true;
-  try {
-    await ensureTrainMetadata();
-    if(!trainMetadata || !trainMetadata.size){
-      updateTrainStatus('Brak danych etykiet pociągów.');
-      return;
-    }
-    // Ustal bieżące granice widocznego obszaru mapy i wyślij je jako bounding box
-    const boundsPx = getVisibleMapBoundsPx(0);
-    let minx=-100, maxx=100, minz=-100, maxz=100;
-    if(boundsPx){
-      const topLeft = mapPxToLogical(boundsPx.left, boundsPx.top);
-      const bottomRight = mapPxToLogical(boundsPx.right, boundsPx.bottom);
-      minx = Math.min(topLeft.x, bottomRight.x);
-      maxx = Math.max(topLeft.x, bottomRight.x);
-      minz = Math.min(topLeft.z, bottomRight.z);
-      maxz = Math.max(topLeft.z, bottomRight.z);
-    }
-    const params = new URLSearchParams({
-      world: 'world2',
-      minx: Math.floor(minx),
-      maxx: Math.ceil(maxx),
-      minz: Math.floor(minz),
-      maxz: Math.ceil(maxz)
-    });
-    // if zoomed out (scale less than threshold) ask backend to omit duplicates
-    if(typeof scale === 'number' && scale < 3){
-      params.set('nodupe', 'true');
-    }
-    const res = await fetch(`${TRAIN_API_URL}?${params.toString()}`, { cache:'no-store' });
-    if(!res.ok) throw new Error('HTTP '+res.status);
-    const json = await res.json();
-    const rawList = Array.isArray(json) ? json : Array.isArray(json?.minecarts) ? json.minecarts : [];
-    if(!showTrains) return;
-    buildStationIndexOnce();
-    const normalized = rawList
-      .map(raw => {
-        if(raw?.isExpired) return null;
-        const rec = normalizeTrainRecord(raw);
-        if(!rec) return null;
-        const updatedAt = raw?.lastUpdate ? Date.parse(raw.lastUpdate) : null;
-        const metadata = lookupTrainMetadata(rec.name);
-        if(!metadata) return null;
-        const displayName = formatTrainLabel(metadata, raw.name);
-        return { ...rec, updatedAt: Number.isFinite(updatedAt) ? updatedAt : null, meta: metadata, displayName };
-      })
-      .filter(Boolean);
-    trainsData = normalized;
-    const apiTimestamp = typeof json?.timestamp === 'number' ? json.timestamp : null;
-    const latestUpdate = normalized.reduce((max, t)=> Math.max(max, t.updatedAt || 0), 0);
-    trainsLastTimestamp = apiTimestamp || (latestUpdate || Date.now());
-    scheduleTrainMarkersRender();
-    updateTrainStatus(null);
-  } catch(e){
-    console.warn('[map] trains fetch failed', e?.message || e);
-    updateTrainStatus('Nie można załadować danych pociągów.');
-  } finally {
-    trainsFetchInFlight = false;
-  }
-}
-
-function startTrainsPolling(){
-  if(!showTrains) return;
-  if(trainsPollTimer) return;
-  fetchTrainsData();
-  trainsPollTimer = setInterval(()=>{ fetchTrainsData(); }, 2000);
-}
-
-function stopTrainsPolling(clearMarkers = true){
-  if(trainsPollTimer){ clearInterval(trainsPollTimer); trainsPollTimer = null; }
-  if(clearMarkers){
-    trainsData = [];
-    if(markersTrainsLayer) markersTrainsLayer.innerHTML = '';
-  }
-  updateTrainStatus(null);
-}
-
-function refreshTrainsAfterTransform(){
-  if(!showTrains) return;
-  scheduleTrainMarkersRender();
-}
-
-// Wstrzymaj odpytywanie gdy karta jest w tle, wznów po powrocie
-document.addEventListener('visibilitychange', ()=>{
-  if(document.visibilityState === 'hidden'){
-    stopTrainsPolling(false);
-  } else if(showTrains){
-    startTrainsPolling();
-    scheduleTrainMarkersRender();
-  }
-});
 
 function buildShopMarkers(){
   ensureMarkerSublayers();
@@ -1241,23 +871,25 @@ function buildShopMarkers(){
     const screenY = originY + pos.y * scale;
     return { s, pxX: pos.x, pxY: pos.y, screenX, screenY };
   });
+  const cullBounds = getMarkerCullBounds();
+  const culled = cullBounds ? enriched.filter(m => withinCullBounds(cullBounds, m.pxX, m.pxY)) : enriched;
   const clusters=[]; const taken=new Set();
   if(shopsClusteringCurrentlyEnabled()){
     const threshold = CLUSTER_SCREEN_DISTANCE;
-    for(let i=0;i<enriched.length;i++){
+    for(let i=0;i<culled.length;i++){
       if(taken.has(i)) continue;
-      const a = enriched[i]; const group=[i];
-      for(let j=i+1;j<enriched.length;j++){
-        if(taken.has(j)) continue; const b=enriched[j]; const dx=a.screenX-b.screenX, dy=a.screenY-b.screenY; if(dx*dx+dy*dy<=threshold*threshold){ group.push(j); taken.add(j); }
+      const a = culled[i]; const group=[i];
+      for(let j=i+1;j<culled.length;j++){
+        if(taken.has(j)) continue; const b=culled[j]; const dx=a.screenX-b.screenX, dy=a.screenY-b.screenY; if(dx*dx+dy*dy<=threshold*threshold){ group.push(j); taken.add(j); }
       }
       taken.add(i);
-      const members = group.map(k=> enriched[k]);
+      const members = group.map(k=> culled[k]);
       const cx = members.reduce((sum,m)=>sum+m.pxX,0)/members.length;
       const cy = members.reduce((sum,m)=>sum+m.pxY,0)/members.length;
       clusters.push({ members, cx, cy });
     }
   } else {
-    clusters.push(...enriched.map(m=> ({ members:[m], cx:m.pxX, cy:m.pxY })));
+    clusters.push(...culled.map(m=> ({ members:[m], cx:m.pxX, cy:m.pxY })));
   }
   for(const cl of clusters){
     if(cl.members.length === 1){
@@ -1311,23 +943,25 @@ function buildCompanyMarkers(){
     const screenY = originY + pos.y * scale;
     return { c, pxX: pos.x, pxY: pos.y, screenX, screenY };
   });
+  const cullBounds = getMarkerCullBounds();
+  const culled = cullBounds ? enriched.filter(m => withinCullBounds(cullBounds, m.pxX, m.pxY)) : enriched;
   const clusters=[]; const taken=new Set();
   if(companiesClusteringCurrentlyEnabled()){
     const threshold = CLUSTER_SCREEN_DISTANCE;
-    for(let i=0;i<enriched.length;i++){
+    for(let i=0;i<culled.length;i++){
       if(taken.has(i)) continue;
-      const a = enriched[i]; const group=[i];
-      for(let j=i+1;j<enriched.length;j++){
-        if(taken.has(j)) continue; const b=enriched[j]; const dx=a.screenX-b.screenX, dy=a.screenY-b.screenY; if(dx*dx+dy*dy<=threshold*threshold){ group.push(j); taken.add(j); }
+      const a = culled[i]; const group=[i];
+      for(let j=i+1;j<culled.length;j++){
+        if(taken.has(j)) continue; const b=culled[j]; const dx=a.screenX-b.screenX, dy=a.screenY-b.screenY; if(dx*dx+dy*dy<=threshold*threshold){ group.push(j); taken.add(j); }
       }
       taken.add(i);
-      const members = group.map(k=> enriched[k]);
+      const members = group.map(k=> culled[k]);
       const cx = members.reduce((sum,m)=>sum+m.pxX,0)/members.length;
       const cy = members.reduce((sum,m)=>sum+m.pxY,0)/members.length;
       clusters.push({ members, cx, cy });
     }
   } else {
-    clusters.push(...enriched.map(m=> ({ members:[m], cx:m.pxX, cy:m.pxY })));
+    clusters.push(...culled.map(m=> ({ members:[m], cx:m.pxX, cy:m.pxY })));
   }
   for(const cl of clusters){
     if(cl.members.length === 1){
@@ -1552,12 +1186,7 @@ function renderShopOffersInResults(shop, query){
   if(!pointResultsEl || !shop) return;
   const offers = Array.isArray(shop.offers) ? shop.offers : [];
   const q = (query||'').trim().toLowerCase();
-  const filtered = q ? offers.filter(p => {
-    const namePl = (p.productName || p.product?.name || '').toLowerCase();
-    const nameEn = (p.productNameEn || p.product?.nameEn || '').toLowerCase();
-    const notes = (p.notes||'').toLowerCase();
-    return namePl.includes(q) || nameEn.includes(q) || notes.includes(q);
-  }) : offers;
+  const filtered = q ? offers.filter(p => productMatchesQuery(p, q)) : offers;
   pointResultsEl.innerHTML = '';
   const headerWrap = document.createElement('div'); headerWrap.style.display='flex'; headerWrap.style.alignItems='center'; headerWrap.style.justifyContent='space-between'; headerWrap.style.gap='.5rem';
   const heading = document.createElement('div'); heading.className='legend-heading'; heading.style.margin='.2rem 0'; heading.textContent = `Oferty: ${shop.name}${shop.location? ' @ '+shop.location:''}`;
@@ -1657,6 +1286,9 @@ function buildMarkers(){
     return { pt, pxX, pxY, screenX, screenY };
   });
 
+  const cullBounds = getMarkerCullBounds();
+  const culled = cullBounds ? enriched.filter(m => withinCullBounds(cullBounds, m.pxX, m.pxY)) : enriched;
+
   // Przygotuj dane poprzednie (do animacji) – pobieramy referencję, z której będziemy korzystać po renderze
   const prev = previousClusterSnapshot;
 
@@ -1679,20 +1311,20 @@ function buildMarkers(){
     const taken = new Set();
     const dist = CLUSTER_SCREEN_DISTANCE; // w px przy scale=1
     const threshold = dist; // działamy w screen px już przeskalowanych
-    for(let i=0;i<enriched.length;i++){
+    for(let i=0;i<culled.length;i++){
       if(taken.has(i)) continue;
-      const a = enriched[i];
+      const a = culled[i];
       const groupIdx = [i];
-      for(let j=i+1;j<enriched.length;j++){
+      for(let j=i+1;j<culled.length;j++){
         if(taken.has(j)) continue;
-        const b = enriched[j];
+        const b = culled[j];
         const dx = a.screenX - b.screenX; const dy = a.screenY - b.screenY;
         if(dx*dx + dy*dy <= threshold*threshold){
           groupIdx.push(j); taken.add(j);
         }
       }
       taken.add(i);
-      const members = groupIdx.map(k => enriched[k]);
+      const members = groupIdx.map(k => culled[k]);
       // centroid w przestrzeni mapy (px przed skalą) – średnia
       const cx = members.reduce((s,m)=>s+m.pxX,0)/members.length;
       const cy = members.reduce((s,m)=>s+m.pxY,0)/members.length;
@@ -1716,7 +1348,7 @@ function buildMarkers(){
     });
   } else {
     // Brak klastrowania – zwykłe markery
-    enriched.forEach(m => {
+    culled.forEach(m => {
       const el = renderSingleMarker(m.pt, m.pxX, m.pxY);
       newSingles.push({ pt:m.pt, pxX:m.pxX, pxY:m.pxY, el });
     });
@@ -2029,7 +1661,7 @@ function handleSearch(){
         const qn = q;
         const shopMatches = shopsData.filter(s=>{
           const base = `${s.name} ${s.location||''} ${s.owner||''}`.toLowerCase();
-          const offersTxt = (s.offers||[]).map(p=> (p.productName||p.product?.name||p.productNameEn||p.product?.nameEn||p.product?.item||'').toLowerCase()).join(' ');
+          const offersTxt = (s.offers||[]).map(p=> productFallbackName(p).toLowerCase()).join(' ');
           return base.includes(qn) || offersTxt.includes(qn);
         });
         if(shopMatches.length){
@@ -2248,6 +1880,7 @@ function drawLines(fromAnimLoop=false){
   const now = performance.now();
   const pulse = 0.5 + 0.5 * Math.sin(now / 620); // 0..1
   const pendingOverlays = [];
+  const lineCullBounds = getMarkerCullBounds();
   for(const line of list){
     const lineCategory = (line.category||'').toUpperCase();
     const isFlightGroup = /FLIGHT|AIR|LOT/.test(lineCategory);
@@ -2257,6 +1890,18 @@ function drawLines(fromAnimLoop=false){
   const rawSeq = Array.isArray(line.stations) ? line.stations : [];
   const seq = rawSeq.map(s=> typeof s==='string' ? s.replace(/\*$/,'') : s);
     if(seq.length < 2) continue;
+    if(lineCullBounds){
+      let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+      for(const sid of seq){
+        const pt = index.get(sid); if(!pt) continue;
+        const { x, y } = pointToPx(pt);
+        if(x<minX) minX=x; if(y<minY) minY=y; if(x>maxX) maxX=x; if(y>maxY) maxY=y;
+      }
+      // Pomijamy tylko gdy bbox całej linii jest poza paddingiem – nie chcemy przycinać częściowo widocznych tras
+      if(isFinite(minX) && (maxX < lineCullBounds.left || minX > lineCullBounds.right || maxY < lineCullBounds.top || minY > lineCullBounds.bottom)){
+        continue;
+      }
+    }
     const theme = pickTheme();
     const color = (theme==='dark' ? (line.colorDark || line.color) : (line.colorLight || line.color)) || catColors?.[line.category]?.color || '#888';
   const isLegendHover = (highlightedLineId === line.id) || (selectedLineId === line.id);
@@ -2522,7 +2167,6 @@ async function load(){
     lastGeneralShowLines = !!(showRailLines || showFlightLines);
   }
   buildLegend();
-  buildTrainToggle();
   buildLinesLegend();
   // Info bubble: desktop zawsze widoczny, mobile otwierany przyciskiem
   const infoMobileMql = window.matchMedia('(max-width: 860px)');
@@ -2571,7 +2215,6 @@ async function load(){
   ensureTilesContainer();
     // Dopiero teraz budujemy warstwy (znamy środek)
     await fetchLinesData(false);
-  buildStationIndexOnce();
   // Po wczytaniu linii dobuduj sekcję kategorii linii
   buildLegend();
   buildLinesLegend();
@@ -2581,8 +2224,6 @@ async function load(){
   try { if(showShops){ await ensureShopsLoaded(); buildShopMarkers(); } } catch(_){ }
   // Firmy kFirma (jeśli włączone)
   try { if(showCompanies){ await ensureCompaniesLoaded(); buildCompanyMarkers(); } } catch(_){ }
-  // Pociągi na żywo (opcjonalne – tylko po włączeniu w legendzie)
-  try { if(showTrains){ startTrainsPolling(); } } catch(_){ }
     // Fallback gdy viewport ma 0 wysokości (np. brak rozciągnięcia rodzica)
     requestAnimationFrame(()=>{
       const rect = viewport.getBoundingClientRect();

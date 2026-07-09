@@ -168,10 +168,7 @@ function updateStoreFilter(){
 function passSearch(p, q){
   if(!q) return true;
   const ql = q.toLowerCase();
-  const namePl = (p.productName || p.product?.name || '').toLowerCase();
-  const nameEn = (p.productNameEn || p.product?.nameEn || '').toLowerCase();
-  const notesTxt = (p.notes || '').toLowerCase();
-  if(namePl.includes(ql) || nameEn.includes(ql) || notesTxt.includes(ql)) return true;
+  if(productMatchesQuery(p, ql)) return true;
   if(priceSearch){
     return [p.price1, p.price2].some(pr => pr && (
       (pr.name || '').toLowerCase().includes(ql) ||
@@ -519,8 +516,14 @@ async function load(){
     const list = await window.__db.fetchJson('data/khandel-products.json');
     allProducts = Array.isArray(list)? list: [];
     allProducts.sort((a,b)=> getIdentifier(a).localeCompare(getIdentifier(b), 'pl', { sensitivity:'base', numeric:true }));
+    const qParam = new URLSearchParams(window.location.search).get('q');
+    if(qParam){
+      if(searchInput) searchInput.value = qParam;
+      if(mobileSearchInput) mobileSearchInput.value = qParam;
+    }
     updateLocationFilter(); updateStoreFilter(); setGroupMode('none'); updatePriceToggleVisual(); renderAll();
   } catch(e){ emptyEl.hidden=false; emptyEl.textContent='Błąd ładowania produktów: '+e.message; }
 }
 
 attachEvents(); load();
+document.getElementById('back-btn')?.addEventListener('click', () => { window.location.href = '/'; });

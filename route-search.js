@@ -154,11 +154,11 @@ function computeStationGraph(allowedTypes, excludedLines){
 	return adj;
 }
 
-function runDijkstra(src,dst,allowedTypes,excludedLines){
+function runDijkstra(src,dst,allowedTypes,excludedLines,modeOverride){
 	if(src===dst) return null;
 	const adj = computeStationGraph(allowedTypes, excludedLines);
 	if(!adj.has(src) || !adj.has(dst)) return null;
-	const BIG=1000000; const mode=priorityMode();
+	const BIG=1000000; const mode=modeOverride||priorityMode();
 	const weight = (tr,st)=> mode==='stops'? st*BIG+tr : tr*BIG+st;
 	// Kolejka: [w, tr, st, node, prevKey, line, prevReal]
 	const pq = [[weight(0,0),0,0,src,null,null,null]];
@@ -248,11 +248,10 @@ function generateRoutes(src,dst,allowedTypes){
 		const alt = runDijkstra(src,dst,allowedTypes,new Set([ln]));
 		if(alt && !isDuplicate(alt,routes)) routes.push(alt);
 	}
-	// Dodatkowa próba: jeśli priorytet 'transfers', sprawdź wariant 'stops' jako alternatywę (odwróć tryb chwilowo)
+	// Dodatkowa próba: jeśli priorytet 'transfers', dolicz też trasę zoptymalizowaną pod 'stops' jako alternatywę
 	if(priorityMode()==='transfers' && routes.length<5){
-		const originalMode='transfers';
-		// Tymczasowo zmień sposób wyliczania wagi: hack – wywołaj runDijkstra z globalnym przełączeniem? Prościej: policz drugi raz z reinterpretacją wag.
-		// Implementacja uproszczona: nie zmieniamy globalnego priorytetu, bo wpływa na UI; alternatywę uznamy już wygenerowaną powyżej.
+		const altStops = runDijkstra(src,dst,allowedTypes,null,'stops');
+		if(altStops && !isDuplicate(altStops,routes)) routes.push(altStops);
 	}
 	// Posortuj: wg (transfers, steps)
 	routes.sort((a,b)=> a.transfers - b.transfers || a.steps - b.steps);

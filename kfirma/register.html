@@ -45,10 +45,10 @@
           <h1>Rejestracja i eksport</h1>
           <p>Wypełnij dane firmy lub organizacji, wybierz symbole działalności i wygeneruj plik <strong>.kobcomreg</strong>. Po wygenerowaniu pliku wyślij go do <strong>@Miersetnik</strong> na Discordzie.</p>
           <div class="kfreg-actions">
-            <a class="kfreg-btn" href="/kfirma">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
-              Wróć do listy
-            </a>
+            <button type="button" class="kfreg-btn kfreg-btn-ai" id="kfreg-ai-btn">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8"/></svg>
+              Poproś AI o wsparcie
+            </button>
           </div>
         </div>
 
@@ -149,7 +149,22 @@
   </div>
   <script src="/db-adapter.js"></script>
   <script>window.__db && window.__db.loadConfig && window.__db.loadConfig().catch(()=>{});</script>
+  <script src="/utils.js"></script>
   <script type="module" src="/kfirma/register.js"></script>
+  <div class="kfreg-overlay" id="kfreg-ai-overlay" aria-hidden="true">
+    <div class="kfreg-overlay-backdrop"></div>
+    <div class="kfreg-overlay-dialog" role="dialog" aria-modal="true" aria-labelledby="kfreg-ai-overlay-title">
+      <div class="kfreg-overlay-content">
+        <h3 id="kfreg-ai-overlay-title">Poproś AI o wsparcie</h3>
+        <p>Otworzy DuckDuckGo AI Chat z opisem formularza (i danymi, które już wpisano). Po rozmowie z AI wklej wygenerowany przez nie link w przeglądarce, żeby wrócić tutaj z uzupełnionym formularzem.</p>
+        <p><strong>Uwaga:</strong> zapytanie nie wysyła się tam automatycznie — po otwarciu strony musisz samodzielnie nacisnąć Enter albo wysłać wiadomość, żeby AI zaczęło odpowiadać.</p>
+        <div class="kfreg-overlay-actions">
+          <button type="button" class="kfreg-btn ghost" id="kfreg-ai-cancel">Anuluj</button>
+          <button type="button" class="kfreg-btn" id="kfreg-ai-open">Otwórz DuckDuckGo AI Chat</button>
+        </div>
+      </div>
+    </div>
+  </div>
   <div class="kfreg-overlay" id="kfreg-overlay" aria-hidden="true">
     <div class="kfreg-overlay-backdrop"></div>
     <div class="kfreg-overlay-dialog" role="dialog" aria-modal="true" aria-labelledby="kfreg-overlay-title">

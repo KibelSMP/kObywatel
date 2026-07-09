@@ -20,8 +20,6 @@ const state = {
   prev: null
 };
 
-function escapeHtml(s){ return String(s).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[ch])); }
-
 function renderTiles(docs){
   if(!gridEl) return;
   gridEl.innerHTML = '';
@@ -52,47 +50,6 @@ function renderTiles(docs){
     frag.appendChild(tile);
   });
   gridEl.appendChild(frag);
-}
-
-function setBackButtonVisible(visible){
-  if(backBtn){ backBtn.hidden = !visible; }
-}
-
-async function fetchList(){
-  try{
-    const r = await fetch('/assets/docs/index.json', { cache: 'no-store' });
-    if(!r.ok) throw new Error('Nie udało się pobrać index.json');
-    const data = await r.json();
-    // Obsługa skompresowanego schema: dopuszczamy aliasy kluczy
-    // Root: categories | c
-    const categories = Array.isArray(data?.categories) ? data.categories : (Array.isArray(data?.c) ? data.c : null);
-    if(!categories) throw new Error('Niepoprawny format index.json (brak categories)');
-    const flat = [];
-    categories.forEach(cat => {
-      const cname = String((cat && (cat.name ?? cat.n)) || 'Inne').trim();
-      const docsArr = Array.isArray(cat?.docs) ? cat.docs : (Array.isArray(cat?.d) ? cat.d : []);
-      docsArr.forEach(doc => {
-        const slug = String((doc.slug ?? doc.s ?? '')).trim();
-        const title = String((doc.title ?? doc.t ?? slug)).trim();
-        const excerpt = String((doc.excerpt ?? doc.e ?? '')).trim();
-        const author = String((doc.author ?? doc.autor ?? doc.au ?? '')).trim();
-        const fileMd = (doc.md ?? doc.m) ? String(doc.md ?? doc.m) : null;
-        const filePdf = (doc.pdf ?? doc.p) ? String(doc.pdf ?? doc.p) : null;
-        flat.push({
-          slug,
-          title,
-          meta: { category: cname, excerpt, author },
-          excerpt,
-          _fileMd: fileMd,
-          _filePdf: filePdf
-        });
-      });
-    });
-    return flat;
-  } catch(e){
-    console.warn('Błąd pobierania index.json:', e);
-    return [];
-  }
 }
 
 async function fetchDoc(slug){
@@ -183,8 +140,6 @@ function renderMetaChips(meta){
 async function renderDoc(slug){
   state.mode = 'doc';
   state.currentDoc = slug;
-  document.body.setAttribute('data-mode','condensed');
-  setBackButtonVisible(true);
   if(gridEl) gridEl.hidden = true;
   if(contentEl) contentEl.hidden = false;
   contentEl.innerHTML = '<p>Ładowanie...</p>';
@@ -270,10 +225,8 @@ function renderGlobalSearchList(q){
     state.prev = { mode: state.mode, cat: state.currentCategory, doc: state.currentDoc };
     state.searchActive = true;
   }
-  document.body.setAttribute('data-mode','condensed'); // pokaż przycisk wstecz
   if(contentEl){ contentEl.hidden = true; contentEl.innerHTML = ''; }
   if(gridEl){ gridEl.hidden = false; gridEl.innerHTML=''; }
-  setBackButtonVisible(true);
   // Nie zmieniamy state.mode na 'list' ani 'categories' – tworzymy pseudo tryb wyszukiwania; użyjemy 'list' dla logiki back button
   state.mode = 'list';
   state.currentCategory = ''; // globalny zakres
@@ -307,10 +260,8 @@ function renderCategories(){
   const qActive = (searchEl?.value || searchMobileEl?.value || '').trim();
   if(qActive){ return renderGlobalSearchList(qActive); }
   state.mode = 'categories';
-  document.body.removeAttribute('data-mode');
   if(contentEl){ contentEl.hidden = true; contentEl.innerHTML = ''; }
   if(gridEl){ gridEl.hidden = false; gridEl.innerHTML=''; }
-  setBackButtonVisible(false);
   // Dopasuj placeholdery
   if(searchEl){ searchEl.placeholder = 'Szukaj dokumentów…'; }
   if(searchMobileEl){ searchMobileEl.placeholder = 'Szukaj dokumentów…'; }
@@ -341,8 +292,6 @@ function renderDocsList(cat){
   const qActive = (searchEl?.value || searchMobileEl?.value || '').trim();
   if(qActive){ return renderGlobalSearchList(qActive); }
   state.mode = 'list';
-  // Użyj tego samego trybu co widok dokumentu, aby pokazać przycisk wstecz w nagłówku
-  document.body.setAttribute('data-mode','condensed');
   if(contentEl){ contentEl.hidden = true; contentEl.innerHTML = ''; }
   if(gridEl){ gridEl.hidden = false; gridEl.innerHTML=''; }
   const all = state.allDocs.filter(d => getDocCategory(d) === cat);
@@ -350,14 +299,13 @@ function renderDocsList(cat){
   const docs = (!q? all : all.filter(d => (d.title||'').toLowerCase().includes(q) || (d.slug||'').toLowerCase().includes(q)))
     .slice()
     .sort((a,b)=> (a.title||'').localeCompare(b.title||'', 'pl', { sensitivity: 'base' }));
-  setBackButtonVisible(true);
   renderTiles(docs);
   document.title = `kWiedza – ${cat}`;
 }
 
 async function init(){
   try {
-    state.allDocs = await fetchList();
+    state.allDocs = await window.KWiedzaData.fetchDocs();
     const { cat, doc } = parseRoute();
     if(doc){ state.currentCategory = cat || ''; await renderDoc(doc); }
     else if(cat){ navigateToCategory(cat); }
@@ -422,6 +370,7 @@ async function init(){
     });
     backBtn?.addEventListener('click', ()=>{
       if(state.mode==='doc' && state.currentCategory){ navigateToCategory(state.currentCategory); }
+      else if(state.mode==='categories'){ window.location.href = '/'; }
       else { navigateToCategories(); }
     });
   } catch(e){

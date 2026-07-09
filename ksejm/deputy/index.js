@@ -14,10 +14,6 @@ const collapsedHintEl = document.getElementById('deputy-regulation-collapsed-hin
 
 const md = window.markdownit({ html: false, linkify: true, breaks: true });
 
-function escapeHtml(value) {
-  return String(value).replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
-}
-
 function showAlert(message) {
   if (!alertEl) return;
   alertEl.textContent = message;

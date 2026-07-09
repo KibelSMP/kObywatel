@@ -39,7 +39,7 @@ Each top-level feature is an HTML page paired with a same-named JS file; there's
 | `ksejm/deputy/` | — | Deputy-facing regulation viewer/templates (downloadable doc templates, also precached for offline use) |
 | `kfirma/index.html` | `kfirma/index.js` | kFirma — company registry browser |
 | `kfirma/register.html` | `kfirma/register.js` | kFirma — company registration form |
-| `map/index.html` | `map.js` (huge, ~3.9k lines) + `map.css` | Interactive game-world map: pan/zoom, hi-res tile layers (2x/4x, light/dark), point/line markers, live train overlay, kHandel/kFirma marker layers |
+| `map/index.html` | `map.js` (huge, ~3.9k lines) + `map.css` | Interactive game-world map: pan/zoom, hi-res tile layers (2x/4x, light/dark), point/line markers, kHandel/kFirma marker layers |
 | `map/add.html` | — | Embedded Tally form to propose a new map point |
 | `settings.html` | `settings.js` | Home tile personalization (shared `HomeLayout` model) + offline map download management |
 | `report.html`, `creators.html` | — | Static helper pages |
@@ -53,7 +53,8 @@ Each top-level feature is an HTML page paired with a same-named JS file; there's
 
 ## Shared conventions across feature modules
 
-- No framework: plain `document.getElementById`/`querySelector`, manual `innerHTML` templating, hand-rolled `escapeHtml()` re-implemented per file (not shared) — keep matching the local file's escaping helper rather than importing across files.
+- No framework: plain `document.getElementById`/`querySelector`, manual `innerHTML` templating.
+- **Prefer shared helpers over duplicating logic.** When the same fetch/parse/business logic is needed by more than one page (e.g. `kwiedza-data.js`, sharing the `/assets/docs/index.json` fetch+normalize logic between `kwiedza.js` and `app.js`), extract it into its own small `<script>`-included file — following the existing `db-adapter.js`/`home-layout.js` pattern — and include it via a plain (non-module) `<script>` tag before the pages that depend on it, rather than re-implementing the same parsing/fetching in each file. The only exception: don't pull something into a shared file if doing so would force a page to load or offline-precache code/data it doesn't otherwise need and that would be unnecessary bloat — keep shared files narrowly scoped to the actual shared logic.
 - Most feature pages keep a single top-level mutable `state` object and re-render on state change; there's no virtual DOM or diffing.
 - PL/EN toggling where present (e.g. kHandel) is done via a `currentLang` variable persisted to `localStorage` and manual field fallback (`nameEn || namePl`), not i18n library.
 - `home-layout.js` is the single source of truth for the home screen's tile order/visibility, shared by `app.js` (applies it) and `settings.js` (edits it) via `localStorage` key `kob.home.layout.v1`.

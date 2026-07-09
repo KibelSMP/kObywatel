@@ -1,6 +1,3 @@
-const API_COMPANIES = 'https://raw.githubusercontent.com/KibelSMP/kObywatel-db/refs/heads/main/data/companies.json';
-const API_SYMBOLS = 'https://raw.githubusercontent.com/KibelSMP/kObywatel-db/refs/heads/main/data/companies_symbols.json';
-
 const listEl = document.getElementById('kf-list');
 const statusEl = document.getElementById('kf-status');
 const statsEl = document.getElementById('kf-stats');
@@ -39,11 +36,6 @@ function setStatus(msg, kind = ''){
 	statusEl.className = 'kf-status' + (kind ? ' ' + kind : '');
 }
 
-async function fetchJson(url, label){
-	const r = await fetch(url, { cache: 'no-store' });
-	if(!r.ok) throw new Error(`Błąd pobierania ${label || 'danych'} (${r.status})`);
-	return r.json();
-}
 function cleanField(val){
 	const v = String(val || '').trim();
 	return v === '-' ? '' : v;
@@ -122,10 +114,6 @@ function renderVoivSelect(){
 	const list = Array.from(set).sort((a,b)=> a.localeCompare(b,'pl'));
 	const opts = ['<option value="">Dowolne województwo</option>', ...list.map(v=> `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`)];
 	voivEl.innerHTML = opts.join('');
-}
-
-function escapeHtml(str){
-	return String(str||'').replace(/[&<>"']/g, ch => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;' }[ch]));
 }
 
 function renderStats(){
@@ -290,11 +278,13 @@ async function init(){
 		state.loading = true;
 		setStatus('Ładuję dane firm...', 'ok');
 		const [companiesRaw, symbolsRaw] = await Promise.all([
-			fetchJson(API_COMPANIES, 'firm'),
-			fetchJson(API_SYMBOLS, 'symboli')
+			window.__db.fetchJson('data/companies.json'),
+			window.__db.fetchJson('data/companies_symbols.json')
 		]);
 		state.symbols = new Map((Array.isArray(symbolsRaw)? symbolsRaw : []).map(item => [String(item.symbol||'').trim(), String(item.name||'').trim()]).filter(([k])=> !!k));
 		state.companies = normalizeCompanies(companiesRaw);
+		const qParam = new URLSearchParams(window.location.search).get('q');
+		if(qParam && searchEl) searchEl.value = qParam;
 		renderBusinessTypesSelect();
 		renderSymbolsSelect();
 		renderVoivSelect();

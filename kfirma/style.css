@@ -72,6 +72,7 @@ body {
 .kfreg-hero h1 { margin: 0; font-size: 1.7rem; letter-spacing: .45px; }
 .kfreg-hero p { margin: 0; opacity: .86; max-width: 78ch; line-height: 1.45; }
 .kfreg-actions { display: flex; flex-wrap: wrap; gap: .6rem; margin-top: .35rem; }
+.kfreg-btn-ai { font-size: 1rem; padding: .8rem 1.3rem; box-shadow: 0 14px 38px -14px color-mix(in srgb, var(--kf-accent) 85%, transparent); }
 .kfreg-card { background: linear-gradient(150deg, color-mix(in srgb, var(--bg-alt, #101820) 92%, transparent), var(--bg-alt, #101820)); border: 1px solid var(--border, rgba(255,255,255,.08)); border-radius: 18px; padding: 1rem 1.1rem; box-shadow: 0 14px 42px -26px rgba(0,0,0,.8); display: grid; gap: .8rem; }
 .kfreg-grid { display: grid; gap: .75rem; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
 .kfreg-field { display: flex; flex-direction: column; gap: .3rem; }
@@ -108,7 +109,7 @@ body {
 .kfreg-overlay-content { position: relative; padding: 1.2rem 1.2rem 1.1rem; display: grid; gap: .55rem; }
 .kfreg-overlay-content h3 { margin: 0; font-size: 1.1rem; letter-spacing: .35px; }
 .kfreg-overlay-content p { margin: 0; line-height: 1.5; opacity: .9; }
-.kfreg-overlay-actions { display: flex; justify-content: flex-end; margin-top: .2rem; }
+.kfreg-overlay-actions { display: flex; flex-wrap: wrap; gap: .5rem; justify-content: flex-end; margin-top: .2rem; }
 
 .kf-modal { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; padding: 1rem; z-index: 9999; opacity: 0; pointer-events: none; transition: opacity .2s ease-out; }
 .kf-modal.open { opacity: 1; pointer-events: auto; }

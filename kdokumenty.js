@@ -580,3 +580,4 @@ function togglePartyFields(prefix){
 }
 
 bindEvents();
+document.getElementById('back-btn')?.addEventListener('click', () => { window.location.href = '/'; });
