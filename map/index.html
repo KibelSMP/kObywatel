@@ -46,8 +46,6 @@
     </div>
     <div class="map-sidepanel" aria-label="Filtry" id="filters-panel">
       <div class="legend-group" id="legend"></div>
-      <!-- oddzielny przełącznik dla podglądu pociągów -->
-      <div id="train-overlay-toggle" class="train-overlay-toggle"></div>
     </div>
     <div id="search-bubble" class="search-bubble" aria-label="Wyszukiwanie">
       <div class="point-search-section" id="point-search-section">
@@ -146,6 +144,7 @@
   </div>
   <script src="/db-adapter.js"></script>
   <script>window.__db && window.__db.loadConfig && window.__db.loadConfig().catch(()=>{});</script>
+  <script src="/utils.js"></script>
   <script src="/map.js" type="module"></script>
   <script src="/route-search.js" type="module"></script>
   <script src="/offline-guard.js" defer></script>

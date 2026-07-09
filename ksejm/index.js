@@ -31,10 +31,6 @@ const state = {
 
 const md = window.markdownit({ html: false, linkify: true, breaks: true });
 
-function escapeHtml(value) {
-  return String(value).replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
-}
-
 function kindLabel(kind) {
   if (kind === 'ustawa') return 'Ustawa';
   if (kind === 'uchwala') return 'Uchwała';

@@ -29,6 +29,9 @@
 </head>
 <body class="page-creators">
   <header class="app-header">
+    <button type="button" id="back-btn" class="back-btn" aria-label="Powrót" title="Powrót">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+    </button>
     <a class="brand" href="/" aria-label="Strona główna">
       <img src="/logo.png" alt="Logo kObywatel" class="logo no-bg" />
       <span class="brand-name">kObywatel</span>
@@ -38,7 +41,6 @@
     <section class="creators-hero">
       <h1>Twórcy projektu</h1>
       <p>Na tej stronie znajdziesz osoby, które projektują, rozwijają i utrzymują kObywatel.</p>
-      <a href="/" class="back-home">← Wróć na stronę główną</a>
     </section>
     <section aria-labelledby="team-heading">
       <h2 id="team-heading" class="visually-hidden">Zespół</h2>
@@ -49,13 +51,8 @@
           <p class="bio">Pomysłodawca i fundator. Odpowiada za stworzenie aplikacji od podstaw.</p>
         </li>
         <li class="person" role="listitem">
-          <h2>HooeK</h2>
-          <div class="roles"><span>Dane</span></div>
-          <p class="bio">Odpowiada za przetwarzanie danych i zapewnia bazę miast oraz graczy.</p>
-        </li>
-        <li class="person" role="listitem">
           <h2>NKacz</h2>
-          <div class="roles"><span>Dane</span><span>Mapy</span></div>
+          <div class="roles"><span>Mapy</span></div>
           <p class="bio">Udostępnia pliki graficzne map oraz bazy danych stacji i linii.</p>
         </li>
         <li class="person" role="listitem">
@@ -67,6 +64,7 @@
     </section>
     <div class="credits-note">Aplikacja dedykowana graczom KibelSMP. Ikona aplikacji inspirowana logiem serwera.</div>
   </main>
+  <script>document.getElementById('back-btn')?.addEventListener('click', () => { window.location.href = '/'; });</script>
   <script src="/offline-guard.js" defer></script>
 </body>
 </html>

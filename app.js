@@ -115,6 +115,126 @@ function searchMapLines(q){
   return out;
 }
 
+const __MAX_EXT_RESULTS = 30; // limit wyników dla sekcji kHandel/kFirma/kWiedza/kSejm
+
+// --- kHandel search (produkty) ---
+let __khandelCache = null;
+async function fetchKhandelProducts(){
+  if(__khandelCache) return __khandelCache;
+  try {
+    const list = await window.__db.fetchJson('data/khandel-products.json');
+    __khandelCache = Array.isArray(list) ? list : [];
+  } catch(e){
+    console.warn('[search] Nie udało się pobrać khandel-products.json', e);
+    __khandelCache = [];
+  }
+  return __khandelCache;
+}
+function searchKhandelProducts(q){
+  if(!__khandelCache) return [];
+  const term = q.trim().toLowerCase();
+  if(!term) return [];
+  const out = [];
+  for(const p of __khandelCache){
+    if(!p) continue;
+    const name = productFallbackName(p);
+    if(!name) continue;
+    const hay = (name + ' ' + (p.storeName||'')).toLowerCase();
+    if(hay.includes(term)){
+      out.push({ type:'product', name, storeName: p.storeName||'', storeLocation: p.storeLocation||'' });
+      if(out.length >= __MAX_EXT_RESULTS) break;
+    }
+  }
+  return out;
+}
+
+// --- kFirma search (firmy) ---
+let __kfirmaCache = null;
+async function fetchKfirmaCompanies(){
+  if(__kfirmaCache) return __kfirmaCache;
+  try {
+    const list = await window.__db.fetchJson('data/companies.json');
+    __kfirmaCache = Array.isArray(list) ? list : [];
+  } catch(e){
+    console.warn('[search] Nie udało się pobrać companies.json', e);
+    __kfirmaCache = [];
+  }
+  return __kfirmaCache;
+}
+function searchKfirmaCompanies(q){
+  if(!__kfirmaCache) return [];
+  const term = q.trim().toLowerCase();
+  if(!term) return [];
+  const out = [];
+  for(const c of __kfirmaCache){
+    if(!c) continue;
+    const name = String(c.name||'').trim();
+    if(!name) continue;
+    const addr = c.location?.address || {};
+    const city = addr.city || '';
+    const voiv = addr.voivodeship || '';
+    const knip = c.knip != null ? String(c.knip) : '';
+    const hay = [name, city, voiv, knip].join(' ').toLowerCase();
+    if(hay.includes(term)){
+      out.push({ type:'company', name, city, voiv, knip });
+      if(out.length >= __MAX_EXT_RESULTS) break;
+    }
+  }
+  return out;
+}
+
+// --- kWiedza search (dokumenty) ---
+let __kwiedzaCache = null;
+async function fetchKwiedzaDocs(){
+  if(!__kwiedzaCache) __kwiedzaCache = await window.KWiedzaData.fetchDocs();
+  return __kwiedzaCache;
+}
+function searchKwiedzaDocs(q){
+  if(!__kwiedzaCache) return [];
+  const term = q.trim().toLowerCase();
+  if(!term) return [];
+  const out = [];
+  for(const d of __kwiedzaCache){
+    const hay = (d.title + ' ' + (d.excerpt||'')).toLowerCase();
+    if(hay.includes(term)){
+      out.push({ type:'doc', slug: d.slug, title: d.title, category: d.meta?.category || '' });
+      if(out.length >= __MAX_EXT_RESULTS) break;
+    }
+  }
+  return out;
+}
+
+// --- kSejm search (akty) ---
+let __ksejmCache = null;
+async function fetchKsejmActs(){
+  if(__ksejmCache) return __ksejmCache;
+  try {
+    const r = await fetch('/ksejm/data/index.json', { cache: 'no-store' });
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const data = await r.json();
+    __ksejmCache = Array.isArray(data?.entries) ? data.entries : [];
+  } catch(e){
+    console.warn('[search] Nie udało się pobrać ksejm/data/index.json', e);
+    __ksejmCache = [];
+  }
+  return __ksejmCache;
+}
+function searchKsejmActs(q){
+  if(!__ksejmCache) return [];
+  const term = q.trim().toLowerCase();
+  if(!term) return [];
+  const out = [];
+  for(const e of __ksejmCache){
+    if(!e) continue;
+    const hay = [e.title, e.category, e.dotyczy].filter(Boolean).join(' ').toLowerCase();
+    if(hay.includes(term)){
+      out.push({ type:'act', id: e.id, title: e.title || e.id, category: e.category || '' });
+      if(out.length >= __MAX_EXT_RESULTS) break;
+    }
+  }
+  return out;
+}
+
 const queryInput = document.getElementById('query');
 const form = document.getElementById('search-form');
 const resultsDiv = document.getElementById('results');
@@ -123,10 +243,6 @@ const body = document.body;
 const homeTilesRoot = document.getElementById('home-tiles-root');
 const homeTilesPrimary = document.querySelector('.home-tiles-primary');
 const homeTilesCompact = document.querySelector('.home-tiles-compact');
-
-function escapeHtml(str){
-  return String(str).replace(/[&<>"']+/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;' }[c]));
-}
 
 function hideHomeTiles(){
   if(homeTilesRoot){
@@ -289,15 +405,29 @@ function renderPointsList(){
   }
 }
 
+// Buduje sekcję wyników dla źródeł zewnętrznych (kHandel/kFirma/kWiedza/kSejm) — wspólny szablon karty.
+function renderExtSection(items, { cssClass, ariaLabel, label, hrefFn, nameFn, metaFn }){
+  if(!items.length) return '';
+  const rows = items.map(item=>{
+    const meta = metaFn(item);
+    return `<a class="ext-result" href="${hrefFn(item)}"><span class="ext-name">${escapeHtml(nameFn(item))}</span>${meta?`<span class="ext-meta">${escapeHtml(meta)}</span>`:''}</a>`;
+  }).join('');
+  return `<section class="res-block ${cssClass}" aria-label="${ariaLabel}"><h3 class="res-head">${label} (${items.length})</h3><div class="ext-container">${rows}</div></section>`;
+}
+
 function render(results){
-  const { query, pointMatches, lineMatches } = results;
+  const { query, pointMatches, lineMatches, productMatches, companyMatches, docMatches, actMatches } = results;
   __allPointMatches = pointMatches || [];
   __pointsShown = Math.min(__pointsPageSize, __allPointMatches.length);
   __lineMatches = lineMatches || [];
+  const products = productMatches || [];
+  const companies = companyMatches || [];
+  const docs = docMatches || [];
+  const acts = actMatches || [];
   if(!query && !pointMatches.length){
     resultsDiv.innerHTML=''; hideSkeleton(); return;
   }
-  if(!pointMatches.length && !__lineMatches.length){
+  if(!pointMatches.length && !__lineMatches.length && !products.length && !companies.length && !docs.length && !acts.length){
     resultsDiv.innerHTML = `<div class="empty">Brak wyników dla: <strong>${query}</strong></div>`;
     hideSkeleton(); return;
   }
@@ -331,6 +461,27 @@ function render(results){
     }).join('');
     html += `<section class="res-block res-lines" aria-label="Linie"><h3 class="res-head">Linie (${__lineMatches.length})</h3><div class="lines-container">${items}</div></section>`;
   }
+  // --- Produkty / Firmy / Dokumenty / Akty (kHandel / kFirma / kWiedza / kSejm) ---
+  html += renderExtSection(products, { cssClass:'res-products', ariaLabel:'Produkty', label:'Produkty – kHandel',
+    hrefFn: p=> `/khandel?q=${encodeURIComponent(p.name)}`,
+    nameFn: p=> p.name,
+    metaFn: p=> [p.storeName, p.storeLocation].filter(Boolean).join(' • ')
+  });
+  html += renderExtSection(companies, { cssClass:'res-companies', ariaLabel:'Firmy', label:'Firmy – kFirma',
+    hrefFn: c=> `/kfirma/?q=${encodeURIComponent(c.name)}`,
+    nameFn: c=> c.name,
+    metaFn: c=> [c.city, c.voiv].filter(Boolean).join(', ')
+  });
+  html += renderExtSection(docs, { cssClass:'res-docs', ariaLabel:'Dokumenty', label:'Dokumenty – kWiedza',
+    hrefFn: d=> `/kwiedza?doc=${encodeURIComponent(d.slug)}&cat=${encodeURIComponent(d.category||'')}`,
+    nameFn: d=> d.title,
+    metaFn: d=> d.category || ''
+  });
+  html += renderExtSection(acts, { cssClass:'res-acts', ariaLabel:'Akty', label:'Akty – kSejm',
+    hrefFn: a=> `/ksejm/?doc=${encodeURIComponent(a.id)}`,
+    nameFn: a=> a.title,
+    metaFn: a=> a.category || ''
+  });
   resultsDiv.innerHTML = html;
   hideSkeleton();
   attachMapButtons();
@@ -354,10 +505,14 @@ function startSearch(q){
   // Aktywne wyszukiwanie – ukryj kafelki
   hideHomeTiles();
   showSkeleton();
-  Promise.all([fetchMapPoints(), fetchMapLines()]).then(()=>{
+  Promise.all([fetchMapPoints(), fetchMapLines(), fetchKhandelProducts(), fetchKfirmaCompanies(), fetchKwiedzaDocs(), fetchKsejmActs()]).then(()=>{
     const pointMatches = searchMapPoints(term);
     const lineMatches = searchMapLines(term);
-    render({ query: escapeHtml(term), pointMatches, lineMatches });
+    const productMatches = searchKhandelProducts(term);
+    const companyMatches = searchKfirmaCompanies(term);
+    const docMatches = searchKwiedzaDocs(term);
+    const actMatches = searchKsejmActs(term);
+    render({ query: escapeHtml(term), pointMatches, lineMatches, productMatches, companyMatches, docMatches, actMatches });
     body.setAttribute('data-mode','condensed');
     // Nie pokazuj kafelków dopóki jest aktywny termin
   }).catch(()=>{
@@ -392,3 +547,10 @@ function bindSearchIcon(){
   icon.addEventListener('keydown', e => { if(e.key==='Enter' || e.key===' '){ e.preventDefault(); focusInput(); } });
 }
 bindSearchIcon();
+
+// Przycisk Wstecz na stronie głównej: czyści aktywne wyszukiwanie
+// i przywraca układ kafelków sprzed wyszukiwania.
+document.getElementById('back-btn')?.addEventListener('click', () => {
+  if(queryInput) queryInput.value = '';
+  startSearch('');
+});

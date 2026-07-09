@@ -706,7 +706,7 @@ body::before {
 }
 
 .back-btn {
-	display: none;
+	display: inline-flex;
 	align-items: center;
 	justify-content: center;
 	width: 36px;
@@ -731,7 +731,12 @@ body::before {
 	transform: scale(.92);
 }
 
-body[data-mode="condensed"] .back-btn {
+/* Na stronie głównej przycisk pojawia się tylko podczas aktywnego wyszukiwania. */
+body.page-home .back-btn {
+	display: none;
+}
+
+body.page-home[data-mode="condensed"] .back-btn {
 	display: inline-flex;
 	animation: backIn .55s cubic-bezier(.65, .02, .35, 1);
 }
@@ -2677,7 +2682,7 @@ body[data-mode="condensed"] #results-section {
 	}
 
 	/* Ikony UI (edycja układu, widoczność, otwieranie w nowej karcie) przyciemniamy w jasnym motywie */
-	.nav-icon,
+	.nav-link .nav-icon,
 	.layout-vis-icon,
 	.home-tiles-compact .tile>.ext-badge {
 		filter: brightness(0) saturate(100%);
@@ -2827,17 +2832,19 @@ body[data-home-tiles-hidden="true"] .home-tiles-root {
 	}
 }
 
-/* --- Wyniki wyszukiwania: Linie --- */
-.res-lines .lines-container {
+/* --- Wyniki wyszukiwania: Linie / kHandel / kFirma / kWiedza / kSejm --- */
+.res-lines .lines-container,
+.ext-container {
 	display: flex;
 	flex-direction: column;
 	gap: .4rem;
 	margin-top: .35rem;
 }
 
-.line-result {
-	background: var(--c-bg-alt, #101317);
-	border: 1px solid rgba(255, 255, 255, 0.06);
+.line-result,
+.ext-result {
+	background: var(--bg-alt);
+	border: 1px solid var(--border);
 	border-radius: .4rem;
 	padding: .45rem .55rem;
 	font-size: .62rem;
@@ -2851,24 +2858,41 @@ body[data-home-tiles-hidden="true"] .home-tiles-root {
 	flex-wrap: wrap;
 }
 
+.ext-result {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: .45rem;
+	flex-wrap: wrap;
+	text-decoration: none;
+	color: inherit;
+}
+
 .line-result .lr-color {
 	width: .9rem;
 	height: .9rem;
 	border-radius: 50%;
-	box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.15) inset;
+	box-shadow: 0 0 0 1px var(--border) inset;
 	flex: 0 0 .9rem;
 }
 
-.line-result .lr-name {
+.line-result .lr-name,
+.ext-result .ext-name {
 	font-weight: 600;
 	letter-spacing: .25px;
 }
 
-.line-result .lr-cat {
-	background: rgba(255, 255, 255, 0.08);
+.line-result .lr-cat,
+.ext-result .ext-meta {
+	background: var(--bg-elev);
+	color: var(--text-dim);
 	padding: .15rem .4rem;
 	border-radius: 1rem;
 	font-size: .55rem;
+	letter-spacing: .25px;
+}
+
+.line-result .lr-cat {
 	text-transform: uppercase;
 	letter-spacing: .5px;
 }
@@ -2878,8 +2902,9 @@ body[data-home-tiles-hidden="true"] .home-tiles-root {
 }
 
 @media (hover:hover) {
-	.line-result:hover {
-		border-color: rgba(255, 255, 255, 0.18);
+	.line-result:hover,
+	.ext-result:hover {
+		border-color: var(--accent);
 	}
 }
 
@@ -3513,26 +3538,6 @@ body[data-home-tiles-hidden="true"] .home-tiles-root {
 	opacity: .85;
 }
 
-.page-creators .back-home {
-	display: inline-flex;
-	align-items: center;
-	gap: .55rem;
-	font-size: .7rem;
-	font-weight: 600;
-	letter-spacing: .6px;
-	text-decoration: none;
-	padding: .65rem 1rem;
-	border: 1px solid var(--border);
-	border-radius: 18px;
-	background: var(--bg-elev);
-	transition: .35s;
-	color: var(--text);
-}
-
-.page-creators .back-home:hover {
-	border-color: var(--accent);
-}
-
 .page-creators .credits-note {
 	font-size: .6rem;
 	text-align: center;
@@ -3564,32 +3569,6 @@ body[data-home-tiles-hidden="true"] .home-tiles-root {
 	border: 0;
 }
 
-/* Back button visible & neutral on creators page */
-.page-creators .back-btn {
-	display: inline-flex;
-	background: var(--bg-elev);
-	border: 1px solid var(--border);
-	color: var(--text);
-	width: 40px;
-	height: 40px;
-	margin-right: .85rem;
-}
-
-.page-creators .back-btn::after {
-	background: radial-gradient(circle at 30% 30%, var(--accent-glow), transparent 65%);
-}
-
-.page-creators .back-btn:hover {
-	border-color: var(--accent);
-}
-
-.page-creators .back-btn:active {
-	transform: scale(.92);
-}
-
-.page-creators .back-btn span {
-	display: none;
-}
 /* ============================================================
  *  Nagłówkowy przycisk Ustawień (strona główna)
  * ============================================================ */
@@ -3635,22 +3614,6 @@ body[data-home-tiles-hidden="true"] .home-tiles-root {
 	font-size: .92rem;
 	line-height: 1.5;
 	color: var(--text-dim);
-}
-
-.page-settings .back-home {
-	display: inline-flex;
-	align-items: center;
-	gap: .35rem;
-	font-size: .8rem;
-	font-weight: 600;
-	color: var(--text-dim);
-	text-decoration: none;
-	padding: .35rem 0;
-	transition: color .3s;
-}
-
-.page-settings .back-home:hover {
-	color: var(--accent);
 }
 
 .settings-card {

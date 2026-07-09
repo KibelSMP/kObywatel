@@ -173,10 +173,6 @@ function renderEntries() {
   }).join('');
 }
 
-function escapeHtml(value) {
-  return String(value).replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
-}
-
 function bindGlobalInputs() {
   updatedAtEl.addEventListener('input', () => {
     state.updatedAt = updatedAtEl.value || '';

@@ -52,8 +52,15 @@
 <body class="min-h-screen bg-kobg text-kotext">
   <main class="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
     <header class="mb-4 rounded-2xl border border-koborder bg-koelev p-4">
-      <h1 class="text-xl font-bold">kSejm – Edytor index.json</h1>
-      <p class="mt-1 text-sm text-kodim">Narzędzie techniczne. Strona nie jest podlinkowana w nawigacji.</p>
+      <div class="flex items-center gap-3">
+        <a href="/ksejm/" class="inline-flex h-9 w-9 flex-none items-center justify-center rounded-xl border border-koborder bg-koelev2 text-kotext transition hover:border-koaccent/80 hover:text-white" aria-label="Powrót do kSejm">
+          <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6" /></svg>
+        </a>
+        <div>
+          <h1 class="text-xl font-bold">kSejm – Edytor index.json</h1>
+          <p class="mt-1 text-sm text-kodim">Narzędzie techniczne. Strona nie jest podlinkowana w nawigacji.</p>
+        </div>
+      </div>
     </header>
 
     <section class="rounded-2xl border border-koborder bg-koelev p-4">
@@ -88,6 +95,7 @@
     </section>
   </main>
 
+  <script src="/utils.js"></script>
   <script type="module" src="/ksejm/editor.js"></script>
   <script src="/offline-guard.js" defer></script>
 </body>
