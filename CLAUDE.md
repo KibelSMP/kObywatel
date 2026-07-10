@@ -35,7 +35,6 @@ Each top-level feature is an HTML page paired with a same-named JS file; there's
 | `kdokumenty.html` | `kdokumenty.js` | kDokumenty — generates PDFs client-side via jsPDF |
 | `ksef.html` | `ksef.js` | kSeF — generates invoice PDFs (jsPDF + barcode font) |
 | `ksejm/index.html` | `ksejm/index.js` (+ `sort-utils.js`) | kSejm — browse resolutions/statutes (acts), markdown rendering via markdown-it |
-| `ksejm/editor.html` | `ksejm/editor.js` | kSejm editor/authoring view for acts |
 | `ksejm/deputy/` | — | Deputy-facing regulation viewer/templates (downloadable doc templates, also precached for offline use) |
 | `kfirma/index.html` | `kfirma/index.js` | kFirma — company registry browser |
 | `kfirma/register.html` | `kfirma/register.js` | kFirma — company registration form |
