@@ -42,12 +42,12 @@ Each top-level feature is an HTML page paired with a same-named JS file; there's
 | `map/add.html` | — | Embedded Tally form to propose a new map point |
 | `settings.html` | `settings.js` | Home tile personalization (shared `HomeLayout` model) + offline map download management |
 | `report.html`, `creators.html` | — | Static helper pages |
-| `403.html`, `404.html`, `500.html`, `offline.html` | — | Error / offline fallback pages, precached by the service worker |
+| `403.html`, `404.html`, `500.html`, `offline.html` | — | Error / offline fallback pages; `offline.html` is always precached by the service worker |
 
 ## PWA / offline behavior
 
-- `sw.js` is a Workbox-based service worker: precaches a small `offlineAssets` set (manifest, offline page, error CSS, ksejm/deputy templates) and serves `offline.html` as a navigation fallback. It also manages a separate `kobywatel-map-offline-v1` cache for user-triggered offline map downloads (initiated from `settings.html`).
-- `offline-guard.js` runs on every page except `offline.html` (would create a redirect loop) and force-redirects to `/offline.html` when `navigator.onLine` is false, *unless* the current path is in its own `ALWAYS_OFFLINE` allowlist or is `/map` with the map already cached offline. If you add a new page that should work offline, it needs registering in **both** `sw.js`'s precache list and `offline-guard.js`'s `ALWAYS_OFFLINE` set.
+- `sw.js` is a Workbox-based service worker. At install time it precaches only the `offlineFallbackAssets` set (the `offline.html` fallback page and its logo) and serves `offline.html` as a navigation fallback. The full offline asset set (`pwaAssets`: settings, kSeF, kDokumenty, ksejm/deputy templates, CDN libs) is fetched **only in the installed PWA**: `index.html` detects standalone display mode and posts a `PRECACHE_PWA_ASSETS` message to the service worker, which then runs the full precache. Plain-browser visitors never download those assets. `sw.js` also manages a separate `kobywatel-map-offline-v1` cache for user-triggered offline map downloads (initiated from `settings.html`).
+- `offline-guard.js` runs on every page except `offline.html` (would create a redirect loop) and force-redirects to `/offline.html` when `navigator.onLine` is false, *unless* the current path is exempt: the offline page itself, a page in its `PWA_OFFLINE_PAGES` map that is actually present in the cache (i.e. the PWA precache ran), or `/map` with the map already cached offline. If you add a new page that should work offline, it needs registering in `sw.js`'s `pwaAssets` + `NAV_FALLBACKS` and `offline-guard.js`'s `PWA_OFFLINE_PAGES` map.
 - `pwa-install.js` / `pwa-links.js` handle install prompts and badge external/standalone-mode links respectively.
 
 ## Shared conventions across feature modules

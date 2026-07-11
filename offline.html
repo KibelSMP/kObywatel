@@ -105,21 +105,21 @@
             <button type="button" class="btn primary" id="retry-btn">Spróbuj ponownie</button>
         </div>
         <div class="page-links">
-            <a class="btn ghost" href="/ksef">kSeF</a>
-            <a class="btn ghost" href="/kdokumenty">kDokumenty</a>
+            <a class="btn ghost" id="ksef-link" href="/ksef">kSeF</a>
+            <a class="btn ghost" id="kdok-link" href="/kdokumenty">kDokumenty</a>
             <a class="btn ghost" id="map-link" href="/map" hidden>Mapa</a>
         </div>
 
         <div class="card">
             <h2>Co działa bez internetu</h2>
-            <ul class="features">
+            <ul class="features" id="features-ok">
                 <li class="ok" id="feat-map"><span class="mark">✓</span> <span>Mapa świata — jeśli pobrano ją w Ustawieniach</span></li>
-                <li class="ok"><span class="mark">✓</span> <span>Ustawienia — personalizacja i mapa offline</span></li>
-                <li class="ok"><span class="mark">✓</span> <span>kSeF — wystawianie faktur</span></li>
-                <li class="ok"><span class="mark">✓</span> <span>kDokumenty — tworzenie dokumentów</span></li>
+                <li class="ok" data-pwa-only><span class="mark">✓</span> <span>Ustawienia — personalizacja i mapa offline</span></li>
+                <li class="ok" data-pwa-only><span class="mark">✓</span> <span>kSeF — wystawianie faktur</span></li>
+                <li class="ok" data-pwa-only><span class="mark">✓</span> <span>kDokumenty — tworzenie dokumentów</span></li>
             </ul>
             <h2 style="margin-top:1.1rem">Wymaga połączenia</h2>
-            <ul class="features">
+            <ul class="features" id="features-no">
                 <li class="no"><span class="mark">✕</span> <span>kHandel, kWiedza i kSejm</span></li>
                 <li class="no"><span class="mark">✕</span> <span>kFirma</span></li>
                 <li class="no"><span class="mark">✕</span> <span>Podgląd pojazdów na żywo na mapie</span></li>
@@ -146,6 +146,23 @@
                     const feat = document.getElementById('feat-map');
                     if (feat) feat.querySelector('span:last-child').textContent = 'Mapa świata — pobrana i gotowa do użycia';
                 }
+            } catch (_) {}
+        })();
+
+        // Ustawienia/kSeF/kDokumenty działają offline tylko w zainstalowanej
+        // aplikacji (pełny precache PWA) – w przeglądarce oznacz je jako niedostępne.
+        (async () => {
+            try {
+                const precached = ('caches' in window) && !!(await caches.match('/ksef.html'));
+                if (precached) return;
+                document.getElementById('ksef-link').hidden = true;
+                document.getElementById('kdok-link').hidden = true;
+                const featuresNo = document.getElementById('features-no');
+                document.querySelectorAll('#features-ok li[data-pwa-only]').forEach((li) => {
+                    li.className = 'no';
+                    li.querySelector('.mark').textContent = '✕';
+                    featuresNo.appendChild(li);
+                });
             } catch (_) {}
         })();
     </script>
