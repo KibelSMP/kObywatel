@@ -233,7 +233,15 @@
       <script src="/app.js"></script>
       <script>
         if (typeof navigator.serviceWorker !== 'undefined') {
-          navigator.serviceWorker.register('/sw.js')
+          navigator.serviceWorker.register('/sw.js');
+          // Pełny zestaw offline pobieramy tylko w zainstalowanej aplikacji (PWA).
+          const isStandalone = window.matchMedia('(display-mode: standalone)').matches
+            || window.navigator.standalone === true;
+          if (isStandalone) {
+            navigator.serviceWorker.ready.then((reg) => {
+              if (reg.active) reg.active.postMessage({ type: 'PRECACHE_PWA_ASSETS' });
+            }).catch(() => {});
+          }
         }
       </script>
       <script src="/pwa-links.js" defer></script>
