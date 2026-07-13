@@ -1,0 +1,216 @@
+@import "tailwindcss";
+
+/*
+  kObywatel v2.0 design tokens.
+  Values verified against the legacy style.css:639-665 palette and the ksejm
+  Tailwind-CDN prototype. Token NAMES are kept verbatim from that prototype
+  (koaccent/koaccent2/koaccenttext/kobg/koelev/koelev2/koborder/kotext/kodim).
+
+  Dark is the default (:root); light values are applied via prefers-color-scheme
+  below. Tailwind v4 utilities compile to `var(--color-*)`, so overriding these
+  variables inside the media query is enough to theme-switch every utility.
+*/
+@theme {
+  /* Core surfaces / text — DARK defaults */
+  --color-kobg: #0b121a;
+  --color-koelev: #111b26; /* == legacy --bg-alt */
+  --color-koelev2: #162230; /* == legacy --bg-elev */
+  --color-koborder: #243244;
+  --color-kotext: #e7edf4;
+  --color-kodim: #9fb0c3;
+
+  /* Accent family */
+  --color-koaccent: #ac1943; /* identical in both themes (~7:1 vs white) */
+  --color-koaccent2: #cc2d5a; /* hover/lighter accent — DARK default */
+  --color-koaccenttext: #fce7f3; /* text-on-accent — DARK default */
+
+  /* Secondary / decorative accents (gradients, badges) */
+  --color-ko-rose: #d33f6a;
+  --color-ko-indigo: #6366f1;
+  --color-ko-indigo2: #4f46e5;
+  --color-ko-purple: #5b21b6;
+  --color-ko-custom: #fc54fc; /* "enchanted" magenta — reconciled to one value */
+  --color-ko-ench: #8057ff; /* enchanted glow — DARK default */
+
+  /* Status colors (functional). Solid = background/border, *-text = on dark surface */
+  --color-status-pending: #fbbf24;
+  --color-status-success: #16a34a;
+  --color-status-success-text: #46d38d;
+  --color-status-error: #dc2626;
+  --color-status-error-text: #ff8484;
+  --color-status-cancelled: #f97316;
+  --color-status-ready: #2ecc71;
+  --color-status-busy: #ac1943;
+  --color-status-fail: #e74c3c;
+
+  /* Alert accent borders */
+  --color-alert-info: #264763;
+  --color-alert-warning: #805d15;
+  --color-alert-danger: #80323a;
+
+  /* Map marker gradient stops (semantic, theme-invariant) */
+  --color-map-shop-from: #0ea5e9;
+  --color-map-shop-to: #0369a1;
+  --color-map-company-from: #a855f7;
+  --color-map-company-to: #7c3aed;
+  --color-map-player-from: #22c55e;
+  --color-map-player-to: #16a34a;
+
+  /* Typography */
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, Ubuntu, Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* Extra breakpoint for the map's overlay-panels vs. bottom-sheet split (860/861px) */
+  --breakpoint-map: 861px;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --color-kobg: #f4f7fb;
+    --color-koelev: #ffffff;
+    --color-koelev2: #eef2f7;
+    --color-koborder: #c4cfde;
+    --color-kotext: #16212e;
+    --color-kodim: #54667c;
+    --color-koaccent2: #bc1f49;
+    --color-koaccenttext: #4c0c1e;
+    --color-ko-ench: #5015ff;
+  }
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    scrollbar-color: color-mix(in srgb, var(--color-kodim) 45%, transparent) transparent;
+  }
+
+  body {
+    background-color: var(--color-kobg);
+    color: var(--color-kotext);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    min-height: 100vh;
+  }
+
+  /* Consistent, accessible focus ring reusing the legacy accent focus token */
+  :focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-koaccent) 40%, transparent);
+    border-radius: 0.35rem;
+  }
+
+  /* Thin, themed scrollbars (WebKit) */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--color-kodim) 35%, transparent);
+    border-radius: 9999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in srgb, var(--color-kodim) 55%, transparent);
+  }
+}
+
+/*
+  Icon helper: the /icns_ui SVGs are solid white Material symbols. Rendering them
+  as a CSS mask lets them inherit currentColor, so they theme automatically (dark
+  text on light, light on dark) and follow hover color — better contrast than the
+  legacy brightness(0) filter swap.
+*/
+.ui-icon {
+  display: inline-block;
+  background-color: currentColor;
+  -webkit-mask: var(--icon) center / contain no-repeat;
+  mask: var(--icon) center / contain no-repeat;
+  flex: none;
+}
+
+/* Home tile drag-to-reorder */
+.tile-drag-handle {
+  cursor: grab;
+}
+.tile-wrapper.dragging {
+  z-index: 1000;
+  cursor: grabbing;
+  box-shadow: 0 16px 32px -12px rgba(0, 0, 0, 0.45);
+  transform: rotate(-1deg) scale(1.03);
+}
+.tile-wrapper.dragging .tile-drag-handle {
+  cursor: grabbing;
+}
+.tile-drop-placeholder {
+  background: color-mix(in srgb, var(--color-koaccent) 8%, transparent);
+}
+
+/* Thin scrollbar variant (used by kSejm filter row; ported from its inline CSS) */
+.subtle-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--color-kodim) 35%, transparent) transparent;
+}
+.subtle-scrollbar::-webkit-scrollbar {
+  height: 6px;
+}
+.subtle-scrollbar::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--color-kodim) 28%, transparent);
+  border-radius: 9999px;
+}
+
+/* Rendered-markdown prose (kWiedza docs, kSejm previews) */
+.prose-kob {
+  line-height: 1.75;
+  color: var(--color-kotext);
+}
+.prose-kob h1 { font-size: 1.75rem; font-weight: 800; margin: 1.2rem 0 0.6rem; letter-spacing: -0.01em; }
+.prose-kob h2 { font-size: 1.35rem; font-weight: 700; margin: 1.4rem 0 0.5rem; }
+.prose-kob h3 { font-size: 1.1rem; font-weight: 700; margin: 1.1rem 0 0.4rem; }
+.prose-kob p { margin: 0.7rem 0; }
+.prose-kob ul, .prose-kob ol { margin: 0.7rem 0 0.7rem 1.4rem; }
+.prose-kob ul { list-style: disc; }
+.prose-kob ol { list-style: decimal; }
+.prose-kob li { margin: 0.25rem 0; }
+.prose-kob a { color: var(--color-koaccent2); text-decoration: underline; text-underline-offset: 2px; }
+.prose-kob a:hover { color: var(--color-koaccent); }
+.prose-kob blockquote {
+  border-left: 3px solid var(--color-koaccent);
+  padding-left: 1rem;
+  margin: 0.9rem 0;
+  color: var(--color-kodim);
+}
+.prose-kob code {
+  font-family: var(--font-mono);
+  background: color-mix(in srgb, var(--color-kodim) 15%, transparent);
+  padding: 0.1rem 0.35rem;
+  border-radius: 0.35rem;
+  font-size: 0.9em;
+}
+.prose-kob pre {
+  background: var(--color-koelev2);
+  border: 1px solid var(--color-koborder);
+  border-radius: 0.75rem;
+  padding: 1rem;
+  overflow-x: auto;
+  margin: 0.9rem 0;
+}
+.prose-kob pre code { background: none; padding: 0; }
+.prose-kob table { width: 100%; border-collapse: collapse; margin: 0.9rem 0; display: block; overflow-x: auto; }
+.prose-kob th, .prose-kob td { border: 1px solid var(--color-koborder); padding: 0.5rem 0.75rem; text-align: left; }
+.prose-kob img { max-width: 100%; height: auto; border-radius: 0.5rem; }
+.prose-kob hr { border: 0; border-top: 1px solid var(--color-koborder); margin: 1.2rem 0; }
+
+/* Respect reduced-motion globally (legacy app had zero coverage of this) */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

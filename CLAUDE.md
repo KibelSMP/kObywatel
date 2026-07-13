@@ -4,56 +4,62 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-kObywatel is a static, vanilla-JS PWA that serves as an e-governance portal for the KibelSMP Minecraft server community. It's deployed as-is to GitHub Pages (see `CNAME`) — there is no build step, bundler, package manager, or test suite. Every `.html` page loads its own `<script>`s directly.
+kObywatel is an e-governance portal PWA for the KibelSMP Minecraft server community. **v2.0** is a **Next.js (App Router) + Tailwind CSS v4** app, built as a **static export** (`output: 'export'`) and hosted on **Vercel**. There is no backend — every "database" read is a client-side fetch to an external GitHub repo.
 
 ## Working in this repo
 
-- No `npm install`, no build, no test command exist. "Running" the app means opening the HTML files via a static file server (e.g. `python3 -m http.server`) since some pages use root-relative paths (`/db.config.json`, `/assets/...`) that don't resolve under `file://`.
-- Validate changes by opening the affected page in a browser and exercising the feature — there is no automated test/lint/typecheck to fall back on.
-- See `AGENTS.md` for the repo's working-principles/repo-map conventions; the guidance there still applies (smallest change that solves the request, don't broaden scope, match existing file's style).
+- `npm run dev` — local dev server (hot reload). `npm run build` — production static export to `out/` **plus** the PWA precache-manifest generator (`scripts/write-pwa-assets.mjs`). `npm run serve:out` — serve the built `out/` for a production-like check.
+- Validate by opening pages in a browser and exercising the feature — there is no automated test/lint/typecheck suite. The imperative "island" pages (map, kHandel, and the search/PDF/offline logic) only fully work in a real browser, not from a static HTML grep.
+- Plain JavaScript (no TypeScript). Match the surrounding file's style.
 
-## Data architecture: two different remote-data patterns
+## Architecture: the "island" pattern
 
-Content (map points/lines, kHandel products, kFirma companies, train metadata) lives in an **external GitHub repo**, not in this one: `KibelSMP/kobywatel-db` (also referenced as `KibelSMP/kObywatel-db` — GitHub repo names are case-insensitive, both resolve to the same repo).
+Most pages are ordinary React/Tailwind (server) components. But several features carry large, battle-tested **imperative** logic (DOM/canvas manipulation, PDF generation, Cache Storage). Rather than rewrite these as React, they are ported near-verbatim as plain scripts in `public/` and mounted as **islands**:
 
-Two ways code reaches that data — know which one a given file uses before editing it:
+- A page renders the exact DOM shell (same element `id`s/classes the script queries) as JSX.
+- `components/IslandLoader.js` (client) exposes the globals the script expects (`window.__db`, `window.escapeHtml`, `window.markdownit`, `window.jspdf`, `window.HomeLayout`, `window.KWiedzaData`, …) from bundled modules, then appends the island script(s).
+- **Navigation is plain `<a href>` everywhere — never `next/link`.** Islands grab DOM refs and register `window` listeners at module top level; a full document reload per navigation keeps their "runs once against a fresh DOM" assumption true (and matches v1, which had no SPA behavior).
 
-1. **`window.__db` (db-adapter.js)** — reads the base URL from `/db.config.json` (`DB_BASE`), then `window.__db.fetchJson('data/...')` builds the full raw.githubusercontent URL. Used by `app.js`, `route-search.js`, `map.js`, `settings.js`. Prefer this pattern for new code that fetches from the external db — it keeps the base URL configurable in one place.
-2. **Hardcoded `raw.githubusercontent.com/KibelSMP/kObywatel-db/...` URLs** — used directly in `kfirma/index.js` and `kfirma/register.js` (`API_COMPANIES`, `API_SYMBOLS`). This is legacy/inconsistent with (1); don't propagate it further without reason.
+Islands: `public/map.js` (+`route-search.js`, `map.css`), `public/khandel-core.js` (+`khandel.css`), `public/ksef.js`, `public/kdokumenty.js`, `public/kfirma-index.js`, `public/kfirma-register.js`, `public/kwiedza.js`, `public/settings.js`, `public/home.js`, `public/ksejm/index.js` (+`sort-utils.js`), `public/ksejm/deputy/index.js`.
 
-Some modules pull from neither: `kwiedza.js` reads `/assets/docs/index.json` (bundled in this repo), `ksejm/index.js` / `ksejm/editor.js` read `/ksejm/data/index.json` and `/ksejm/docs/*` (also bundled in this repo, alongside real markdown/PDF acts).
+## Data architecture
 
-## Page ↔ script map
+Content (map points/lines, kHandel products, kFirma companies) lives in the **external** `KibelSMP/kobywatel-db` repo. Two access paths:
+1. **`window.__db`** (`public/db-adapter.js`) — reads `DB_BASE` from `/db.config.json` at runtime (`cache:'no-store'`, so the source is hot-swappable without a redeploy), then `fetchJson('data/…')`. Used by every island.
+2. **`lib/db.js`** — the same `loadConfig/url/fetchJson` shape as an importable ES module, for new React components.
 
-Each top-level feature is an HTML page paired with a same-named JS file; there's no router or SPA framework — navigation is plain links between static pages.
+Bundled (in-repo, not external) data: kWiedza docs (`public/assets/docs/index.json` + markdown), kSejm acts (`public/ksejm/data|docs`), kSejm deputy templates (`public/ksejm/deputy/download`).
 
-| Page | Script | Purpose |
+## Page ↔ route map
+
+| Route | Page | Island / logic |
 |---|---|---|
-| `index.html` | `app.js` (+ `home-layout.js`) | Home page: search across map points/lines, personalized tile layout |
-| `khandel.html` | `khandel.js` | kHandel — in-game shop/product catalog |
-| `kwiedza.html` | `kwiedza.js` | kWiedza — markdown docs/guides (category → list → doc) |
-| `kdokumenty.html` | `kdokumenty.js` | kDokumenty — generates PDFs client-side via jsPDF |
-| `ksef.html` | `ksef.js` | kSeF — generates invoice PDFs (jsPDF + barcode font) |
-| `ksejm/index.html` | `ksejm/index.js` (+ `sort-utils.js`) | kSejm — browse resolutions/statutes (acts), markdown rendering via markdown-it |
-| `ksejm/deputy/` | — | Deputy-facing regulation viewer/templates (downloadable doc templates, also precached for offline use) |
-| `kfirma/index.html` | `kfirma/index.js` | kFirma — company registry browser |
-| `kfirma/register.html` | `kfirma/register.js` | kFirma — company registration form |
-| `map/index.html` | `map.js` (huge, ~3.9k lines) + `map.css` | Interactive game-world map: pan/zoom, hi-res tile layers (2x/4x, light/dark), point/line markers, kHandel/kFirma marker layers |
-| `map/add.html` | — | Embedded Tally form to propose a new map point |
-| `settings.html` | `settings.js` | Home tile personalization (shared `HomeLayout` model) + offline map download management |
-| `report.html`, `creators.html` | — | Static helper pages |
-| `403.html`, `404.html`, `500.html`, `offline.html` | — | Error / offline fallback pages; `offline.html` is always precached by the service worker |
+| `/` | `app/page.js` | `public/home.js` — search + `lib/homeLayout.js` tile personalization |
+| `/khandel/` | `app/(shell)/khandel/page.js` | `public/khandel-core.js` + `khandel.css` |
+| `/kwiedza/` | `app/(shell)/kwiedza/page.js` | `public/kwiedza.js` (markdown docs, history deep-linking) |
+| `/kdokumenty/` | `app/(shell)/kdokumenty/page.js` | `public/kdokumenty.js` (jsPDF) |
+| `/ksef/` | `app/(shell)/ksef/page.js` | `public/ksef.js` (jsPDF + barcode font) |
+| `/ksejm/`, `/ksejm/deputy/` | `app/(shell)/ksejm/…` | `public/ksejm/…` (markdown-it) |
+| `/kfirma/`, `/kfirma/register/` | `app/(shell)/kfirma/…` | `public/kfirma-index.js`, `public/kfirma-register.js` |
+| `/map/` | `app/map/page.js` | `public/map.js` (+`route-search.js`, `map.css`) — full-bleed, no shared header |
+| `/map/add/` | `app/map/add/page.js` | Tally embed |
+| `/settings/` | `app/(shell)/settings/page.js` | `public/settings.js` (tile editor + offline-map download) |
+| `/report/`, `/creators/` | `app/(shell)/…` | static / Tally |
+| `not-found.js` | — | 404 (replaces the old `404.html`) |
 
-## PWA / offline behavior
+`app/(shell)/layout.js` provides the shared header (`components/SiteHeader.js`) + footer. The map and home render their own chrome. Raw fallback pages that stay outside Next: `public/offline.html`, `public/403.html`, `public/500.html`.
 
-- `sw.js` is a Workbox-based service worker. At install time it precaches only the `offlineFallbackAssets` set (the `offline.html` fallback page and its logo) and serves `offline.html` as a navigation fallback. The full offline asset set (`pwaAssets`: settings, kSeF, kDokumenty, ksejm/deputy templates, CDN libs) is fetched **only in the installed PWA**: `index.html` detects standalone display mode and posts a `PRECACHE_PWA_ASSETS` message to the service worker, which then runs the full precache. Plain-browser visitors never download those assets. `sw.js` also manages a separate `kobywatel-map-offline-v1` cache for user-triggered offline map downloads (initiated from `settings.html`).
-- `offline-guard.js` runs on every page except `offline.html` (would create a redirect loop) and force-redirects to `/offline.html` when `navigator.onLine` is false, *unless* the current path is exempt: the offline page itself, a page in its `PWA_OFFLINE_PAGES` map that is actually present in the cache (i.e. the PWA precache ran), or `/map` with the map already cached offline. If you add a new page that should work offline, it needs registering in `sw.js`'s `pwaAssets` + `NAV_FALLBACKS` and `offline-guard.js`'s `PWA_OFFLINE_PAGES` map.
-- `pwa-install.js` / `pwa-links.js` handle install prompts and badge external/standalone-mode links respectively.
+## Theme (Tailwind v4)
 
-## Shared conventions across feature modules
+`app/globals.css` holds the `@theme` tokens (`koaccent`, `koaccent2`, `koaccenttext`, `kobg`, `koelev`, `koelev2`, `koborder`, `kotext`, `kodim`, status/map-marker colors). Light/dark switches purely by `prefers-color-scheme` — there is **no** manual app-theme toggle. (The map's own light/dark button, in `map.css`/`map.js`, only swaps the map *tile imagery* and is separate.) Accent `#AC1943` and backgrounds are carried over unchanged from v1.
 
-- No framework: plain `document.getElementById`/`querySelector`, manual `innerHTML` templating.
-- **Prefer shared helpers over duplicating logic.** When the same fetch/parse/business logic is needed by more than one page (e.g. `kwiedza-data.js`, sharing the `/assets/docs/index.json` fetch+normalize logic between `kwiedza.js` and `app.js`), extract it into its own small `<script>`-included file — following the existing `db-adapter.js`/`home-layout.js` pattern — and include it via a plain (non-module) `<script>` tag before the pages that depend on it, rather than re-implementing the same parsing/fetching in each file. The only exception: don't pull something into a shared file if doing so would force a page to load or offline-precache code/data it doesn't otherwise need and that would be unnecessary bloat — keep shared files narrowly scoped to the actual shared logic.
-- Most feature pages keep a single top-level mutable `state` object and re-render on state change; there's no virtual DOM or diffing.
-- PL/EN toggling where present (e.g. kHandel) is done via a `currentLang` variable persisted to `localStorage` and manual field fallback (`nameEn || namePl`), not i18n library.
-- `home-layout.js` is the single source of truth for the home screen's tile order/visibility, shared by `app.js` (applies it) and `settings.js` (edits it) via `localStorage` key `kob.home.layout.v1`.
+## PWA / offline
+
+- `public/sw.js` — hand-written Workbox-loaded SW (not codegen). Two caches, **names unchanged from v1** (never rename): `pwabuilder-page-v2` (precache) and `kobywatel-map-offline-v1` (offline map, preserved across `activate`). `offlineFallbackAssets` (offline.html + logo) is precached on install; the full set (`corePwaAssets` + build-generated `/pwa-precache-manifest.json`) is fetched only on the `PRECACHE_PWA_ASSETS` message, sent by `components/ServiceWorker.js` **only in standalone (installed PWA)** mode. `components/ServiceWorker.js` also registers the SW on **every** route and drives the "new version" update banner (`SKIP_WAITING`).
+- **`scripts/write-pwa-assets.mjs`** (runs in `npm run build`) reads `out/` for the offline routes' hashed JS/CSS chunks and writes `out/pwa-precache-manifest.json`. If you add a page that must work offline, add its route to `OFFLINE_ROUTES` there, to `sw.js` `NAV_FALLBACKS`, and to `offline-guard.js` `PWA_OFFLINE_PAGES`.
+- `public/offline-guard.js` redirects to `/offline.html` when offline unless the path is exempt (offline page, a precached PWA page present in cache, or `/map` with the offline map downloaded). `settings.js` writes the map cache directly (no SW message); its `TILE_LEVELS` must stay in sync with `map.js`'s `TILE_CONFIG`.
+- `components/PwaInstall.js` — install-prompt banner (iOS/Safari/Chromium branches, 180-day dismissal TTL).
+
+## Hosting
+
+Vercel, Next.js preset, static export. `vercel.json` sets security headers (CSP, X-Content-Type-Options, Referrer-Policy, Permissions-Policy). Custom domain `kobywatel-mc.stankiewiczm.eu` (was GitHub Pages; the `CNAME` file is retired on Vercel).
