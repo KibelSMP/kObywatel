@@ -33,6 +33,7 @@
   // so the cached navigation key is '/<route>/'. normalizedPath() strips the trailing
   // slash for the lookup key, but the VALUE must be the real cached key.
   const PWA_OFFLINE_PAGES = {
+    '/': '/',
     '/settings': '/settings/',
     '/ksef': '/ksef/',
     '/kdokumenty': '/kdokumenty/',
@@ -71,7 +72,8 @@
     if(navigator.onLine) return;
     if(await isExempt()) return;
     redirecting = true;
-    location.href = OFFLINE_PAGE;
+    const from = location.pathname + location.search;
+    location.href = OFFLINE_PAGE + '?from=' + encodeURIComponent(from);
   }
 
   window.addEventListener('offline', guard);

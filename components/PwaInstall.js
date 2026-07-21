@@ -100,6 +100,14 @@ export default function PwaInstall() {
         setDeferred(e);
         setVisible(true);
       };
+      // beforeinstallprompt can fire before this effect runs (React hydration
+      // is slower than Chrome's installability check on a loaded/throttled
+      // machine); the early inline script in app/layout.js catches it and
+      // stashes it here so the race never drops the event.
+      if (window.__deferredInstallPrompt) {
+        onBip(window.__deferredInstallPrompt);
+        window.__deferredInstallPrompt = null;
+      }
       window.addEventListener('beforeinstallprompt', onBip);
     }
 

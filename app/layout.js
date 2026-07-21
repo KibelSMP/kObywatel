@@ -43,6 +43,16 @@ export default function RootLayout({ children }) {
   return (
     <html lang="pl">
       <head>
+        {/* Chrome can fire beforeinstallprompt before React hydrates (e.g. on a
+            slower/loaded machine), which drops the event and leaves Chrome's own
+            install UI unclaimed — the omnibox icon flashes in then Chrome retracts
+            it. Claim the event synchronously, before hydration can lose the race. */}
+        <Script id="early-install-prompt" strategy="beforeInteractive">
+          {`window.addEventListener('beforeinstallprompt', function (e) {
+            e.preventDefault();
+            window.__deferredInstallPrompt = e;
+          });`}
+        </Script>
         {/* iOS launch/splash screens (media-query driven — not expressible via the
             metadata API, so rendered directly). React hoists these into <head>. */}
         {appleSplashScreens.map((s, i) => (

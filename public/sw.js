@@ -54,6 +54,7 @@ const corePwaAssets = [
 // Mapowanie ścieżek nawigacji na zapisany dokument strony (dla trybu offline).
 // v2: trasy Next są emitowane jako /<trasa>/ (trailingSlash).
 const NAV_FALLBACKS = {
+    "/": "/",
     "/settings": "/settings/",
     "/settings/": "/settings/",
     "/ksef": "/ksef/",

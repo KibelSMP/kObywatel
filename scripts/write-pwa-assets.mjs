@@ -17,7 +17,8 @@ const OUT_DIR = path.resolve('out');
 
 // Routes precached for offline use in the installed PWA. Keep in sync with
 // sw.js NAV_FALLBACKS and offline-guard.js PWA_OFFLINE_PAGES.
-const OFFLINE_ROUTES = ['settings', 'ksef', 'kdokumenty', 'ksejm/deputy'];
+// '' = home ('/'), the PWA's start_url — it must work offline too.
+const OFFLINE_ROUTES = ['', 'settings', 'ksef', 'kdokumenty', 'ksejm/deputy'];
 
 // The map route isn't part of the standard PWA precache (it's opt-in, downloaded
 // separately into MAP_CACHE — see public/settings.js LOCAL_ASSETS). But it's still
@@ -56,8 +57,8 @@ async function main() {
   for (const route of OFFLINE_ROUTES) {
     const routeAssets = await harvestRouteAssets(route);
     if (!routeAssets) continue;
-    // Cache the navigation document under its trailing-slash key.
-    assets.add(`/${route}/`);
+    // Cache the navigation document under its trailing-slash key (home: '/').
+    assets.add(route ? `/${route}/` : '/');
     for (const a of routeAssets) assets.add(a);
   }
 
