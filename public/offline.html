@@ -147,7 +147,7 @@
             try {
                 if (!('caches' in window)) return;
                 const cache = await caches.open('kobywatel-map-offline-v1');
-                const page = await cache.match('/map/index.html');
+                const page = await cache.match('/map/');
                 if (page) {
                     const mapLink = document.getElementById('map-link');
                     if (mapLink) mapLink.hidden = false;

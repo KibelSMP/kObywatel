@@ -67,9 +67,9 @@ const NAV_FALLBACKS = {
     "/ksejm/deputy": "/ksejm/deputy/",
     "/ksejm/deputy/": "/ksejm/deputy/",
     // Mapa działa offline tylko po pobraniu (plik jest wtedy w MAP_CACHE).
-    "/map": "/map/index.html",
-    "/map/": "/map/index.html",
-    "/map/index.html": "/map/index.html"
+    // "/map/index.html" (literal, no trailing slash) 404s on Vercel — only "/map/" resolves.
+    "/map": "/map/",
+    "/map/": "/map/"
 };
 
 const offlineFallbackPage = "/offline/";

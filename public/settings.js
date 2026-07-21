@@ -119,7 +119,7 @@
   }
 
   const LOCAL_ASSETS = [
-    '/map/index.html', '/map.css', '/map.js', '/route-search.js',
+    '/map/', '/map.css', '/map.js', '/route-search.js',
     '/db-adapter.js', '/db.config.json', '/map/political.svg',
     '/manifest.json', '/favicon.png', '/logo.png',
     '/icns_ui/company.svg', '/icns_ui/light_dark_mode.svg', '/icns_ui/link.svg',

@@ -25,7 +25,7 @@
     try {
       if(!('caches' in window)) return false;
       const cache = await caches.open(MAP_CACHE);
-      return !!(await cache.match('/map/index.html'));
+      return !!(await cache.match('/map/'));
     } catch(_){ return false; }
   }
 
@@ -62,7 +62,7 @@
       return await pageAvailableOffline(PWA_OFFLINE_PAGES[path]);
     }
     // Podgląd mapy działa offline tylko po jej pobraniu.
-    if(path === '/map' || path === '/map/index.html'){
+    if(path === '/map'){
       return await mapAvailableOffline();
     }
     return false;
