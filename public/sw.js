@@ -8,8 +8,11 @@ const MAP_CACHE = "kobywatel-map-offline-v1";
 
 // Minimalny zestaw zapisywany zawsze (także w przeglądarce): tylko strona
 // „Jesteś offline” i jej zasoby. Reszta pobiera się wyłącznie w trybie PWA.
+// Vercel's Next.js static-export serving strips the .html extension and adds a
+// trailing slash for raw public/*.html files (like Next's own routes) — the literal
+// "/offline.html" path 404s in production, only "/offline/" actually resolves.
 const offlineFallbackAssets = [
-    "offline.html",
+    "/offline/",
     "/logo.png"
 ];
 
@@ -69,7 +72,7 @@ const NAV_FALLBACKS = {
     "/map/index.html": "/map/index.html"
 };
 
-const offlineFallbackPage = "offline.html";
+const offlineFallbackPage = "/offline/";
 
 // Zwraca pełną listę zasobów PWA: rdzeń + wygenerowany manifest tras Next.
 async function pwaAssetList() {

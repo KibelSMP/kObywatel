@@ -133,7 +133,7 @@
         // Strona, z której użytkownik trafił tutaj przez offline-guard.js (jeśli w ogóle).
         function resolveReturnTarget() {
             const from = new URLSearchParams(location.search).get('from');
-            if (!from || from.charAt(0) !== '/' || from.indexOf('/offline.html') === 0) return '/';
+            if (!from || from.charAt(0) !== '/' || from.replace(/\/+$/, '') === '/offline') return '/';
             return from;
         }
         const returnTarget = resolveReturnTarget();

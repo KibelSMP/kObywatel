@@ -1,9 +1,11 @@
-// Strażnik offline: gdy urządzenie traci połączenie, przenosi na stronę /offline.html.
+// Strażnik offline: gdy urządzenie traci połączenie, przenosi na stronę /offline/.
 // Wyjątek stanowią strony działające bez internetu (mapa pobrana offline).
 // Skryptu NIE dołączamy do offline.html (byłaby pętla).
 (function(){
   const MAP_CACHE = 'kobywatel-map-offline-v1';
-  const OFFLINE_PAGE = '/offline.html';
+  // Vercel strips the .html extension and adds a trailing slash for raw
+  // public/*.html files — "/offline.html" itself 404s in production.
+  const OFFLINE_PAGE = '/offline/';
 
   function normalizedPath(){
     return (location.pathname.replace(/\/+$/, '') || '/');
@@ -50,7 +52,7 @@
   // Czy bieżąca strona działa offline (i nie należy przekierowywać)?
   async function isExempt(){
     const path = normalizedPath();
-    if(path === OFFLINE_PAGE || path === '/offline') return true;
+    if(path === '/offline') return true;
     // Cała reszta trybu offline działa wyłącznie w zainstalowanej PWA — nawet jeśli
     // pamięć podręczna jest już wypełniona (np. z wcześniejszej instalacji na tym
     // urządzeniu), zwykła karta przeglądarki nie ma z niej korzystać.
