@@ -1,0 +1,3647 @@
+console.log('[map] script start');
+const imgEl = document.getElementById('map-image');
+const canvas = document.getElementById('map-canvas');
+const viewport = document.getElementById('map-viewport');
+const markersLayer = document.getElementById('markers-layer');
+const crosshairEl = document.getElementById('map-crosshair');
+// Podwarstwy markerów
+let markersMainLayer = null; // standardowe punkty mapy
+let markersShopsLayer = null; // sklepy kHandel
+let markersCompaniesLayer = null; // firmy kFirma
+const linesCanvas = document.getElementById('lines-layer');
+const linesCtx = linesCanvas ? linesCanvas.getContext('2d') : null;
+const loadingEl = document.getElementById('loading');
+const panel = document.getElementById('point-panel');
+const panelContent = document.getElementById('point-content');
+const closePanelBtn = document.getElementById('close-panel');
+const pinPanelBtn = document.getElementById('pin-panel');
+const legendEl = document.getElementById('legend');
+const filtersPanelEl = document.getElementById('filters-panel');
+const infoBubbleEl = document.getElementById('info-bubble');
+const infoCursorEl = document.getElementById('info-cursor');
+const infoCrosshairEl = document.getElementById('info-crosshair');
+const infoUpdatedEl = document.getElementById('info-updated');
+const infoCloseBtn = document.getElementById('info-close');
+const infoBodyEl = document.getElementById('info-body');
+const infoFabBtn = document.getElementById('info-fab');
+// Dynamiczny wskaźnik koordynatów kursora (desktop)
+let legendCursorEl = null;
+let legendCursorRowEl = null;
+let legendUpdatedRowEl = null;
+let legendCrosshairEl = null;
+let legendCrosshairRowEl = null;
+let lastViewportSize = { w: null, h: null };
+let resizeRaf = null;
+const searchInput = document.getElementById('point-search');
+const pointResultsEl = document.getElementById('point-search-results');
+const pointDetailEl = document.getElementById('point-search-detail');
+const pointSearchClearBtn = document.getElementById('point-search-clear');
+// Nowa legenda linii (prawy dolny róg)
+const linesLegendEl = document.getElementById('lines-legend');
+const linesLegendBodyEl = document.getElementById('lines-legend-body');
+const linesLegendToggleBtn = document.getElementById('lines-legend-toggle');
+const linesLegendStatusEl = document.getElementById('lines-legend-status');
+// Mobile filters toggle (uchwyt "peek" na górze #filters-panel)
+const filtersToggleBtn = document.getElementById('btn-filters');
+const appRoot = document.getElementById('map-app');
+const isAdminView = document.body?.querySelector('.panel') ? true : false;
+
+const btnZoomIn = document.getElementById('btn-zoom-in');
+const btnZoomOut = document.getElementById('btn-zoom-out');
+const btnZoomReset = document.getElementById('btn-zoom-reset');
+const btnTheme = document.getElementById('btn-theme');
+const btnCopyFocus = document.getElementById('btn-copy-focus');
+// Tryb mapy
+const modeButtons = document.querySelectorAll('.mode-btn');
+let currentMode = 'general'; // 'general' | 'transport'
+
+let mapData = null;
+let linesData = null;
+let scale = 1; // current zoom scale
+let minScale = 0.25;
+let maxScale = 10;
+let originX = 0; // top-left of canvas in viewport coords
+let originY = 0;
+let imgWidth = 0;
+let imgHeight = 0;
+let baseLogicalWidth = 0; // zapamiętana logika 1x
+let baseLogicalHeight = 0;
+let currentResolutionFactor = 1; // 1 / 2 / 4
+let tilesLayer = null; // kontener na kafelki hi-res
+let tiles = new Map(); // klucz => element
+let crosshairHideTimeout = null;
+const TILE_CONFIG = {
+  2: { grid:3 },
+  4: { grid:5 }
+};
+// Gating ukrycia obrazu bazowego do czasu załadowania pierwszego kafelka hi-res
+let awaitingFirstHiResTile = false;
+// Ścieżki do bazowych obrazów i katalogów kafelków (umożliwia przeniesienie grafik do podfolderów)
+const MAP_PATHS = {
+  baseLight: '/map/base/map_light.webp',
+  baseDark: '/map/base/map_dark.webp',
+  baseLight2x: '/map/base/map_light@2x.webp',
+  baseDark2x: '/map/base/map_dark@2x.webp',
+  baseLight4x: '/map/base/map_light@4x.webp',
+  baseDark4x: '/map/base/map_dark@4x.webp',
+  tiles2xLightDir: '/map/tiles2x/light',
+  tiles2xDarkDir: '/map/tiles2x/dark',
+  tiles4xLightDir: '/map/tiles4x/light',
+  tiles4xDarkDir: '/map/tiles4x/dark'
+};
+let isPanning = false;
+let panStart = { x:0, y:0 };
+let panOriginStart = { x:0, y:0 };
+// Pinch-to-zoom (mobile)
+const pointers = new Map(); // id -> {x,y}
+let pinchActive = false;
+let lastPinchCenter = null; // {x,y} w współrzędnych klienta (viewport)
+let lastPinchDistance = 0;
+let currentTheme = 'auto'; // auto|light|dark (auto -> wg preferencji systemu)
+let activeCategories = new Set(); // puste = wszystkie
+let showHidden = false; // zwykła mapa: ukryte nie są pokazywane
+// Jeżeli jesteśmy w panelu admina (obecność .admin-shell), pokaż też ukryte
+if (document.querySelector('.admin-shell')) {
+  showHidden = true;
+}
+const isAdmin = !!document.querySelector('.admin-shell');
+// Dwa rozdzielne przełączniki widoczności linii: kolej/metro vs lotnicze
+let showRailLines = false;
+let showFlightLines = false;
+let showLines = false; // pochodna (zachowana dla wstecznej kompatybilności)
+// Zbiór ukrytych kategorii linii (IC/REGIO/METRO/ON). Pusty = wszystkie widoczne (gdy showLines=true)
+let hiddenLineCategories = new Set();
+// Flaga: czy udało się wczytać stan legendy z localStorage
+let hasLoadedLegendState = false;
+// Podświetlana/aktywna linia (id) – do dynamicznej grubszej kreski
+let highlightedLineId = null; // chwilowe (hover)
+let selectedLineId = null; // trwałe (klik)
+// Map<lineId, {stations: string[]}> – stacje w kolejności przejazdu dla podświetlenia trasy (każda noga)
+let routeHighlightedSegments = null;
+let routeAnimationActive = false;
+let routeAnimFrame = null;
+let routeEndpoints = null; // { start:{id,x,y}, end:{id,x,y} }
+let lastRouteBBoxKey = null; // zapobieganie wielokrotnemu fokuso-zoom przy tej samej trasie
+
+function ensureRouteAnimation(){
+  if(!routeHighlightedSegments){ routeAnimationActive = false; if(routeAnimFrame){ cancelAnimationFrame(routeAnimFrame); routeAnimFrame=null; } return; }
+  if(routeAnimationActive) return;
+  routeAnimationActive = true;
+  const loop = ()=>{
+    if(!routeHighlightedSegments){ routeAnimationActive=false; routeAnimFrame=null; return; }
+    // Redraw tylko warstwę linii (pełny drawLines – proste, mała skala danych). Można optymalizować.
+    drawLines(true);
+    routeAnimFrame = requestAnimationFrame(loop);
+  };
+  routeAnimFrame = requestAnimationFrame(loop);
+}
+// Zapamiętany stan widoczności linii z trybu ogólnego (aby po powrocie przywrócić to, co użytkownik ustawił)
+let lastGeneralShowLines = false; // legacy (zachowane dla wstecznej kompatybilności)
+let lastGeneralShowRailLines = false;
+let lastGeneralShowFlightLines = false;
+// Flaga wymuszająca niską rozdzielczość rysowania (np. na mobile) – ustawiana później przy detekcji urządzenia
+let __MOBILE_LITE_FORCE_DPR1 = false;
+
+// --- Klastrowanie punktów ---
+// Przy mniejszym powiększeniu wiele punktów nachodzi na siebie – grupujemy je.
+// Prosty algorytm O(n^2) wystarczający dla kilkuset punktów (można później zopt. siatką).
+// (tuning) większy próg zoom -> klastruj częściej oraz większy promień łączenia
+const CLUSTER_ZOOM_THRESHOLD = 10.01; // poniżej tego scale aktywuj klastrowanie
+const CLUSTER_SCREEN_DISTANCE = 64; // odległość w px przy scale=1 – większy zasięg łączenia
+let suppressClustering = false; // tymczasowe wyłączenie (np. aktywne wyszukiwanie)
+let lastClusteringActive = false;
+let lastScaleForClusterEval = scale;
+let clusterPopoverEl = null; // aktualnie otwarty popover listy punktów w klastrze
+
+// --- Sklepy kHandel ---
+let shopsData = null; // Array<{ id,name,location,owner?,x,y,z,offers:[] }>
+let showShops = true; // domyślnie wyłączone; kontrolowane z legendy
+let currentShopContextId = null; // aktywny sklep do wyświetlania ofert w wynikach wyszukiwania
+let lastShopClusteringActive = false;
+let lastShopScaleForEval = scale;
+
+// --- Firmy kFirma ---
+let companiesData = null; // Array<{ id,name,city,street,voiv,knip,registrar,symbols:[],x,z }>
+let showCompanies = true;
+let lastCompanyClusteringActive = false;
+let lastCompanyScaleForEval = scale;
+
+// Snapshot poprzedniego stanu dla animacji
+let previousClusterSnapshot = {
+  clusters: new Map(), // key -> { cx, cy, count, members:Set }
+  pointToCluster: new Map(), // pointId -> { cx, cy }
+  clusterKeys: new Set()
+};
+
+function isPlayerPoint(pt){
+  const cat = (pt.category || '').toLowerCase();
+  if(cat === 'players' || cat === 'player' || cat === 'gracze' || cat === 'gracz') return true;
+  const type = (pt.type || '').toLowerCase();
+  if(type.includes('player')) return true;
+  if(Array.isArray(pt.tags)){
+    const hasTag = pt.tags.some(tag => typeof tag === 'string' && tag.toLowerCase() === 'player');
+    if(hasTag) return true;
+  }
+  return false;
+}
+
+function closeClusterPopover(){
+  if(clusterPopoverEl && clusterPopoverEl.isConnected){ clusterPopoverEl.remove(); }
+  clusterPopoverEl = null;
+}
+
+function ensureMarkerSublayers(){
+  if(!markersLayer) return;
+  if(!markersMainLayer){
+    markersMainLayer = document.createElement('div');
+    markersMainLayer.className = 'markers-sub markers-main';
+    markersLayer.appendChild(markersMainLayer);
+  }
+  if(!markersShopsLayer){
+    markersShopsLayer = document.createElement('div');
+    markersShopsLayer.className = 'markers-sub markers-shops';
+    markersLayer.appendChild(markersShopsLayer);
+  }
+  if(!markersCompaniesLayer){
+    markersCompaniesLayer = document.createElement('div');
+    markersCompaniesLayer.className = 'markers-sub markers-companies';
+    markersLayer.appendChild(markersCompaniesLayer);
+  }
+}
+
+function clusteringCurrentlyEnabled(){
+  return !suppressClustering && scale < CLUSTER_ZOOM_THRESHOLD;
+}
+
+function maybeUpdateClusters(){
+  // Aby nie przebudowywać nadmiernie – sprawdzaj tylko jeśli zmiana scale przekroczy 2% lub stan logiczny się zmienił
+  const active = clusteringCurrentlyEnabled();
+  const scaleDelta = Math.abs(scale - lastScaleForClusterEval);
+  if(active !== lastClusteringActive || scaleDelta > 0.02){
+    lastScaleForClusterEval = scale;
+    if(active !== lastClusteringActive){
+      lastClusteringActive = active;
+      buildMarkers();
+    } else if(active){
+      // przy aktywnym klastrowaniu aktualizuj pozycje (pełna odbudowa – prościej)
+      buildMarkers();
+    }
+  }
+}
+
+// Persistencja ustawień (localStorage)
+function saveLegendState(){
+  try {
+    localStorage.setItem('map.legend.pointHidden', JSON.stringify(Array.from(activeCategories)));
+    localStorage.setItem('map.legend.lineHidden', JSON.stringify(Array.from(hiddenLineCategories)));
+    // Nowe klucze. W trybie transport widoczność linii jest wymuszona (zawsze true) –
+    // nie zapisujemy tego jako preferencję ogólną, bo przy kolejnym wczytaniu strony
+    // (zawsze startującej w trybie general) błędnie pokazałyby się linie.
+    const persistedRail = currentMode === 'transport' ? lastGeneralShowRailLines : showRailLines;
+    const persistedFlight = currentMode === 'transport' ? lastGeneralShowFlightLines : showFlightLines;
+    localStorage.setItem('map.legend.showRailLines', JSON.stringify(!!persistedRail));
+    localStorage.setItem('map.legend.showFlightLines', JSON.stringify(!!persistedFlight));
+    localStorage.setItem('map.legend.generalShowRailLines', JSON.stringify(!!lastGeneralShowRailLines));
+    localStorage.setItem('map.legend.generalShowFlightLines', JSON.stringify(!!lastGeneralShowFlightLines));
+    // Back-compat – zapis scalonego stanu
+    localStorage.setItem('map.legend.showLines', JSON.stringify(!!(persistedRail || persistedFlight)));
+    localStorage.setItem('map.legend.generalShowLines', JSON.stringify(!!(lastGeneralShowRailLines || lastGeneralShowFlightLines)));
+    if(linesLegendEl){
+      localStorage.setItem('map.legend.linesLegendCollapsed', JSON.stringify(linesLegendEl.classList.contains('collapsed')));
+    }
+    localStorage.setItem('map.legend.showShops', JSON.stringify(!!showShops));
+    localStorage.setItem('map.legend.showCompanies', JSON.stringify(!!showCompanies));
+  } catch(_) {}
+}
+
+function loadLegendState(){
+  let found = false;
+  try {
+    const ph = localStorage.getItem('map.legend.pointHidden');
+    if(ph !== null){
+      const arr = JSON.parse(ph); if(Array.isArray(arr)) { activeCategories = new Set(arr); found = true; }
+    }
+    const lh = localStorage.getItem('map.legend.lineHidden');
+    if(lh !== null){
+      const arr = JSON.parse(lh); if(Array.isArray(arr)) { hiddenLineCategories = new Set(arr); found = true; }
+    }
+    // Nowe przełączniki
+    const srl = localStorage.getItem('map.legend.showRailLines');
+    const sfl = localStorage.getItem('map.legend.showFlightLines');
+    if(srl !== null){ showRailLines = !!JSON.parse(srl); found = true; }
+    if(sfl !== null){ showFlightLines = !!JSON.parse(sfl); found = true; }
+    // Back-compat: stary scalony klucz
+    if(srl === null && sfl === null){
+      const sl = localStorage.getItem('map.legend.showLines');
+      if(sl !== null){ const v = !!JSON.parse(sl); showRailLines = v; showFlightLines = v; found = true; }
+    }
+    // General-mode zapamiętanie
+    const gsrl = localStorage.getItem('map.legend.generalShowRailLines');
+    const gsfl = localStorage.getItem('map.legend.generalShowFlightLines');
+    if(gsrl !== null){ lastGeneralShowRailLines = !!JSON.parse(gsrl); found = true; }
+    if(gsfl !== null){ lastGeneralShowFlightLines = !!JSON.parse(gsfl); found = true; }
+    if(gsrl === null && gsfl === null){
+      const gsl = localStorage.getItem('map.legend.generalShowLines');
+      if(gsl !== null){ const v = !!JSON.parse(gsl); lastGeneralShowRailLines = v; lastGeneralShowFlightLines = v; found = true; }
+    }
+    // Stare klucze dla kompatybilności (nie wymagane, ale zachowane w pamięci lokalnej)
+    const slLegacy = localStorage.getItem('map.legend.showLines');
+    if(slLegacy !== null){ showLines = !!JSON.parse(slLegacy); }
+    const gslLegacy = localStorage.getItem('map.legend.generalShowLines');
+    if(gslLegacy !== null){ lastGeneralShowLines = !!JSON.parse(gslLegacy); }
+    // Przywróć stan rozwinięcia legendy linii
+    const lc = localStorage.getItem('map.legend.linesLegendCollapsed');
+    if(lc !== null && linesLegendEl){
+      const collapsed = !!JSON.parse(lc);
+      linesLegendEl.classList.toggle('collapsed', collapsed);
+      if(linesLegendToggleBtn){ linesLegendToggleBtn.setAttribute('aria-expanded', (!collapsed).toString()); }
+      if(linesLegendBodyEl){ linesLegendBodyEl.hidden = collapsed; }
+    }
+    const ss = localStorage.getItem('map.legend.showShops');
+    if(ss !== null){ showShops = !!JSON.parse(ss); found = true; }
+    const sc = localStorage.getItem('map.legend.showCompanies');
+    if(sc !== null){ showCompanies = !!JSON.parse(sc); found = true; }
+  } catch(_) {}
+  hasLoadedLegendState = found;
+  // Ustal pochodną scaloną
+  showLines = !!(showRailLines || showFlightLines);
+}
+
+// Konfiguracja domyślna widoczności kategorii:
+// W trybie ogólnym mają być widoczne tylko duże miejscowości (miasto_duze) + ewentualny spawn (miasto) + inne kategorie infrastruktury jeśli zostaną włączone.
+// Dlatego przy pierwszym załadowaniu (gdy brak stanu w localStorage) ukrywamy: miasto_male, kolej, metro, infrastruktura, players.
+// Zostawiamy odsłonięte: miasto_duze, miasto.
+function applyInitialCategoryVisibility(){
+  if(hasLoadedLegendState) return; // użytkownik ma już swój stan – nic nie zmieniamy
+  // Domyślnie chcemy ukryć transport
+  activeCategories.add('kolej');
+  activeCategories.add('metro');
+  activeCategories.add('airport');
+}
+
+function saveThemeState(){ try { localStorage.setItem('map.theme', currentTheme); } catch(_){} }
+function loadThemeState(){
+  try {
+    const t = localStorage.getItem('map.theme');
+    if(t === 'light' || t === 'dark' || t === 'auto'){ currentTheme = t; }
+  } catch(_){}
+}
+
+function pickTheme(){
+  if(currentTheme === 'light' || currentTheme === 'dark') return currentTheme;
+  return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light':'dark';
+}
+
+function updateImageSource(){
+  const t = pickTheme();
+  // Po migracji wszystkie pliki znajdują się w nowej strukturze katalogów – fallback legacy usunięty.
+  let src;
+  // Celowo zawsze używamy bazowego obrazu 1x – hi-res realizują kafelki.
+  // (Pliki @2x/@4x mogą nie istnieć, więc nie podmieniamy src na nie)
+  src = t === 'light' ? MAP_PATHS.baseLight : MAP_PATHS.baseDark;
+  if(imgEl.getAttribute('src') !== src){ imgEl.src = src; }
+}
+
+function setScale(next, screenX, screenY){
+  const clamped = Math.min(maxScale, Math.max(minScale, next));
+  if(clamped === scale) return;
+  // screenX/screenY są w układzie viewportu (ekran), więc przeliczymy przesunięcie originu w tym układzie.
+  const factor = clamped / scale;
+  originX = screenX - (screenX - originX) * factor;
+  originY = screenY - (screenY - originY) * factor;
+  scale = clamped;
+  applyTransform();
+}
+
+function applyTransform(){
+  canvas.style.transform = `translate(${originX}px, ${originY}px) scale(${scale})`;
+  // UI markerów ma być stałej wielkości — kompensujemy zoomem odwrotnym
+  const uiScale = (1/scale).toFixed(5);
+  markersLayer.style.setProperty('--ui-scale', uiScale);
+  // Zneutralizuj skalowanie dla warstwy linii (rysujemy w przestrzeni ekranu dla ostrości)
+  if(linesCanvas){
+    // Parent transform: translate(originX, originY) scale(scale)
+    // Child inverse: scale(1/scale) translate(-originX, -originY) => net identity
+    linesCanvas.style.transformOrigin = '0 0';
+    linesCanvas.style.transform = `scale(${1/scale}) translate(${-originX}px, ${-originY}px)`;
+  }
+  // Odśwież rysunek linii po zmianie skali/pan
+  drawLines();
+  maybeUpgradeToHiRes();
+  updateVisibleTiles();
+  if(__lastPointerPos){ updateCursorCoords(__lastPointerPos.x, __lastPointerPos.y); }
+  updateCrosshairCoords();
+  // Aktualizacja klastrów sklepów przy zmianach transformacji
+  try { maybeUpdateShopClusters(); } catch(_){ }
+  try { maybeUpdateCompanyClusters(); } catch(_){ }
+  try { scheduleMarkersCullRender(); } catch(_){ }
+}
+// Progi dla podbijania rozdzielczości (wartość scale*dpr)
+const HI_RES_THRESHOLD_2X = 1.15;
+const HI_RES_THRESHOLD_4X = 2.3; // uzysk 4x dopiero przy większym przybliżeniu
+
+function desiredResolutionForZoom(prod){
+  if(prod >= HI_RES_THRESHOLD_4X) return 4;
+  if(prod >= HI_RES_THRESHOLD_2X) return 2;
+  return 1;
+}
+
+function maybeUpgradeToHiRes(){
+  // Dostosowanie rozdzielczości kafelków na podstawie zoom*dpr – bez wymagania bazowych plików @2x/@4x.
+  const dpr = window.devicePixelRatio || 1;
+  const prod = scale * dpr;
+  const desired = desiredResolutionForZoom(prod);
+  // Mobile lite: pomijamy hi-res w całości
+  if(mobileLiteMode){
+    if(currentResolutionFactor !== 1){
+      currentResolutionFactor = 1;
+      clearTiles();
+      canvas.classList.remove('hires-on');
+      awaitingFirstHiResTile = false;
+      updateImageSource();
+    }
+    return;
+  }
+  if(desired === currentResolutionFactor) return;
+  // Downgrade lub upgrade
+  if(desired <= 1){
+    currentResolutionFactor = 1;
+    clearTiles();
+    canvas.classList.remove('hires-on');
+    awaitingFirstHiResTile = false;
+    updateImageSource();
+    return;
+  }
+  // desired jest 2 lub 4 – przełącz na kafelki hi-res
+  currentResolutionFactor = desired;
+  updateImageSource(); // utrzymaj bazę 1x (tylko zmiana motywu)
+  imgEl.style.width = baseLogicalWidth + 'px';
+  imgEl.style.height = baseLogicalHeight + 'px';
+  ensureTilesContainer();
+  // Poczekaj z ukryciem base do czasu załadowania pierwszego widocznego kafelka
+  canvas.classList.remove('hires-on');
+  awaitingFirstHiResTile = true;
+  buildTilesForCurrentLevel();
+  updateVisibleTiles();
+}
+
+function centerOnSpawn(){
+// Po zakończeniu inicjalizacji (ładowanie danych punktów) spróbuj wycentrować na focus
+// W pliku istnieje logika ładowania – dopniemy hook po globalnym fetchu mapy.
+// Szukamy miejsca gdzie mapData jest ustawiane – użyjemy prostego interwału jako fallback.
+setTimeout(()=> centerOnFocusParam(), 600);
+  const spawn = mapData?.points?.find(p=> p.id === 'spawn');
+  if(!spawn) return;
+  const meta = mapData.meta || {};
+  const unitsPerPixel = meta.unitsPerPixel || 4;
+  const originMode = meta.origin || 'top-left';
+  let spawnPxX, spawnPxY;
+  const spawnLogicY = (spawn.z !== undefined ? spawn.z : spawn.y) || 0;
+  if(originMode === 'center'){
+    spawnPxX = (imgWidth/2) + (spawn.x / unitsPerPixel);
+    spawnPxY = (imgHeight/2) + (spawnLogicY / unitsPerPixel);
+  } else {
+    spawnPxX = spawn.x; spawnPxY = spawnLogicY;
+  }
+  const cx = -spawnPxX + viewport.clientWidth/2;
+  const cy = -spawnPxY + viewport.clientHeight/2;
+  originX = cx * scale;
+  originY = cy * scale;
+  applyTransform();
+}
+
+// Center na współrzędnych z parametru URL ?focus=x,y,z (logiczne współrzędne świata)
+function centerOnFocusParam(){
+  try {
+    const usp = new URLSearchParams(location.search);
+    const f = usp.get('focus');
+    if(!f) return;
+    // Obsługa focus=x,y,z oraz focus=x,z (2 lub 3 liczby). Traktujemy ostatnią wartość jako Z.
+    const parts = f.split(',').map(s=> s.trim()).filter(Boolean);
+    if(parts.length !== 2 && parts.length !== 3) return;
+    const x = Number(parts[0]);
+    const z = Number(parts[parts.length-1]);
+    if(!isFinite(x) || !isFinite(z)) return;
+    const zoomParam = usp.get('zoom');
+    const zoomVal = zoomParam !== null ? Number(zoomParam) : NaN;
+    const desiredScale = isFinite(zoomVal) ? Math.min(maxScale, Math.max(minScale, zoomVal)) : null;
+    // Jeśli mapa nie gotowa – ponów później
+    if(!mapData || !imgWidth || !imgHeight){
+      const retry = ()=>{ if(mapData && imgWidth && imgHeight){ centerOnFocusParam(); } else { setTimeout(retry, 150); } };
+      setTimeout(retry, 150); return;
+    }
+    // Skorzystaj z istniejącej funkcji – centrowanie + tymczasowy marker (pulse)
+    const label = usp.get('fl') || usp.get('label') || 'Cel';
+    focusLogicalPoint(x, z, { pulse:true, label, desiredScale });
+  } catch(_){ }
+}
+
+// Konwersja współrzędnych ekranu (wewnątrz viewportu) na współrzędne logiczne świata (X,Z)
+function screenToLogical(sX, sY){
+  const mapPxX = (sX - originX) / scale;
+  const mapPxY = (sY - originY) / scale;
+  const meta = mapData?.meta || {}; const units = meta.unitsPerPixel || 4; const originMode = meta.origin || 'top-left';
+  if(originMode === 'center'){
+    return { x: (mapPxX - imgWidth/2) * units, z: (mapPxY - imgHeight/2) * units };
+  }
+  return { x: mapPxX, z: mapPxY };
+}
+
+function logicalToMapPx(logicX, logicZ){
+  const meta = mapData?.meta || {}; const unitsPerPixel = meta.unitsPerPixel || 4; const originMode = meta.origin || 'top-left';
+  if(originMode === 'center'){
+    return { x: (imgWidth/2) + (logicX / unitsPerPixel), y: (imgHeight/2) + (logicZ / unitsPerPixel) };
+  }
+  return { x: logicX, y: logicZ };
+}
+
+// Aktualizacja wskaźnika koordynatów (desktop)
+let __lastPointerPos = null; // w układzie viewportu
+function updateCursorCoords(clientX, clientY){
+  if(!legendCursorEl || !viewport) return;
+  const rect = viewport.getBoundingClientRect();
+  const sX = clientX - rect.left; const sY = clientY - rect.top;
+  if(sX < 0 || sY < 0 || sX > rect.width || sY > rect.height){ legendCursorEl.textContent = '—'; return; }
+  const {x,z} = screenToLogical(sX, sY);
+  const rx = Math.round(x); const rz = Math.round(z);
+  legendCursorEl.textContent = `${rx}, ${rz}`;
+}
+
+function updateCrosshairCoords(){
+  if(!legendCrosshairEl || !viewport) return;
+  const rect = viewport.getBoundingClientRect();
+  const centerX = rect.width / 2;
+  const centerY = rect.height / 2;
+  const {x,z} = screenToLogical(centerX, centerY);
+  legendCrosshairEl.textContent = `${Math.round(x)}, ${Math.round(z)}`;
+}
+
+function rememberViewportSize(){
+  if(!viewport) return;
+  lastViewportSize = { w: viewport.clientWidth, h: viewport.clientHeight };
+}
+
+function buildLegend(){
+  if(!legendEl) return; // w panelu admina legenda może być ukryta lub nie istnieć
+  legendEl.innerHTML = '';
+  if(!mapData?.categories) return;
+  // Domyślne ukrycie kategorii transportowych zostało wymuszone przy ładowaniu i przy zmianie trybu.
+  // --- PUNKTY (inne niż kolej/metro) NA GÓRZE ---
+  const transportCatKeys = ['kolej','metro','airport'];
+  const headingPoints = document.createElement('div'); headingPoints.className='legend-heading'; headingPoints.textContent='PUNKTY'; legendEl.appendChild(headingPoints);
+  Object.entries(mapData.categories).forEach(([key,val])=>{
+    if(transportCatKeys.includes(key)) return; // pomiń transport tutaj
+    const div = document.createElement('label');
+    div.className = 'legend-item';
+    div.setAttribute('data-cat-key', key);
+    const dot = document.createElement('span'); dot.className='legend-dot'; dot.style.background = val.color || '#888';
+    const cb = document.createElement('input'); cb.type='checkbox'; cb.style.marginRight='.35rem';
+    cb.checked = !activeCategories.has(key);
+    cb.addEventListener('change', ()=>{
+      if(cb.checked) activeCategories.delete(key); else activeCategories.add(key);
+      saveLegendState();
+      buildMarkers(); drawLines(); buildLinesLegend();
+    });
+    div.appendChild(cb);
+    div.appendChild(dot);
+    const lab = document.createElement('span'); lab.className='legend-label'; lab.textContent = val.label || key; div.appendChild(lab);
+    legendEl.appendChild(div);
+  });
+  // Sklep / Firma – po wszystkich kategoriach punktów z danych
+  try {
+    const shopRow = document.createElement('label'); shopRow.className='legend-item'; shopRow.setAttribute('data-legend-shops','1');
+    const shopCb = document.createElement('input'); shopCb.type='checkbox'; shopCb.style.marginRight='.35rem'; shopCb.checked = !!showShops;
+    shopCb.addEventListener('change', async ()=>{
+      showShops = shopCb.checked;
+      saveLegendState();
+      if(showShops){
+        await ensureShopsLoaded();
+      } else {
+        currentShopContextId = null;
+        if(pointResultsEl){ pointResultsEl.innerHTML=''; pointResultsEl.hidden = true; }
+      }
+      buildShopMarkers();
+    });
+    const shopDot = document.createElement('span'); shopDot.className='legend-dot'; shopDot.style.background = '#0ea5e9';
+    const shopLab = document.createElement('span'); shopLab.className='legend-label'; shopLab.textContent = 'Sklep';
+    shopRow.appendChild(shopCb); shopRow.appendChild(shopDot); shopRow.appendChild(shopLab);
+    legendEl.appendChild(shopRow);
+
+    const companyRow = document.createElement('label'); companyRow.className='legend-item'; companyRow.setAttribute('data-legend-companies','1');
+    const companyCb = document.createElement('input'); companyCb.type='checkbox'; companyCb.style.marginRight='.35rem'; companyCb.checked = !!showCompanies;
+    companyCb.addEventListener('change', async ()=>{
+      showCompanies = companyCb.checked;
+      saveLegendState();
+      if(showCompanies){ await ensureCompaniesLoaded(); }
+      buildCompanyMarkers();
+    });
+    const companyDot = document.createElement('span'); companyDot.className='legend-dot'; companyDot.style.background = '#a855f7';
+    const companyLab = document.createElement('span'); companyLab.className='legend-label'; companyLab.textContent = 'Firma';
+    companyRow.appendChild(companyCb); companyRow.appendChild(companyDot); companyRow.appendChild(companyLab);
+    legendEl.appendChild(companyRow);
+  } catch(_){ }
+  // Separator między punktami a sekcją transportową
+  const sepTop = document.createElement('div'); sepTop.className='legend-sep'; legendEl.appendChild(sepTop);
+
+  // --- TRANSPORT / LINIE ---
+  const headingTransport = document.createElement('div'); headingTransport.className='legend-heading'; headingTransport.textContent='TRANSPORT'; legendEl.appendChild(headingTransport);
+  // Dwa niezależne przełączniki widoczności linii
+  const mkToggle = (label, color, getter, setter)=>{
+    const el = document.createElement('label'); el.className='legend-item';
+    const cb = document.createElement('input'); cb.type='checkbox'; cb.checked = getter(); cb.style.marginRight='.35rem';
+    cb.addEventListener('change', ()=>{ setter(cb.checked); showLines = !!(showRailLines || showFlightLines); saveLegendState(); drawLines(); buildLegend(); buildLinesLegend(); });
+    const dot = document.createElement('span'); dot.className='legend-dot'; dot.style.background = color;
+    const lab = document.createElement('span'); lab.className='legend-label'; lab.textContent = label;
+    el.appendChild(cb); el.appendChild(dot); el.appendChild(lab);
+    legendEl.appendChild(el);
+  };
+  mkToggle('Linie kolej/metro', '#888', ()=> showRailLines, (v)=>{ showRailLines = v; });
+  mkToggle('Linie lotnicze', '#38bdf8', ()=> showFlightLines, (v)=>{ showFlightLines = v; });
+
+  // Przełączniki kategorii stacji transportowych (Kolej/Metro) – razem z sekcją transportu
+  transportCatKeys.forEach(key => {
+    const cat = mapData.categories?.[key];
+    if(!cat) return;
+    // W trybie general: traktuj te kategorie jako filtrowalne tylko jeśli użytkownik ręcznie włączy.
+    const row = document.createElement('label');
+    row.className = 'legend-item';
+    const cb = document.createElement('input'); cb.type='checkbox'; cb.style.marginRight='.35rem';
+    cb.checked = !activeCategories.has(key);
+    cb.addEventListener('change', ()=>{
+      if(cb.checked) activeCategories.delete(key); else activeCategories.add(key);
+      saveLegendState();
+      buildMarkers(); drawLines(); buildLinesLegend();
+    });
+    const dot = document.createElement('span'); dot.className='legend-dot'; dot.style.background = cat.color || '#10b981';
+    row.appendChild(cb);
+    row.appendChild(dot);
+    const lab = document.createElement('span'); lab.className='legend-label'; lab.textContent = cat.label || key; row.appendChild(lab);
+    legendEl.appendChild(row);
+  });
+
+  // Jeśli mamy dane o kategoriach linii i którykolwiek toggle jest włączony – dodaj przełączniki kategorii linii
+  if ((showRailLines || showFlightLines) && window && typeof linesData === 'object' && linesData && linesData.categories) {
+    const headingLinesCats = document.createElement('div'); headingLinesCats.className='legend-heading'; headingLinesCats.textContent='TYPY LINII'; legendEl.appendChild(headingLinesCats);
+    Object.entries(linesData.categories).forEach(([k, v]) => {
+      const isFlight = /FLIGHT|AIR|LOT/i.test(k);
+      if(isFlight && !showFlightLines) return;
+      if(!isFlight && !showRailLines) return;
+      const row = document.createElement('label');
+      row.className = 'legend-item';
+      const cb = document.createElement('input'); cb.type='checkbox'; cb.style.marginRight='.35rem';
+      cb.checked = !hiddenLineCategories.has(k);
+      cb.addEventListener('change', ()=>{
+        if(cb.checked) hiddenLineCategories.delete(k); else hiddenLineCategories.add(k);
+        saveLegendState();
+        drawLines(); buildLinesLegend();
+      });
+      const dot = document.createElement('span'); dot.className='legend-dot'; dot.style.background = v.color || '#888';
+      row.appendChild(cb);
+      row.appendChild(dot);
+      const displayLabel = (k === 'ON') ? 'NŻ' : (v.label || k);
+      const lab = document.createElement('span'); lab.className='legend-label'; lab.textContent = displayLabel; row.appendChild(lab);
+      legendEl.appendChild(row);
+    });
+  }
+
+  // (Sekcja punktów już wyrenderowana wyżej)
+  // Wskaźnik koordynatów kursora (desktop only) – pod legendą
+  renderLegendCursor();
+}
+
+function renderLegendCursor(){
+  // W nowym bąbelku w prawym dolnym rogu – tylko aktualizacja referencji
+  legendCursorEl = infoCursorEl || null;
+  legendCrosshairEl = infoCrosshairEl || null;
+  legendCursorRowEl = infoBubbleEl || null;
+  legendCrosshairRowEl = infoBubbleEl || null;
+  try {
+    if(legendCursorEl){ legendCursorEl.textContent = '—'; }
+    if(legendCrosshairEl){ legendCrosshairEl.textContent = '—'; updateCrosshairCoords(); }
+    renderUpdatedAtRow();
+    updateInfoBubbleOffset();
+  } catch(_) { legendCursorEl = null; legendCursorRowEl = null; }
+}
+
+function renderUpdatedAtRow(){
+  legendUpdatedRowEl = infoUpdatedEl || null;
+  try {
+    const iso = mapData?.meta?.updatedAt;
+    let formatted = '—';
+    if(iso){
+      const dt = new Date(iso);
+      if(!Number.isNaN(dt.getTime())){
+        formatted = dt.toLocaleString('pl-PL', { dateStyle:'short' });
+      }
+    }
+    if(legendUpdatedRowEl){ legendUpdatedRowEl.textContent = formatted; }
+    updateInfoBubbleOffset();
+  } catch(_) { legendUpdatedRowEl = null; }
+}
+
+function updateInfoBubbleOffset(){
+  if(!infoBubbleEl) return;
+  const h = infoBubbleEl.offsetHeight || 0;
+  const gap = h ? 10 : 0; // mały odstęp nad legendą linii
+  document.documentElement.style.setProperty('--info-bubble-offset', `${h + gap}px`);
+}
+
+function setInfoBubbleVisible(visible){
+  if(!infoBubbleEl) return;
+  const v = !!visible;
+  if(infoBodyEl){ infoBodyEl.hidden = !v; }
+  infoBubbleEl.classList.toggle('info-visible', v);
+  infoBubbleEl.classList.toggle('collapsed', !v);
+  if(infoFabBtn){ infoFabBtn.hidden = v; }
+  updateInfoBubbleOffset();
+}
+
+// --- Sklepy kHandel: legenda, ładowanie i render ---
+function addShopsLegendEntry(){
+  if(!legendEl) return;
+  // Jeśli już istnieje, tylko zaktualizuj checkbox
+  const existing = legendEl.querySelector('[data-legend-shops] input[type="checkbox"]');
+  if(existing){ existing.checked = !!showShops; return; }
+  // Upewnij się, że mamy nagłówek WARSTWY (używany też przez mapę polityczną)
+  if(!legendEl.querySelector('[data-legend-political-heading]') && !legendEl.querySelector('[data-legend-layers-heading]')){
+    const sep = document.createElement('div'); sep.className='legend-sep'; legendEl.appendChild(sep);
+    const heading = document.createElement('div'); heading.className='legend-heading'; heading.textContent='WARSTWY'; heading.setAttribute('data-legend-layers-heading','1'); legendEl.appendChild(heading);
+  }
+  const row = document.createElement('label'); row.className='legend-item'; row.setAttribute('data-legend-shops','1');
+  const cb = document.createElement('input'); cb.type='checkbox'; cb.style.marginRight='.35rem'; cb.checked = !!showShops;
+  const dot = document.createElement('span'); dot.className='legend-dot'; dot.style.background = '#0ea5e9';
+  const lab = document.createElement('span'); lab.className='legend-label'; lab.textContent = 'Sklep';
+  row.appendChild(cb); row.appendChild(dot); row.appendChild(lab);
+  legendEl.appendChild(row);
+  cb.addEventListener('change', async ()=>{
+    showShops = cb.checked;
+    saveLegendState();
+    if(showShops){ await ensureShopsLoaded(); }
+    buildShopMarkers();
+  });
+}
+
+async function ensureShopsLoaded(){
+  if(shopsData !== null) return shopsData;
+  try {
+    const arr = await window.__db.fetchJson('data/khandel-products.json');
+    if(!Array.isArray(arr)){ shopsData = []; return shopsData; }
+    // Grupuj po lokalizacja+sklep
+    const map = new Map(); // key -> { id,name,location,owner,x,y,z,offers:[] }
+    for(const p of arr){
+      const loc = p.storeLocation || '';
+      const name = p.storeName || 'Sklep';
+      const key = `${loc}||${name}`;
+      let rec = map.get(key);
+      if(!rec){
+        // Koordynaty: bierz pierwsze dostępne
+        const x = Number(p.x); const y = Number(p.y); const z = Number(p.z);
+        rec = {
+          id: key,
+          name,
+          location: loc,
+          owner: p.storeOwner || '',
+          x: Number.isFinite(x)? x : undefined,
+          y: Number.isFinite(y)? y : undefined,
+          z: Number.isFinite(z)? z : undefined,
+          offers: []
+        };
+        map.set(key, rec);
+      } else {
+        // Jeśli nie było koordynatów, a teraz są – uzupełnij
+        if((rec.x===undefined || rec.z===undefined) && Number.isFinite(p.x) && Number.isFinite(p.z)){
+          rec.x = p.x; rec.z = p.z; rec.y = Number.isFinite(p.y)? p.y : rec.y;
+        }
+      }
+      rec.offers.push(p);
+    }
+    shopsData = Array.from(map.values()).filter(s=> Number.isFinite(s.x) && Number.isFinite(s.z));
+  } catch(e){ shopsData = []; }
+  return shopsData;
+}
+
+function normalizeCompanyRecord(item){
+  const BUSINESS_TYPE_LABELS = {
+    JDG: 'JDG',
+	  SPOLKA: 'Spółka',
+    PSK: 'PSK'
+  };
+  const normalizeBusinessType = (val) => {
+    const raw = String(val || '').trim().toUpperCase();
+    if(raw === 'JDG' || raw === 'SPOLKA') return raw;
+    return '';
+  };
+  const addr = item?.location?.address || {};
+  const coords = item?.location?.coordinates || {};
+  const dimension = String(item?.location?.dimension || 'Overworld').trim();
+  const name = String(item?.name || 'Firma').trim();
+  const businessType = normalizeBusinessType(item?.business_type ?? item?.businessType ?? item?.legal_form ?? item?.legalForm ?? item?.type ?? item?.rodzaj_dzialalnosci ?? item?.rodzajDzialalnosci);
+  const knip = String(item?.knip || '').trim();
+  const registrar = String(item?.registrar_kesel ?? item?.registrarKesel ?? '').trim();
+  const symbols = Array.isArray(item?.symbols) ? item.symbols.map(s=> String(s||'').trim()).filter(Boolean) : [];
+  const city = String(addr.city || '').trim();
+  const street = String(addr.street || '').trim();
+  const voiv = String(addr.voivodeship || addr.wojewodztwo || '').trim();
+  const x = Number(coords.x);
+  const z = Number(coords.y ?? coords.z);
+  const id = knip || `${name}|${city}|${street}`;
+  return { id, name, city, street, voiv, knip, registrar, businessType, symbols, dimension, x: Number.isFinite(x)? x : undefined, z: Number.isFinite(z)? z : undefined };
+}
+
+async function ensureCompaniesLoaded(){
+  if(companiesData !== null) return companiesData;
+  try {
+    const arr = await window.__db.fetchJson('data/companies.json');
+    if(!Array.isArray(arr)){ companiesData = []; return companiesData; }
+    const map = new Map();
+    arr.forEach(raw => {
+      const c = normalizeCompanyRecord(raw);
+      if(c.dimension && c.dimension !== 'Overworld') return;
+      if(!Number.isFinite(c.x) || !Number.isFinite(c.z)) return;
+      if(!map.has(c.id)) map.set(c.id, c);
+    });
+    companiesData = Array.from(map.values());
+  } catch(e){ companiesData = []; }
+  return companiesData;
+}
+
+function logicalToPx(x,z){
+  if(!mapData || !imgWidth || !imgHeight) return { x:0, y:0 };
+  const meta = mapData.meta || {}; const unitsPerPixel = meta.unitsPerPixel || 4; const originMode = meta.origin || 'top-left';
+  if(originMode === 'center'){
+    return { x: (imgWidth/2) + (x/unitsPerPixel), y: (imgHeight/2) + (z/unitsPerPixel) };
+  }
+  return { x, y: z };
+}
+
+function mapPxToLogical(pxX, pxY){
+  if(!mapData || !imgWidth || !imgHeight) return { x:0, z:0 };
+  const meta = mapData.meta || {}; const unitsPerPixel = meta.unitsPerPixel || 4; const originMode = meta.origin || 'top-left';
+  if(originMode === 'center'){
+    return { x: (pxX - imgWidth/2) * unitsPerPixel, z: (pxY - imgHeight/2) * unitsPerPixel };
+  }
+  return { x: pxX, z: pxY };
+}
+
+function getVisibleMapBoundsPx(margin = 0){
+  if(!viewport) return null;
+  const left = -originX/scale - margin;
+  const top = -originY/scale - margin;
+  const right = left + viewport.clientWidth/scale + margin*2;
+  const bottom = top + viewport.clientHeight/scale + margin*2;
+  return { left, top, right, bottom };
+}
+
+// --- Wycinanie markerów spoza widocznego obszaru (punkty/sklepy/firmy) ---
+// Marker + etykieta mają stały rozmiar na ekranie (patrz --ui-scale), więc margines
+// liczony w px mapy musi być podzielony przez scale, inaczej przy oddaleniu byłby
+// za wąski, a przy przybliżeniu niepotrzebnie szeroki.
+const MARKER_CULL_SCREEN_MARGIN = 180;
+function getMarkerCullBounds(){
+  return getVisibleMapBoundsPx(MARKER_CULL_SCREEN_MARGIN / scale);
+}
+function withinCullBounds(bounds, pxX, pxY){
+  if(!bounds) return true;
+  return pxX >= bounds.left && pxX <= bounds.right && pxY >= bounds.top && pxY <= bounds.bottom;
+}
+
+let markersCullRaf = null;
+function scheduleMarkersCullRender(){
+  if(markersCullRaf) return;
+  markersCullRaf = requestAnimationFrame(()=>{
+    markersCullRaf = null;
+    // Nie przebudowuj w trakcie otwartego popovera klastra – rebuild go zamyka (patrz buildMarkers/buildShopMarkers/buildCompanyMarkers)
+    if(clusterPopoverEl) return;
+    try { buildMarkers(); } catch(_){ }
+    try { buildShopMarkers(); } catch(_){ }
+    try { buildCompanyMarkers(); } catch(_){ }
+  });
+}
+
+function buildShopMarkers(){
+  ensureMarkerSublayers();
+  if(!markersShopsLayer) return;
+  markersShopsLayer.innerHTML = '';
+  if(!showShops) return;
+  if(!mapData || !imgWidth || !imgHeight) return;
+  if(!Array.isArray(shopsData) || shopsData.length===0) return;
+  const enriched = shopsData.map(s=>{
+    const pos = logicalToPx(s.x, s.z);
+    const screenX = originX + pos.x * scale;
+    const screenY = originY + pos.y * scale;
+    return { s, pxX: pos.x, pxY: pos.y, screenX, screenY };
+  });
+  const cullBounds = getMarkerCullBounds();
+  const culled = cullBounds ? enriched.filter(m => withinCullBounds(cullBounds, m.pxX, m.pxY)) : enriched;
+  const clusters=[]; const taken=new Set();
+  if(shopsClusteringCurrentlyEnabled()){
+    const threshold = CLUSTER_SCREEN_DISTANCE;
+    for(let i=0;i<culled.length;i++){
+      if(taken.has(i)) continue;
+      const a = culled[i]; const group=[i];
+      for(let j=i+1;j<culled.length;j++){
+        if(taken.has(j)) continue; const b=culled[j]; const dx=a.screenX-b.screenX, dy=a.screenY-b.screenY; if(dx*dx+dy*dy<=threshold*threshold){ group.push(j); taken.add(j); }
+      }
+      taken.add(i);
+      const members = group.map(k=> culled[k]);
+      const cx = members.reduce((sum,m)=>sum+m.pxX,0)/members.length;
+      const cy = members.reduce((sum,m)=>sum+m.pxY,0)/members.length;
+      clusters.push({ members, cx, cy });
+    }
+  } else {
+    clusters.push(...culled.map(m=> ({ members:[m], cx:m.pxX, cy:m.pxY })));
+  }
+  for(const cl of clusters){
+    if(cl.members.length === 1){
+      const m = cl.members[0]; const s = m.s;
+      const wrap = document.createElement('div');
+      wrap.className = 'marker shop-marker';
+      wrap.style.left = m.pxX + 'px'; wrap.style.top = m.pxY + 'px';
+      wrap.dataset.shopId = s.id; wrap.dataset.px = String(m.pxX); wrap.dataset.py = String(m.pxY);
+  const btn = document.createElement('button'); btn.className='marker-btn';
+  const icon = document.createElement('img'); icon.src='/icns_ui/storefront.svg'; icon.style.width='16px'; icon.alt=''; icon.setAttribute('aria-hidden','true');
+  btn.appendChild(icon);
+      btn.addEventListener('click', (e)=>{ e.stopPropagation(); openShopInSearch(s.id); });
+      const label = document.createElement('div'); label.className='marker-label'; label.textContent = `${s.name}`;
+      wrap.appendChild(btn); wrap.appendChild(label); markersShopsLayer.appendChild(wrap);
+    } else {
+      const wrap = document.createElement('div');
+      wrap.className = 'marker cluster-marker'; wrap.style.left = cl.cx + 'px'; wrap.style.top = cl.cy + 'px';
+      const btn = document.createElement('button'); btn.className='marker-btn cluster-btn'; btn.textContent = cl.members.length>99? '99+': String(cl.members.length);
+      btn.addEventListener('click', (e)=>{
+        e.stopPropagation();
+        toggleShopClusterPopover(wrap, cl);
+      });
+      wrap.appendChild(btn); markersShopsLayer.appendChild(wrap);
+    }
+  }
+}
+
+function shopsClusteringCurrentlyEnabled(){
+  return scale < CLUSTER_ZOOM_THRESHOLD;
+}
+
+function maybeUpdateShopClusters(){
+  const active = shopsClusteringCurrentlyEnabled();
+  const delta = Math.abs(scale - lastShopScaleForEval);
+  if(active !== lastShopClusteringActive || delta > 0.02){
+    lastShopScaleForEval = scale; lastShopClusteringActive = active;
+    try { buildShopMarkers(); } catch(_){ }
+  }
+}
+
+function buildCompanyMarkers(){
+  ensureMarkerSublayers();
+  if(!markersCompaniesLayer) return;
+  markersCompaniesLayer.innerHTML = '';
+  if(!showCompanies) return;
+  if(!mapData || !imgWidth || !imgHeight) return;
+  if(!Array.isArray(companiesData) || companiesData.length===0) return;
+  const enriched = companiesData.map(c=>{
+    const pos = logicalToPx(c.x, c.z);
+    const screenX = originX + pos.x * scale;
+    const screenY = originY + pos.y * scale;
+    return { c, pxX: pos.x, pxY: pos.y, screenX, screenY };
+  });
+  const cullBounds = getMarkerCullBounds();
+  const culled = cullBounds ? enriched.filter(m => withinCullBounds(cullBounds, m.pxX, m.pxY)) : enriched;
+  const clusters=[]; const taken=new Set();
+  if(companiesClusteringCurrentlyEnabled()){
+    const threshold = CLUSTER_SCREEN_DISTANCE;
+    for(let i=0;i<culled.length;i++){
+      if(taken.has(i)) continue;
+      const a = culled[i]; const group=[i];
+      for(let j=i+1;j<culled.length;j++){
+        if(taken.has(j)) continue; const b=culled[j]; const dx=a.screenX-b.screenX, dy=a.screenY-b.screenY; if(dx*dx+dy*dy<=threshold*threshold){ group.push(j); taken.add(j); }
+      }
+      taken.add(i);
+      const members = group.map(k=> culled[k]);
+      const cx = members.reduce((sum,m)=>sum+m.pxX,0)/members.length;
+      const cy = members.reduce((sum,m)=>sum+m.pxY,0)/members.length;
+      clusters.push({ members, cx, cy });
+    }
+  } else {
+    clusters.push(...culled.map(m=> ({ members:[m], cx:m.pxX, cy:m.pxY })));
+  }
+  for(const cl of clusters){
+    if(cl.members.length === 1){
+      const m = cl.members[0]; const c = m.c;
+      const wrap = document.createElement('div');
+      wrap.className = 'marker company-marker';
+      wrap.style.left = m.pxX + 'px'; wrap.style.top = m.pxY + 'px';
+      wrap.dataset.companyId = c.id; wrap.dataset.px = String(m.pxX); wrap.dataset.py = String(m.pxY);
+      const btn = document.createElement('button'); btn.className='marker-btn';
+      const icon = document.createElement('img'); icon.src='/icns_ui/company.svg'; icon.alt=''; icon.setAttribute('aria-hidden','true');
+      btn.appendChild(icon);
+      btn.addEventListener('click', (e)=>{ e.stopPropagation(); openCompanyInSearch(c.id); });
+      const label = document.createElement('div'); label.className='marker-label';
+      const locLabel = c.city ? `${c.name} • ${c.city}` : c.name;
+      label.textContent = locLabel;
+      wrap.appendChild(btn); wrap.appendChild(label); markersCompaniesLayer.appendChild(wrap);
+    } else {
+      const wrap = document.createElement('div');
+      wrap.className = 'marker cluster-marker'; wrap.style.left = cl.cx + 'px'; wrap.style.top = cl.cy + 'px';
+      const btn = document.createElement('button'); btn.className='marker-btn cluster-btn'; btn.textContent = cl.members.length>99? '99+': String(cl.members.length);
+      btn.addEventListener('click', (e)=>{
+        e.stopPropagation();
+        toggleCompanyClusterPopover(wrap, cl);
+      });
+      wrap.appendChild(btn); markersCompaniesLayer.appendChild(wrap);
+    }
+  }
+}
+
+function companiesClusteringCurrentlyEnabled(){
+  return scale < CLUSTER_ZOOM_THRESHOLD;
+}
+
+function maybeUpdateCompanyClusters(){
+  const active = companiesClusteringCurrentlyEnabled();
+  const delta = Math.abs(scale - lastCompanyScaleForEval);
+  if(active !== lastCompanyClusteringActive || delta > 0.02){
+    lastCompanyScaleForEval = scale; lastCompanyClusteringActive = active;
+    try { buildCompanyMarkers(); } catch(_){ }
+  }
+}
+
+function openCompanyInSearch(companyId){
+  try {
+    if(!companiesData) return; const c = companiesData.find(x=> x.id===companyId);
+    if(!c) return;
+    currentShopContextId = null;
+    focusLogicalPoint(c.x, c.z, { pulse:false });
+    renderCompanyDetail(c);
+  } catch(_){ }
+}
+
+function renderCompanyDetail(company){
+  const BUSINESS_TYPE_LABELS = {
+    JDG: 'JDG',
+    SPOLKA: 'Spółka'
+  };
+  if(!pointDetailEl) return;
+  if(!company){ pointDetailEl.innerHTML=''; pointDetailEl.hidden = true; return; }
+  pointDetailEl.hidden = false;
+  pointDetailEl.innerHTML = '';
+  const h = document.createElement('h4'); h.textContent = company.name; pointDetailEl.appendChild(h);
+  const addr = document.createElement('div'); addr.textContent = [company.city, company.street, company.voiv].filter(Boolean).join(' • ') || 'Brak adresu'; pointDetailEl.appendChild(addr);
+  const meta = document.createElement('div'); meta.className='meta';
+  const parts = [
+    Number.isFinite(company.x)? `X:${company.x}`:'',
+    Number.isFinite(company.z)? `Z:${company.z}`:'',
+    company.knip? `KNIP:${company.knip}`:'',
+    company.businessType ? `Rodzaj:${BUSINESS_TYPE_LABELS[company.businessType] || company.businessType}` : ''
+  ].filter(Boolean);
+  parts.forEach(txt=>{ const span=document.createElement('span'); span.textContent = txt; meta.appendChild(span); });
+  pointDetailEl.appendChild(meta);
+  if(company.symbols && company.symbols.length){
+    const tags = document.createElement('div'); tags.className='tags';
+    company.symbols.slice(0,6).forEach(sym=>{ const t=document.createElement('span'); t.className='tag'; t.textContent=sym; tags.appendChild(t); });
+    pointDetailEl.appendChild(tags);
+  }
+  const linkRow = document.createElement('div'); linkRow.className='meta';
+  const link = document.createElement('a'); link.href='/kfirma'; link.target='_blank'; link.rel='noopener'; link.textContent='Otwórz kFirma';
+  link.className = 'company-link-btn';
+  linkRow.appendChild(link); pointDetailEl.appendChild(linkRow);
+}
+
+const __MC_VER = '1.20.4';
+const __MC_BASE = `https://cdn.jsdelivr.net/gh/InventivetalentDev/minecraft-assets@${__MC_VER}/assets/minecraft/textures`;
+// Ikona przedmiotu z opcjonalnym efektem enchant (glint) – zgodnie z kHandel
+function createMcIcon(item, size=18, enchanted=false){
+  const wrap = document.createElement('div');
+  wrap.className = 'item-icon' + (enchanted? ' enchanted':'');
+  wrap.style.width = size+'px';
+  wrap.style.height = size+'px';
+  wrap.classList.add('loading');
+  const img = document.createElement('img');
+  img.loading='lazy'; img.decoding='async'; img.alt = String(item||'');
+  wrap.appendChild(img);
+  let overlay = null;
+  if(enchanted){ overlay = document.createElement('div'); overlay.className='ench-overlay'; wrap.appendChild(overlay); }
+  const safe = String(item||'').toLowerCase();
+  const stages = [ `/mc-items/${encodeURIComponent(safe)}.png`, `${__MC_BASE}/item/${encodeURIComponent(safe)}.png`, `${__MC_BASE}/block/${encodeURIComponent(safe)}.png`, `${__MC_BASE}/item/barrier.png` ];
+  let i=0;
+  function apply(){ img.src = stages[i]; }
+  img.addEventListener('load', ()=>{
+    wrap.classList.remove('loading');
+    if(i===3){ img.style.opacity = '.55'; }
+    if(enchanted && overlay){
+      const url = `url(${img.src})`;
+      overlay.style.maskImage = url; overlay.style.webkitMaskImage = url; wrap.classList.add('masked');
+    }
+  });
+  img.onerror = ()=>{ if(i < stages.length-1){ i++; apply(); } else { wrap.classList.remove('loading'); } };
+  apply();
+  return wrap;
+}
+
+function pickPriceDisplayName(price){
+  try {
+    const lang = (localStorage.getItem('khandelLang') || 'pl');
+    if(lang === 'en') return price?.nameEn || price?.name || price?.item || '';
+    return price?.name || price?.nameEn || price?.item || '';
+  } catch(_) { return price?.name || price?.nameEn || price?.item || ''; }
+}
+
+function getKhandelLang(){
+  try { return localStorage.getItem('khandelLang') || 'pl'; } catch(_){ return 'pl'; }
+}
+function setKhandelLang(v){
+  try { localStorage.setItem('khandelLang', v); } catch(_){ }
+}
+function pickProductDisplayName(entry){
+  const lang = getKhandelLang();
+  if(lang === 'en'){
+    return entry.productNameEn || entry.productName || entry.product?.nameEn || entry.product?.name || entry.product?.item || 'Item';
+  }
+  return entry.productName || entry.productNameEn || entry.product?.name || entry.product?.nameEn || entry.product?.item || 'Przedmiot';
+}
+
+function openShopPanel(shopId){
+  try {
+    const s = Array.isArray(shopsData) ? shopsData.find(x=> x.id===shopId) : null;
+    if(!s) return;
+    if(!panel || !panelContent) return;
+    panel.hidden = false;
+    panel.classList.remove('pinned');
+    const offers = Array.isArray(s.offers) ? s.offers : [];
+    const header = document.createElement('div');
+    const h2 = document.createElement('h2'); h2.textContent = `${s.name}` + (s.location? ` @ ${s.location}`:''); header.appendChild(h2);
+    const meta = document.createElement('div'); meta.className='point-meta'; meta.innerHTML = [
+      Number.isFinite(s.x)&&Number.isFinite(s.z)? `X:${s.x}`:'',
+      Number.isFinite(s.z)? `Z:${s.z}`:'',
+      s.owner? `Właściciel: ${s.owner}`:''
+    ].filter(Boolean).map(t=> `<span>${t}</span>`).join('');
+    header.appendChild(meta);
+    const list = document.createElement('div'); list.style.display='flex'; list.style.flexDirection='column'; list.style.gap='.4rem';
+    // Render w partiach, by nie blokować UI przy dużej liczbie ofert
+    const PAGE_PANEL = 100; let panelOffset = 0;
+    function renderPanelBatch(){
+      const end = Math.min(panelOffset + PAGE_PANEL, offers.length);
+      for(let i=panelOffset;i<end;i++){
+        const p = offers[i];
+        const row = document.createElement('div'); row.className='shop-offer-row';
+        const product = document.createElement('div'); product.className='product';
+        const prodIconKey = (p.product?.item || p.product?.name || p.productName || p.productNameEn || '').toLowerCase();
+  if(prodIconKey){ const icon = createMcIcon(prodIconKey, 18, !!p?.product?.enchanted); icon.classList.add('product-icon'); product.appendChild(icon); }
+        const title = document.createElement('div'); title.className='title';
+        const name = pickProductDisplayName(p); title.textContent = name;
+        if(p?.product?.customItem === true){ title.classList.add('title--custom'); }
+        const qty = document.createElement('div'); qty.className='qty'; qty.textContent = (p.product?.qty>1? `×${p.product.qty}`:'');
+        product.appendChild(title); product.appendChild(qty); row.appendChild(product);
+        const prices = document.createElement('div'); prices.className='prices';
+        function addPrice(label, price){
+          if(!price || !price.item) return;
+          const chip = document.createElement('div'); chip.className='price-chip';
+          const img = createMcIcon(price.item, 18, !!price?.enchanted);
+          const span = document.createElement('span');
+          const displayName = pickPriceDisplayName(price);
+          span.textContent = `${displayName} ×${price.qty||1}`;
+          chip.title = `${label}: ${displayName} ×${price.qty||1}`;
+          chip.appendChild(img); chip.appendChild(span); prices.appendChild(chip);
+          // Fioletowa cena tylko gdy sama cena (price) jest niestandardowa, nie gdy cały produkt jest custom
+          if(price?.customItem === true){ chip.classList.add('price-chip--custom'); }
+        }
+        addPrice('Cena 1', p.price1); addPrice('Cena 2', p.price2);
+        row.appendChild(prices);
+        list.appendChild(row);
+      }
+      panelOffset = end; return panelOffset < offers.length;
+    }
+    const actions = document.createElement('div'); actions.className='shop-panel-actions';
+    const openMap = document.createElement('a'); openMap.href = `?focus=${s.x},${s.z}&label=${encodeURIComponent(s.name)}`; openMap.textContent='Pokaż tutaj'; openMap.addEventListener('click', (e)=>{ e.preventDefault(); focusLogicalPoint(s.x, s.z, { pulse:true, label:s.name }); });
+    const openKhandel = document.createElement('a'); openKhandel.href='/khandel.html'; openKhandel.target='_blank'; openKhandel.rel='noopener'; openKhandel.textContent='Otwórz kHandel';
+    actions.appendChild(openMap); actions.appendChild(openKhandel);
+    // Przyciski paginacji jeśli jest więcej ofert
+    const hasMorePanel = renderPanelBatch();
+    if(hasMorePanel){
+      const moreBtn = document.createElement('button'); moreBtn.type='button'; moreBtn.className='mini-btn'; moreBtn.textContent='Pokaż więcej';
+      moreBtn.addEventListener('click', ()=>{ const more = renderPanelBatch(); if(!more){ moreBtn.disabled = true; } });
+      actions.appendChild(moreBtn);
+    }
+    panelContent.innerHTML = '';
+    panelContent.appendChild(header);
+    if(offers.length===0){ const empty = document.createElement('div'); empty.className='empty'; empty.textContent='Brak ofert.'; panelContent.appendChild(empty); }
+    else { panelContent.appendChild(list); }
+    panelContent.appendChild(actions);
+  } catch(_){ }
+}
+
+function openShopInSearch(shopId){
+  try {
+    if(!shopsData) return; const s = shopsData.find(x=> x.id===shopId); if(!s) return;
+    currentShopContextId = s.id;
+    // Skup mapę na sklepie i pokaż oferty w wynikach
+    focusLogicalPoint(s.x, s.z, { pulse:false });
+    // Wejście w kontekst sklepu – schowaj szczegóły punktu oraz wyczyść wyniki punktów
+    if(pointDetailEl){ pointDetailEl.hidden = true; pointDetailEl.innerHTML=''; }
+    if(pointResultsEl){ pointResultsEl.innerHTML=''; }
+    renderShopOffersInResults(s, (searchInput && searchInput.value)||'');
+  } catch(_){ }
+}
+
+// Render ofert sklepu w obszarze wyników wyszukiwania
+function renderShopOffersInResults(shop, query){
+  if(!pointResultsEl || !shop) return;
+  const offers = Array.isArray(shop.offers) ? shop.offers : [];
+  const q = (query||'').trim().toLowerCase();
+  const filtered = q ? offers.filter(p => productMatchesQuery(p, q)) : offers;
+  pointResultsEl.innerHTML = '';
+  const headerWrap = document.createElement('div'); headerWrap.style.display='flex'; headerWrap.style.alignItems='center'; headerWrap.style.justifyContent='space-between'; headerWrap.style.gap='.5rem';
+  const heading = document.createElement('div'); heading.className='legend-heading'; heading.style.margin='.2rem 0'; heading.textContent = `Oferty: ${shop.name}${shop.location? ' @ '+shop.location:''}`;
+  const langBtn = document.createElement('button'); langBtn.type='button';
+  langBtn.textContent = (getKhandelLang()==='en'?'EN 🇬🇧':'PL 🇵🇱');
+  langBtn.title = 'Przełącz język nazw przedmiotów';
+  langBtn.style.fontSize='.55rem'; langBtn.style.fontWeight='600'; langBtn.style.letterSpacing='.4px'; langBtn.style.padding='.25rem .5rem'; langBtn.style.borderRadius='999px';
+  langBtn.style.background='linear-gradient(145deg,#202832,#161b22)'; langBtn.style.border='1px solid #2d3542'; langBtn.style.color='inherit'; langBtn.style.cursor='pointer';
+  langBtn.addEventListener('click', ()=>{ const cur=getKhandelLang(); const next = (cur==='pl'?'en':'pl'); setKhandelLang(next); langBtn.textContent = (next==='en'?'EN 🇬🇧':'PL 🇵🇱'); renderShopOffersInResults(shop, query); });
+  headerWrap.appendChild(heading); headerWrap.appendChild(langBtn); pointResultsEl.appendChild(headerWrap);
+  if(!filtered.length){ const empty = document.createElement('div'); empty.className='empty'; empty.style.padding='.2rem .1rem'; empty.textContent='Brak ofert w tym sklepie.'; pointResultsEl.appendChild(empty); pointResultsEl.hidden=false; return; }
+  const listWrap = document.createElement('div'); listWrap.className='shop-offers-results-list';
+  let resOffset = 0; const PAGE_RESULTS = 150;
+  function renderResultsBatch(){
+    const start = resOffset; const end = Math.min(start + PAGE_RESULTS, filtered.length);
+    for(let i=start;i<end;i++){
+      const p = filtered[i];
+  const item = document.createElement('div'); item.className='point-result-item shop-offer-item'; item.setAttribute('data-shop-id', shop.id);
+  if(p?.product?.customItem === true){ item.classList.add('is-custom-product'); }
+      const productRow = document.createElement('div'); productRow.className='product-line';
+      const prodKey = (p.product?.item || p.product?.name || p.productName || p.productNameEn || '').toLowerCase();
+  if(prodKey){ const prodIcon = createMcIcon(prodKey, 18, !!p?.product?.enchanted); prodIcon.classList.add('product-icon'); productRow.appendChild(prodIcon); }
+      const title = document.createElement('div'); title.className='point-result-name';
+      const name = pickProductDisplayName(p);
+      title.textContent = name;
+      if(p?.product?.customItem === true){ title.classList.add('title--custom'); }
+      productRow.appendChild(title);
+      if(p?.product?.qty > 1){ const qtyPill = document.createElement('span'); qtyPill.className='qty-pill'; qtyPill.textContent = `×${p.product.qty}`; qtyPill.title='Ilość'; productRow.appendChild(qtyPill); }
+      item.appendChild(productRow);
+      const prices = document.createElement('div'); prices.className='prices';
+      [p.price1, p.price2].filter(Boolean).forEach(price=>{
+        const chip = document.createElement('div'); chip.className='price-chip';
+  const img = createMcIcon(price.item, 18, !!price?.enchanted);
+        const span = document.createElement('span');
+        const displayName = pickPriceDisplayName(price);
+        span.textContent = `${displayName} ×${price.qty||1}`;
+        chip.appendChild(img); chip.appendChild(span); prices.appendChild(chip);
+  // W wynikach wyszukiwania: kolor ceny tylko jeśli price.customItem === true
+  if(price?.customItem === true){ chip.classList.add('price-chip--custom'); }
+      });
+      item.appendChild(prices);
+      listWrap.appendChild(item);
+      try {
+        requestAnimationFrame(()=>{
+          try {
+            const nameEl = item.querySelector('.point-result-name'); if(!nameEl) return;
+            const cs = getComputedStyle(nameEl); let lh = parseFloat(cs.lineHeight);
+            if(!lh || isNaN(lh)){ const fs = parseFloat(cs.fontSize) || 12; lh = fs * 1.25; }
+            const h = nameEl.getBoundingClientRect().height; const lines = Math.round(h / lh + 0.2);
+            if(lines >= 3){ item.classList.add('stack-prices-vert'); }
+          } catch(_){ }
+        });
+      } catch(_){ }
+    }
+    resOffset = end; return resOffset < filtered.length;
+  }
+  const hasMore = renderResultsBatch();
+  pointResultsEl.appendChild(listWrap);
+  if(hasMore){
+    const actions = document.createElement('div'); actions.className='shop-results-actions';
+    const moreBtn = document.createElement('button'); moreBtn.type='button'; moreBtn.className='mini-btn'; moreBtn.textContent='Pokaż więcej';
+    moreBtn.addEventListener('click', ()=>{ const more = renderResultsBatch(); if(!more){ moreBtn.disabled = true; } });
+    actions.appendChild(moreBtn); pointResultsEl.appendChild(actions);
+  }
+  pointResultsEl.hidden = false;
+}
+
+function buildMarkers(){
+  closeClusterPopover();
+  ensureMarkerSublayers();
+  if(markersMainLayer) markersMainLayer.innerHTML = '';
+  if(!mapData?.points) return;
+  const meta = mapData.meta || {};
+  const unitsPerPixel = meta.unitsPerPixel || 4; // 1px = X metrów
+  const originMode = meta.origin || 'top-left';
+  if(originMode === 'center' && (!imgWidth || !imgHeight)){
+    // Nie pozycjonujemy dopóki nie mamy wymiarów
+    return;
+  }
+  // --- Filtruj punkty wg legendy ---
+  const visiblePoints = mapData.points.filter(pt => {
+    if(pt.hidden && !showHidden) return false;
+    if(activeCategories.size>0 && activeCategories.has(pt.category)) return false;
+    return true;
+  });
+
+  // Oblicz pozycje pikselowe (map space) + pozycje ekranowe do klastrowania
+  const enriched = visiblePoints.map(pt => {
+    const logicY = (pt.z !== undefined ? pt.z : pt.y) || 0;
+    let pxX, pxY;
+    if(originMode === 'center'){
+      pxX = (imgWidth/2) + (pt.x / unitsPerPixel);
+      pxY = (imgHeight/2) + (logicY / unitsPerPixel);
+    } else { pxX = pt.x; pxY = logicY; }
+    const screenX = originX + pxX * scale;
+    const screenY = originY + pxY * scale;
+    return { pt, pxX, pxY, screenX, screenY };
+  });
+
+  const cullBounds = getMarkerCullBounds();
+  const culled = cullBounds ? enriched.filter(m => withinCullBounds(cullBounds, m.pxX, m.pxY)) : enriched;
+
+  // Przygotuj dane poprzednie (do animacji) – pobieramy referencję, z której będziemy korzystać po renderze
+  const prev = previousClusterSnapshot;
+
+  // Zbierz listę wcześniejszych klastrów (do ewentualnego ghost fade-out przy rozpadzie)
+  const prevClusterKeys = new Set(prev.clusterKeys);
+  const prevClustersMap = prev.clusters; // key -> {cx,cy,count}
+
+  // Nowa struktura pod snapshot
+  const nextSnapshot = {
+    clusters: new Map(),
+    pointToCluster: new Map(),
+    clusterKeys: new Set()
+  };
+
+  const newClusterDescriptors = []; // do animacji klastrów
+  const newSingles = []; // {pt, pxX, pxY, el}
+
+  if(clusteringCurrentlyEnabled()){
+    const clusters = [];
+    const taken = new Set();
+    const dist = CLUSTER_SCREEN_DISTANCE; // w px przy scale=1
+    const threshold = dist; // działamy w screen px już przeskalowanych
+    for(let i=0;i<culled.length;i++){
+      if(taken.has(i)) continue;
+      const a = culled[i];
+      const groupIdx = [i];
+      for(let j=i+1;j<culled.length;j++){
+        if(taken.has(j)) continue;
+        const b = culled[j];
+        const dx = a.screenX - b.screenX; const dy = a.screenY - b.screenY;
+        if(dx*dx + dy*dy <= threshold*threshold){
+          groupIdx.push(j); taken.add(j);
+        }
+      }
+      taken.add(i);
+      const members = groupIdx.map(k => culled[k]);
+      // centroid w przestrzeni mapy (px przed skalą) – średnia
+      const cx = members.reduce((s,m)=>s+m.pxX,0)/members.length;
+      const cy = members.reduce((s,m)=>s+m.pxY,0)/members.length;
+      clusters.push({ members, cx, cy });
+    }
+    // Render klastrów
+    clusters.forEach(cl => {
+      if(cl.members.length === 1){
+        const m = cl.members[0];
+        const el = renderSingleMarker(m.pt, m.pxX, m.pxY);
+        newSingles.push({ pt:m.pt, pxX:m.pxX, pxY:m.pxY, el });
+      } else {
+        // zbuduj klucz klastra – sortowane id
+        const key = cl.members.map(m=>m.pt.id).sort().join('|');
+        const el = renderClusterMarker(cl, key);
+        newClusterDescriptors.push({ key, cl, el });
+        nextSnapshot.clusters.set(key, { cx:cl.cx, cy:cl.cy, count:cl.members.length, members: new Set(cl.members.map(m=>m.pt.id)) });
+        nextSnapshot.clusterKeys.add(key);
+        cl.members.forEach(m=> nextSnapshot.pointToCluster.set(m.pt.id, { cx:cl.cx, cy:cl.cy }));
+      }
+    });
+  } else {
+    // Brak klastrowania – zwykłe markery
+    culled.forEach(m => {
+      const el = renderSingleMarker(m.pt, m.pxX, m.pxY);
+      newSingles.push({ pt:m.pt, pxX:m.pxX, pxY:m.pxY, el });
+    });
+  }
+
+  // --- Animacje ---
+  // 1. Split: nowy single mający poprzednio klaster -> animacja rozchodzenia
+  newSingles.forEach(ns => {
+    const prevCluster = prev.pointToCluster.get(ns.pt.id);
+    if(prevCluster){
+      const dx = prevCluster.cx - ns.pxX;
+      const dy = prevCluster.cy - ns.pxY;
+      ns.el.classList.add('split-from');
+      ns.el.style.setProperty('--from-dx', dx+'px');
+      ns.el.style.setProperty('--from-dy', dy+'px');
+    }
+  });
+  // 2. Merge: nowy klaster, którego klucz nie występował wcześniej -> animacja scalania
+  newClusterDescriptors.forEach(desc => {
+    if(!prevClusterKeys.has(desc.key)){
+      desc.el.classList.add('merge-from');
+    }
+  });
+  // 3. Disappear: klastery poprzednie, których już nie ma – ghost fade-out
+  prevClusterKeys.forEach(key => {
+    if(!nextSnapshot.clusterKeys.has(key)){
+      const info = prevClustersMap.get(key);
+      if(!info) return;
+      const ghost = document.createElement('div');
+      ghost.className = 'marker cluster-marker cluster-ghost cluster-disappear';
+      ghost.style.left = info.cx + 'px';
+      ghost.style.top = info.cy + 'px';
+      const btn = document.createElement('button');
+      btn.className = 'marker-btn cluster-btn';
+      const count = info.count || (info.members ? info.members.size : 0) || 1;
+      btn.textContent = count > 99 ? '99+' : String(count);
+      ghost.appendChild(btn);
+  markersMainLayer.appendChild(ghost);
+      setTimeout(()=> ghost.remove(), 420); // po animacji usuń
+    }
+  });
+
+  // Zaktualizuj snapshot na przyszłe przebudowy
+  previousClusterSnapshot = nextSnapshot;
+}
+
+function renderSingleMarker(pt, pxX, pxY){
+  const isPlayer = isPlayerPoint(pt);
+  const wrap = document.createElement('div');
+  wrap.className = 'marker';
+  if(isPlayer) wrap.classList.add('player-marker');
+  if (isAdmin && pt.hidden) wrap.classList.add('is-hidden');
+  wrap.style.left = pxX + 'px';
+  wrap.style.top = pxY + 'px';
+  wrap.dataset.id = pt.id;
+  wrap.dataset.category = pt.category || '';
+  wrap.dataset.px = String(pxX);
+  wrap.dataset.py = String(pxY);
+  const btn = document.createElement('button');
+  btn.className = 'marker-btn';
+  btn.style.background = mapData.categories?.[pt.category]?.color || '#AC1943';
+  if(isPlayer){
+    const icon = document.createElement('img');
+    icon.src = '/icns_ui/person.svg';
+    icon.alt = '';
+    icon.setAttribute('aria-hidden','true');
+    btn.appendChild(icon);
+  } else {
+    btn.textContent = pt.name?.charAt(0).toUpperCase() || '?';
+  }
+  btn.addEventListener('click', (e)=>{
+    e.stopPropagation();
+    openPoint(pt.id);
+    if(isAdmin){
+      window.dispatchEvent(new CustomEvent('admin:point-picked', { detail:{ id: pt.id } }));
+    }
+  });
+  const label = document.createElement('div');
+  label.className = 'marker-label';
+  label.textContent = pt.name;
+  wrap.appendChild(btn); wrap.appendChild(label);
+  markersMainLayer.appendChild(wrap);
+  return wrap;
+}
+
+function renderClusterMarker(cluster, key){
+  const count = cluster.members.length;
+  const wrap = document.createElement('div');
+  wrap.className = 'marker cluster-marker';
+  if(count >= 10) wrap.classList.add('cluster-large'); else if(count >=5) wrap.classList.add('cluster-medium'); else wrap.classList.add('cluster-small');
+  wrap.style.left = cluster.cx + 'px';
+  wrap.style.top = cluster.cy + 'px';
+  wrap.dataset.cluster = '1';
+  wrap.dataset.count = String(count);
+  const ids = cluster.members.map(m=>m.pt.id);
+  wrap.dataset.ids = ids.join(',');
+  if(key) wrap.dataset.ckey = key;
+  const btn = document.createElement('button');
+  btn.className = 'marker-btn cluster-btn';
+  btn.textContent = count > 99 ? '99+' : String(count); // liczba jako label (prostota)
+  wrap.appendChild(btn);
+  markersMainLayer.appendChild(wrap);
+  btn.addEventListener('click', (e)=>{
+    e.stopPropagation();
+    toggleClusterPopover(wrap, cluster);
+  });
+  return wrap;
+}
+
+function toggleClusterPopover(anchorEl, cluster){
+  if(clusterPopoverEl && clusterPopoverEl.anchor === anchorEl){
+    closeClusterPopover(); return;
+  }
+  closeClusterPopover();
+  clusterPopoverEl = document.createElement('div');
+  clusterPopoverEl.className = 'cluster-popover';
+  clusterPopoverEl.anchor = anchorEl;
+  const list = cluster.members
+    .slice() // kopia
+    .sort((a,b)=> (a.pt.name||'').localeCompare(b.pt.name||''))
+    .map(m=> `<div class="cp-item" data-id="${escapeHtml(m.pt.id)}"><span class="cp-dot" style="background:${mapData.categories?.[m.pt.category]?.color||'#666'}"></span><span class="cp-name">${escapeHtml(m.pt.name)}</span><span class="cp-cat">${escapeHtml(m.pt.category||'')}</span></div>`)
+    .join('');
+  clusterPopoverEl.innerHTML = `<div class="cp-header">${cluster.members.length} punktów</div><div class="cp-list">${list}</div>`;
+  clusterPopoverEl.style.left = anchorEl.style.left;
+  clusterPopoverEl.style.top = anchorEl.style.top;
+  markersMainLayer.appendChild(clusterPopoverEl);
+  clusterPopoverEl.querySelectorAll('.cp-item').forEach(el=>{
+    el.addEventListener('click', (ev)=>{
+      ev.stopPropagation();
+      const id = el.getAttribute('data-id');
+      closeClusterPopover();
+      focusPointById(id);
+    });
+  });
+  // Klik poza – zamknij
+  setTimeout(()=>{
+    const handler = (ev)=>{
+      if(clusterPopoverEl && !clusterPopoverEl.contains(ev.target) && !anchorEl.contains(ev.target)){
+        closeClusterPopover();
+        window.removeEventListener('click', handler, true);
+      }
+    };
+    window.addEventListener('click', handler, true);
+  });
+}
+
+// Popover dla klastrów sklepów (kHandel)
+function toggleShopClusterPopover(anchorEl, cluster){
+  if(clusterPopoverEl && clusterPopoverEl.anchor === anchorEl){
+    closeClusterPopover(); return;
+  }
+  closeClusterPopover();
+  clusterPopoverEl = document.createElement('div');
+  clusterPopoverEl.className = 'cluster-popover';
+  clusterPopoverEl.anchor = anchorEl;
+  const list = cluster.members
+    .slice()
+    .sort((a,b)=> (a.s.name||'').localeCompare(b.s.name||''))
+    .map(m=> `<div class="cp-item" data-shop-id="${escapeHtml(m.s.id)}"><span class="cp-dot" style="background:#f0a500"></span><span class="cp-name">${escapeHtml(m.s.name)}</span><span class="cp-cat">${escapeHtml(m.s.location||'')}</span></div>`)
+    .join('');
+  clusterPopoverEl.innerHTML = `<div class="cp-header">${cluster.members.length} sklepów</div><div class="cp-list">${list}</div>`;
+  clusterPopoverEl.style.left = anchorEl.style.left;
+  clusterPopoverEl.style.top = anchorEl.style.top;
+  markersShopsLayer.appendChild(clusterPopoverEl);
+  clusterPopoverEl.querySelectorAll('.cp-item').forEach(el=>{
+    el.addEventListener('click', (ev)=>{
+      ev.stopPropagation();
+      const id = el.getAttribute('data-shop-id');
+      closeClusterPopover();
+      openShopInSearch(id);
+    });
+  });
+  setTimeout(()=>{
+    const handler = (ev)=>{
+      if(clusterPopoverEl && !clusterPopoverEl.contains(ev.target) && !anchorEl.contains(ev.target)){
+        closeClusterPopover();
+        window.removeEventListener('click', handler, true);
+      }
+    };
+    window.addEventListener('click', handler, true);
+  });
+}
+
+// Popover dla klastrów firm (kFirma)
+function toggleCompanyClusterPopover(anchorEl, cluster){
+  if(clusterPopoverEl && clusterPopoverEl.anchor === anchorEl){
+    closeClusterPopover(); return;
+  }
+  closeClusterPopover();
+  clusterPopoverEl = document.createElement('div');
+  clusterPopoverEl.className = 'cluster-popover';
+  clusterPopoverEl.anchor = anchorEl;
+  const list = cluster.members
+    .slice()
+    .sort((a,b)=> (a.c.name||'').localeCompare(b.c.name||''))
+    .map(m=> `<div class="cp-item" data-company-id="${escapeHtml(m.c.id)}"><span class="cp-dot" style="background:#4fc3f7"></span><span class="cp-name">${escapeHtml(m.c.name)}</span><span class="cp-cat">${escapeHtml(m.c.city||'')}</span></div>`)
+    .join('');
+  clusterPopoverEl.innerHTML = `<div class="cp-header">${cluster.members.length} firm</div><div class="cp-list">${list}</div>`;
+  clusterPopoverEl.style.left = anchorEl.style.left;
+  clusterPopoverEl.style.top = anchorEl.style.top;
+  markersCompaniesLayer.appendChild(clusterPopoverEl);
+  clusterPopoverEl.querySelectorAll('.cp-item').forEach(el=>{
+    el.addEventListener('click', (ev)=>{
+      ev.stopPropagation();
+      const id = el.getAttribute('data-company-id');
+      closeClusterPopover();
+      openCompanyInSearch(id);
+    });
+  });
+  setTimeout(()=>{
+    const handler = (ev)=>{
+      if(clusterPopoverEl && !clusterPopoverEl.contains(ev.target) && !anchorEl.contains(ev.target)){
+        closeClusterPopover();
+        window.removeEventListener('click', handler, true);
+      }
+    };
+    window.addEventListener('click', handler, true);
+  });
+}
+
+function openPoint(id){
+  const pt = mapData.points.find(p=>p.id===id);
+  if(!pt) return;
+  // Wejście w kontekst punktu: wyczyść kontekst sklepu i dopasuj widok wyników
+  try {
+    currentShopContextId = null;
+    if(searchInput && searchInput.value && searchInput.value.trim()){
+      // Jeśli użytkownik ma wpisane zapytanie – odśwież klasyczne wyniki
+      handleSearch();
+    } else if(pointResultsEl){
+      // Brak zapytania – schowaj obszar wyników
+      pointResultsEl.innerHTML = '';
+      pointResultsEl.hidden = true;
+    }
+  } catch(_){}
+  renderPointDetail(pt);
+}
+
+function closePanel(){ if(panel) panel.hidden = true; }
+
+function handleSearch(){
+  // Bez danych mapy nie ma czego filtrować
+  if(!mapData || !Array.isArray(mapData.points)){
+    if(pointResultsEl){ pointResultsEl.innerHTML=''; pointResultsEl.hidden = true; }
+    return;
+  }
+  const q = searchInput.value.trim().toLowerCase();
+  const all = markersLayer.querySelectorAll('.marker');
+  all.forEach(m=>{ m.style.opacity = 1; m.style.filter=''; });
+  if(!q){
+    if(pointResultsEl){ pointResultsEl.innerHTML=''; pointResultsEl.hidden = true; }
+    if(pointDetailEl) pointDetailEl.hidden = true;
+    if(suppressClustering){ suppressClustering=false; buildMarkers(); }
+    if(currentShopContextId && shopsData){ const s = shopsData.find(x=> x.id===currentShopContextId); if(s){ renderShopOffersInResults(s, ''); } }
+    return;
+  }
+  // Jeśli jesteśmy w kontekście sklepu – pokazuj wyłącznie oferty tego sklepu (filtrowane po q)
+  if(currentShopContextId && shopsData){
+    const s = shopsData.find(x=> x.id===currentShopContextId);
+    if(s){ renderShopOffersInResults(s, q); return; }
+  }
+  // W trybie wyszukiwania wyłącz klastrowanie (aby użytkownik mógł kliknąć pojedynczy punkt)
+  if(!suppressClustering && clusteringCurrentlyEnabled()){
+    suppressClustering = true;
+    buildMarkers();
+  }
+  // Widoczne punkty po filtrach legendy
+  const visiblePoints = mapData.points.filter(pt => (!pt.hidden || showHidden) && !(activeCategories.size>0 && activeCategories.has(pt.category)));
+  const matched = [];
+  visiblePoints.forEach(pt => {
+    const match = pt.name.toLowerCase().includes(q) || (pt.tags||[]).some(t=> t.toLowerCase().includes(q));
+    const markerEl = markersLayer.querySelector(`.marker[data-id="${pt.id}"]`);
+    if(markerEl){
+      if(!match){ markerEl.style.opacity = .15; markerEl.style.filter='grayscale(1)'; }
+      else matched.push(pt);
+    }
+  });
+  // Wyniki punktów
+  renderPointSearchResults(matched, q);
+  // Oferty aktywnego sklepu (kontekst) – jeśli ustawiony
+  if(currentShopContextId && shopsData){ const s = shopsData.find(x=> x.id===currentShopContextId); if(s){ renderShopOffersInResults(s, q); return; } }
+  // Dodatkowo dopasuj sklepy globalnie (jeżeli warstwa sklepów aktywna)
+  (async ()=>{
+    try {
+      let hasAny = matched.length > 0;
+      if(showCompanies){
+        if(companiesData===null) await ensureCompaniesLoaded();
+        if(Array.isArray(companiesData)){
+          const qn = q;
+          const companyMatches = companiesData.filter(c=>{
+            const hay = `${c.name} ${c.city||''} ${c.street||''} ${c.voiv||''} ${c.knip||''} ${c.registrar||''} ${(c.symbols||[]).join(' ')}`.toLowerCase();
+            return hay.includes(qn);
+          });
+          if(companyMatches.length){
+            const html = '<div class="legend-heading" style="margin:.3rem 0 .2rem;">Firmy</div>' + companyMatches.map(c=>{
+              const desc = `${c.name}${c.city? ' @ '+c.city:''}`;
+              return `<div class="point-result-item company-result-item" data-company-id="${c.id}"><div class="point-result-name">${desc}</div><div class="point-result-tags">${c.symbols.slice(0,4).map(s=>`<span class="point-result-tag">${s}</span>`).join('')}</div></div>`;
+            }).join('');
+            pointResultsEl.innerHTML = (pointResultsEl.innerHTML||'') + html;
+            pointResultsEl.hidden = false;
+            hasAny = true;
+            pointResultsEl.querySelectorAll('.company-result-item').forEach(el=>{
+              el.addEventListener('click', ()=>{ const id = el.getAttribute('data-company-id'); openCompanyInSearch(id); });
+            });
+          }
+        }
+      }
+      if(showShops){
+        if(shopsData===null) await ensureShopsLoaded(); if(!Array.isArray(shopsData)) return;
+        const qn = q;
+        const shopMatches = shopsData.filter(s=>{
+          const base = `${s.name} ${s.location||''} ${s.owner||''}`.toLowerCase();
+          const offersTxt = (s.offers||[]).map(p=> productFallbackName(p).toLowerCase()).join(' ');
+          return base.includes(qn) || offersTxt.includes(qn);
+        });
+        if(shopMatches.length){
+          const html = '<div class="legend-heading" style="margin:.3rem 0 .2rem;">Sklepy</div>' + shopMatches.map(s=>{
+            const label = `${s.name}${s.location? ' @ '+s.location:''}`;
+            return `<div class=\"point-result-item shop-result-item\" data-shop-id=\"${s.id}\"><div class=\"point-result-name\">${label}</div></div>`;
+          }).join('');
+          pointResultsEl.innerHTML = (pointResultsEl.innerHTML||'') + html; pointResultsEl.hidden=false;
+          hasAny = true;
+          pointResultsEl.querySelectorAll('.shop-result-item').forEach(el=>{
+            el.addEventListener('click', ()=>{ const id=el.getAttribute('data-shop-id'); openShopInSearch(id); });
+          });
+        }
+      }
+      if(!hasAny){
+        pointResultsEl.innerHTML = '<div class="empty" style="padding:.2rem .1rem;">Brak wyników.</div>';
+        pointResultsEl.hidden = false;
+      }
+    } catch(_){ }
+  })();
+}
+
+function renderPointSearchResults(points, query){
+  if(!pointResultsEl) return;
+  if(currentMode==='transport'){ pointResultsEl.innerHTML=''; return; }
+  // Jeśli brak punktów, nie pokazuj od razu komunikatu – decyzja o "Brak wyników" zapadnie w handleSearch po sprawdzeniu sklepów
+  if(!points.length){ pointResultsEl.innerHTML=''; return; }
+  const norm = s=> s.toLowerCase();
+  const qNorm = norm(query);
+  const html = points.slice(0,100).map(pt=>{
+    const nameHighlighted = pt.name.replace(new RegExp(qNorm,'ig'), m=>`<mark>${m}</mark>`);
+    const tags = (pt.tags||[]).filter(t=> norm(t).includes(qNorm)).slice(0,6).map(t=> `<span class="point-result-tag">${t}</span>`).join('');
+    return `<div class="point-result-item" data-id="${pt.id}">
+      <div class="point-result-name">${nameHighlighted}</div>
+      ${tags?`<div class="point-result-tags">${tags}</div>`:''}
+    </div>`;
+  }).join('');
+  pointResultsEl.innerHTML = html; pointResultsEl.hidden = false;
+  // Kliknięcia
+  pointResultsEl.querySelectorAll('.point-result-item').forEach(item=>{
+    item.addEventListener('click', ()=>{
+      const id = item.getAttribute('data-id');
+      focusPointById(id);
+    });
+  });
+}
+
+function focusPointById(id){
+  const pt = mapData.points.find(p=>p.id===id);
+  if(!pt) return;
+  const meta = mapData.meta || {}; const unitsPerPixel = meta.unitsPerPixel || 4; const originMode = meta.origin || 'top-left';
+  const logicY = (pt.z !== undefined ? pt.z : pt.y) || 0;
+  let pxX, pxY;
+  if(originMode === 'center'){
+    pxX = (imgWidth/2) + (pt.x / unitsPerPixel);
+    pxY = (imgHeight/2) + (logicY / unitsPerPixel);
+  } else { pxX = pt.x; pxY = logicY; }
+  originX = (viewport.clientWidth/2) - pxX * scale;
+  originY = (viewport.clientHeight/2) - pxY * scale;
+  applyTransform();
+  // Fokus na punkt – wyczyść kontekst sklepu i dopasuj wyniki
+  try {
+    currentShopContextId = null;
+    if(searchInput && searchInput.value && searchInput.value.trim()){
+      handleSearch();
+    } else if(pointResultsEl){
+      pointResultsEl.innerHTML='';
+      pointResultsEl.hidden = true;
+    }
+  } catch(_){}
+  renderPointDetail(pt);
+}
+
+function renderPointDetail(pt){
+  if(!pointDetailEl){ return; }
+  if(!pt){ pointDetailEl.innerHTML=''; return; }
+  pointDetailEl.hidden = false;
+  const logicY = (pt.z !== undefined ? pt.z : pt.y) || 0;
+  const tags = (pt.tags||[]).map(t=> `<span class="tag">${escapeHtml(t)}</span>`).join('');
+  pointDetailEl.innerHTML = `<h4>${escapeHtml(pt.name)}</h4>${pt.description?`<div>${escapeHtml(pt.description)}</div>`:''}
+    <div class="meta"><span>X:${escapeHtml(pt.x)}</span><span>Z:${escapeHtml(logicY)}</span><span>ID:${escapeHtml(pt.id)}</span>${pt.category?`<span>Kategoria:${escapeHtml(pt.category)}</span>`:''}</div>
+    ${tags?`<div class="tags">${tags}</div>`:''}`;
+}
+
+if(pointSearchClearBtn){
+  pointSearchClearBtn.addEventListener('click', ()=>{
+    if(searchInput){ searchInput.value=''; }
+    if(pointResultsEl){ pointResultsEl.innerHTML=''; pointResultsEl.hidden = true; }
+    if(pointDetailEl){ pointDetailEl.innerHTML=''; pointDetailEl.hidden = true; }
+    currentShopContextId = null;
+    // Przywróć pełną widoczność markerów
+    const all = markersLayer.querySelectorAll('.marker');
+    all.forEach(m=>{ m.style.opacity = 1; m.style.filter=''; });
+    // Po wyczyszczeniu wyszukiwania przywróć klastrowanie jeśli powinno działać
+    if(suppressClustering){ suppressClustering = false; buildMarkers(); }
+    updateSearchClearVisibility();
+  });
+}
+
+// Prosta funkcja debounce do ograniczenia liczby przebudów przy wpisywaniu
+function debounce(fn, wait=120){
+  let t; return function(...args){ clearTimeout(t); t = setTimeout(()=> fn.apply(this,args), wait); };
+}
+
+function updateSearchClearVisibility(){
+  if(!pointSearchClearBtn || !searchInput) return;
+  const hasValue = !!searchInput.value.trim();
+  const focused = document.activeElement === searchInput;
+  pointSearchClearBtn.hidden = !(hasValue || focused);
+}
+
+// Podpięcie wyszukiwarki punktów
+if(searchInput){
+  const onInput = debounce(()=> handleSearch(), 90);
+  searchInput.addEventListener('input', ()=>{ updateSearchClearVisibility(); onInput(); });
+  searchInput.addEventListener('keydown', (e)=>{
+    if(e.key === 'Escape'){
+      searchInput.value = '';
+      handleSearch();
+      updateSearchClearVisibility();
+      e.stopPropagation();
+      return;
+    }
+    if(e.key === 'Enter'){
+      // Wybierz pierwszy wynik jeśli istnieje
+      const first = pointResultsEl?.querySelector('.point-result-item');
+      if(first){ first.dispatchEvent(new MouseEvent('click', { bubbles:true })); }
+    }
+  });
+  searchInput.addEventListener('focus', updateSearchClearVisibility);
+  searchInput.addEventListener('blur', updateSearchClearVisibility);
+  // Jeśli pole ma już wartość (np. powrót do karty), przelicz wyniki po starcie
+  if(searchInput.value && searchInput.value.trim()){
+    setTimeout(()=>{ handleSearch(); updateSearchClearVisibility(); }, 0);
+  } else {
+    updateSearchClearVisibility();
+  }
+}
+
+async function fetchMapData(noCache=false){
+  console.log('[map] fetchMapData (db) start noCache=%s', noCache);
+  try {
+    // 1) Meta + kategorie
+    const metaObj = await window.__db.fetchJson('data/map-points/meta.json');
+    const meta = metaObj?.meta || {};
+    const categories = metaObj?.categories || {};
+    const basePoints = Array.isArray(metaObj?.points) ? metaObj.points : [];
+    // 2) Pliki z punktami
+    const files = [
+      'localities-large.json',
+      'localities-small.json',
+      'stations.json',
+      'infra.json',
+      'airports.json',
+      'players.json'
+    ];
+    const loaders = files.map(fn => window.__db.fetchJson('data/map-points/' + fn).catch(()=>({points:[]})));
+    const parts = await Promise.all(loaders);
+    const extra = parts.flatMap(p => Array.isArray(p?.points) ? p.points : []);
+    const points = [...basePoints, ...extra];
+    if(!Array.isArray(points)) throw new Error('Invalid points');
+    mapData = { meta, categories, points };
+    console.log('[map] fetchMapData ok points=%d categories=%d', points.length, Object.keys(categories||{}).length);
+  } catch(e){
+    console.error('[map] Błąd ładowania mapy', e);
+    if(loadingEl) loadingEl.textContent = 'Błąd ładowania danych mapy';
+    throw e;
+  }
+}
+
+async function fetchLinesData(noCache=false){
+  try {
+    linesData = await window.__db.fetchJson('data/map-lines.json');
+  } catch(_){ linesData = null; }
+}
+
+function pointToPx(pt){
+  const meta = mapData?.meta || {}; const unitsPerPixel = meta.unitsPerPixel || 4; const originMode = meta.origin || 'top-left';
+  const logicY = (pt.z !== undefined ? pt.z : pt.y) || 0;
+  if(originMode === 'center'){
+    const pxX = (imgWidth/2) + (pt.x / unitsPerPixel);
+    const pxY = (imgHeight/2) + (logicY / unitsPerPixel);
+    return { x:pxX, y:pxY };
+  } else {
+    return { x: pt.x, y: logicY };
+  }
+}
+
+function drawLines(fromAnimLoop=false){
+  if(!linesCtx || !linesCanvas || !linesData || !mapData) return;
+  // Bufor segmentów ekranu dla pickingu linii w panelu admina
+  if(isAdmin){ window.__adminLineSegments = window.__adminLineSegments || []; window.__adminLineSegments.length = 0; }
+  // Ograniczenie kosztu pamięci/rysowania: w trybie lite wymuszamy DPR=1
+  const dpr = __MOBILE_LITE_FORCE_DPR1 ? 1 : (window.devicePixelRatio || 1);
+  // Dopasuj rozmiar canvasu do viewportu (ekranowa przestrzeń rysowania)
+  const vw = viewport.clientWidth;
+  const vh = viewport.clientHeight;
+  if(linesCanvas.width !== Math.round(vw * dpr) || linesCanvas.height !== Math.round(vh * dpr)){
+    linesCanvas.width = Math.round(vw * dpr);
+    linesCanvas.height = Math.round(vh * dpr);
+    linesCanvas.style.width = vw + 'px';
+    linesCanvas.style.height = vh + 'px';
+  }
+  linesCtx.setTransform(dpr,0,0,dpr,0,0); // przygotuj na rysowanie w CSS px
+  if(!fromAnimLoop){
+    linesCtx.clearRect(0,0,vw,vh);
+  } else {
+    // Przy animacji czyścimy też całość – inaczej dasha się rozmaże
+    linesCtx.clearRect(0,0,vw,vh);
+  }
+  if(!(showRailLines || showFlightLines)) return;
+  const index = new Map(mapData.points.map(p => [p.id, p]));
+  const catColors = (linesData && linesData.categories) || {};
+  const list = (linesData && Array.isArray(linesData.lines)) ? linesData.lines : [];
+  // Czas (animacja pulsu / dash)
+  const now = performance.now();
+  const pulse = 0.5 + 0.5 * Math.sin(now / 620); // 0..1
+  const pendingOverlays = [];
+  const lineCullBounds = getMarkerCullBounds();
+  for(const line of list){
+    const lineCategory = (line.category||'').toUpperCase();
+    const isFlightGroup = /FLIGHT|AIR|LOT/.test(lineCategory);
+    if(isFlightGroup && !showFlightLines) continue;
+    if(!isFlightGroup && !showRailLines) continue;
+    if(hiddenLineCategories.has(line.category)) continue;
+  const rawSeq = Array.isArray(line.stations) ? line.stations : [];
+  const seq = rawSeq.map(s=> typeof s==='string' ? s.replace(/\*$/,'') : s);
+    if(seq.length < 2) continue;
+    if(lineCullBounds){
+      let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+      for(const sid of seq){
+        const pt = index.get(sid); if(!pt) continue;
+        const { x, y } = pointToPx(pt);
+        if(x<minX) minX=x; if(y<minY) minY=y; if(x>maxX) maxX=x; if(y>maxY) maxY=y;
+      }
+      // Pomijamy tylko gdy bbox całej linii jest poza paddingiem – nie chcemy przycinać częściowo widocznych tras
+      if(isFinite(minX) && (maxX < lineCullBounds.left || minX > lineCullBounds.right || maxY < lineCullBounds.top || minY > lineCullBounds.bottom)){
+        continue;
+      }
+    }
+    const theme = pickTheme();
+    const color = (theme==='dark' ? (line.colorDark || line.color) : (line.colorLight || line.color)) || catColors?.[line.category]?.color || '#888';
+  const isLegendHover = (highlightedLineId === line.id) || (selectedLineId === line.id);
+  const routeSeg = routeHighlightedSegments?.get(line.id) || null;
+    // Rysujemy podstawową linię (całość) – jeśli istnieje szczegółowe podświetlenie, linia bazowa jest przygaszona
+    linesCtx.save();
+    linesCtx.strokeStyle = color;
+    linesCtx.lineJoin = 'round';
+    linesCtx.lineCap = 'round';
+    if(routeSeg){
+      linesCtx.globalAlpha = isLegendHover ? 0.55 : 0.25; // przygaszona gdy mamy szczegółową trasę
+      linesCtx.lineWidth = 2;
+    } else {
+      linesCtx.globalAlpha = 1;
+      linesCtx.lineWidth = isLegendHover ? 4 : 2;
+    }
+    linesCtx.beginPath();
+    let started = false;
+    for(const sid of seq){
+      const pt = index.get(sid); if(!pt) continue;
+      const { x:baseX, y:baseY } = pointToPx(pt);
+      const sx = originX + baseX * scale; const sy = originY + baseY * scale;
+      if(!started){ linesCtx.moveTo(sx, sy); started = true; } else { linesCtx.lineTo(sx, sy); }
+      if(isAdmin){
+        // Zapisz segmenty dla pickingu – para poprzednia -> bieżąca
+        if(!line.__lastPointForHit){ line.__lastPointForHit = { sx, sy }; }
+        else {
+          window.__adminLineSegments.push({ lineId: line.id, x1: line.__lastPointForHit.sx, y1: line.__lastPointForHit.sy, x2: sx, y2: sy });
+          line.__lastPointForHit = { sx, sy };
+        }
+      }
+    }
+    linesCtx.stroke();
+    linesCtx.restore();
+    if(isAdmin){ delete line.__lastPointForHit; }
+  // Jeśli mamy częściowe podświetlenie (trasa) – przygotuj overlay do narysowania po pętli (na wierzchu)
+  if(routeSeg){
+      const stations = routeSeg.stations.map(s=> s.replace(/\*$/,''));
+      if(stations.length >= 2){
+        const glowConf = glowConfigForCategory(lineCategory);
+        const pathPoints = [];
+        for(const sid of stations){
+          const pt = index.get(sid); if(!pt) continue;
+          const { x:baseX, y:baseY } = pointToPx(pt);
+          const sx = originX + baseX * scale; const sy = originY + baseY * scale;
+          pathPoints.push([sx,sy]);
+        }
+        if(pathPoints.length>=2){ pendingOverlays.push({ color, glowConf, pathPoints }); }
+      }
+    }
+    // Jeśli linia jest podświetlona (hover/kliknięcie w legendzie), ale nie ma segmentu trasy – przygotuj overlay całej linii
+    if(isLegendHover && !routeSeg){
+      const glowConf = glowConfigForCategory(lineCategory);
+      const pathPoints = [];
+      for(const sid of seq){
+        const pt = index.get(sid); if(!pt) continue;
+        const { x:baseX, y:baseY } = pointToPx(pt);
+        const sx = originX + baseX * scale; const sy = originY + baseY * scale;
+        pathPoints.push([sx,sy]);
+      }
+      if(pathPoints.length>=2){ pendingOverlays.push({ color, glowConf, pathPoints }); }
+    }
+  }
+  // Druga warstwa: overlay tras na wierzchu
+  for(const ov of pendingOverlays){
+    const { color, glowConf, pathPoints } = ov;
+    // Warstwa glow
+    linesCtx.save();
+    linesCtx.strokeStyle = color;
+    linesCtx.lineJoin = 'round'; linesCtx.lineCap='round';
+    const widthOuter = glowConf.widthOuter * (0.9 + 0.25*pulse);
+    linesCtx.lineWidth = widthOuter;
+    linesCtx.shadowColor = glowConf.shadowColor || color;
+    linesCtx.shadowBlur = glowConf.shadowBlur * (0.85 + 0.3*pulse);
+    linesCtx.globalAlpha = glowConf.outerAlpha * (0.75 + 0.25*pulse);
+    linesCtx.beginPath();
+    let first=true; for(const [sx,sy] of pathPoints){ if(first){ linesCtx.moveTo(sx,sy); first=false; } else { linesCtx.lineTo(sx,sy); } }
+    linesCtx.stroke();
+    linesCtx.restore();
+    // Warstwa rdzenia
+    linesCtx.save();
+    linesCtx.strokeStyle = color;
+    linesCtx.lineJoin='round'; linesCtx.lineCap='round';
+    linesCtx.lineWidth = glowConf.widthInner * (0.95 + 0.15*pulse);
+    linesCtx.globalAlpha = 1;
+    linesCtx.beginPath();
+    first=true; for(const [sx,sy] of pathPoints){ if(first){ linesCtx.moveTo(sx,sy); first=false; } else { linesCtx.lineTo(sx,sy); } }
+    linesCtx.stroke();
+    linesCtx.restore();
+    // Animowany dash (przesuwający się) – cieńszy
+    const t = now;
+    linesCtx.save();
+    linesCtx.strokeStyle = '#fff';
+    linesCtx.globalAlpha = 0.7;
+    linesCtx.lineWidth = glowConf.dashWidth;
+    linesCtx.setLineDash(glowConf.dashPattern);
+    linesCtx.lineDashOffset = - (t * glowConf.dashSpeed / 1000);
+    linesCtx.lineJoin='round'; linesCtx.lineCap='round';
+    linesCtx.beginPath();
+    first=true; for(const [sx,sy] of pathPoints){ if(first){ linesCtx.moveTo(sx,sy); first=false; } else { linesCtx.lineTo(sx,sy); } }
+    linesCtx.stroke();
+    linesCtx.restore();
+  }
+}
+
+function glowConfigForCategory(cat){
+  // cat uppercase: IC / METRO / REGIO / ON / etc.
+  switch(true){
+    case /IC/.test(cat): return { shadowBlur:18, widthOuter:10, widthInner:5, outerAlpha:0.95, dashPattern:[28,16], dashSpeed:55, dashWidth:3 };
+    case /METRO/.test(cat): return { shadowBlur:14, widthOuter:9, widthInner:5, outerAlpha:0.9, dashPattern:[22,14], dashSpeed:70, dashWidth:3 };
+    case /FLIGHT|AIR|LOT/.test(cat): return { shadowBlur:16, widthOuter:10, widthInner:5, outerAlpha:0.92, dashPattern:[26,14], dashSpeed:80, dashWidth:3 };
+    case /ON/.test(cat): return { shadowBlur:12, widthOuter:8, widthInner:4, outerAlpha:0.9, dashPattern:[18,12], dashSpeed:60, dashWidth:2.8 };
+    default: return { shadowBlur:10, widthOuter:8, widthInner:4, outerAlpha:0.85, dashPattern:[20,14], dashSpeed:50, dashWidth:2.6 };
+  }
+}
+
+// --- Rozwijana legenda linii (lista wszystkich linii gdy dostępne dane) ---
+function buildLinesLegend(){
+  if(!linesLegendBodyEl || !linesLegendEl) return; // panel admin może nie mieć tej legendy
+  linesLegendBodyEl.innerHTML = '';
+  if(!linesData || !Array.isArray(linesData.lines)){
+    linesLegendStatusEl && (linesLegendStatusEl.textContent = 'Brak danych');
+    return;
+  }
+  const linesList = linesData.lines.slice();
+  // Można sortować np. po kategorii i nazwie
+  linesList.sort((a,b)=> (a.category||'').localeCompare(b.category||'') || (a.name||'').localeCompare(b.name||''));
+  let visibleCount = 0;
+  for(const ln of linesList){
+    const catUp = (ln.category||'').toUpperCase();
+    const isFlightGroup = /FLIGHT|AIR|LOT/.test(catUp);
+    if(isFlightGroup && !showFlightLines) continue;
+    if(!isFlightGroup && !showRailLines) continue;
+    if(hiddenLineCategories.has(ln.category)) continue; // jeśli kategoria wyłączona w filtrach – pomijamy
+    visibleCount++;
+    const theme = pickTheme();
+    const color = (theme==='dark' ? (ln.colorDark || ln.color) : (ln.colorLight || ln.color)) || '#777';
+    const entry = document.createElement('div');
+    entry.className = 'line-entry';
+  if(selectedLineId === ln.id || highlightedLineId === ln.id) entry.classList.add('active');
+    entry.dataset.lineId = ln.id;
+    const colorBox = document.createElement('span'); colorBox.className='line-color'; colorBox.style.background = color;
+    const metaBox = document.createElement('div'); metaBox.className='line-meta';
+    const nameEl = document.createElement('span'); nameEl.className='line-name';
+    let displayName = ln.name || ln.id;
+    // Twarde skrócenie aby nie kolidowało z badge kategorii (dodatkowo CSS line-clamp)
+    const MAX_LEN = 20; // znaków
+    if(displayName.length > MAX_LEN){
+      displayName = displayName.slice(0, MAX_LEN-1) + '…';
+    }
+    nameEl.textContent = displayName;
+    // Identyfikator linii ukrywamy w widoku – zachowujemy go tylko jako atrybut title (tooltip / debug)
+    entry.title = `${ln.name || ln.id} (${ln.id})`;
+    metaBox.appendChild(nameEl);
+    const catBadge = document.createElement('span'); catBadge.className='line-category-badge'; catBadge.textContent = ln.category;
+    entry.appendChild(colorBox); entry.appendChild(metaBox); entry.appendChild(catBadge);
+  entry.addEventListener('mouseenter', ()=>{ highlightedLineId = ln.id; drawLines(); entry.classList.add('active'); });
+  entry.addEventListener('mouseleave', ()=>{ highlightedLineId = null; if(selectedLineId !== ln.id) entry.classList.remove('active'); drawLines(); });
+    entry.addEventListener('click', ()=>{
+      // Klik toggluje podświetlenie; przy nowym wyborze przełącz w tryb transport i przybliż bbox linii
+      if(selectedLineId === ln.id){
+        selectedLineId = null; highlightedLineId = null; drawLines(); buildLinesLegend();
+        // Wyczyść ewentualne podświetlenie trasy i pola wyszukiwarki
+        try {
+          window.dispatchEvent(new CustomEvent('route:highlight', { detail:{ legs: [] } }));
+          window.dispatchEvent(new CustomEvent('route:selectEndpoints', { detail:{ startId:null, endId:null } }));
+        } catch(_) { /* ignore */ }
+        return;
+      }
+      selectedLineId = ln.id; highlightedLineId = ln.id; drawLines(); buildLinesLegend();
+      lastRouteBBoxKey = null; // pozwól późniejszej trasie ponownie wymusić zoom
+      if(currentMode !== 'transport') applyMode('transport');
+      // Użyj requestAnimationFrame aby odczekać przebudowę UI (legendy, tryb)
+      requestAnimationFrame(()=>{
+        try {
+          if(!mapData || !Array.isArray(ln.stations) || ln.stations.length<2) return;
+          // Zasymuluj "wyszukiwanie" trasy po kliknięciu linii: podświetl całą linię i ustaw pola OD/DO
+          try {
+            const stations = ln.stations.slice();
+            const clean = (sid)=> typeof sid==='string' ? sid.replace(/\*$/,'') : sid;
+            const startId = clean(stations[0]);
+            const endId = clean(stations[stations.length-1]);
+            // 1) podświetl na mapie segmenty tej linii (jak trasa)
+            window.dispatchEvent(new CustomEvent('route:highlight', { detail:{ legs:[ { lineId: ln.id, stations } ] } }));
+            // 2) uzupełnij i uruchom wyszukiwarkę tras z preferencją wyboru tej linii, jeśli możliwe
+            window.dispatchEvent(new CustomEvent('route:selectEndpoints', { detail:{ startId, endId, preferLineId: ln.id } }));
+          } catch(_e){ /* ignore synthetic route dispatch */ }
+          const idx = new Map(mapData.points.map(p=>[p.id,p]));
+          let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+          for(const sid of ln.stations){
+            const pt = idx.get(sid); if(!pt) continue;
+            const {x,y} = pointToPx(pt);
+            if(x<minX) minX=x; if(y<minY) minY=y; if(x>maxX) maxX=x; if(y>maxY) maxY=y;
+          }
+          if(!isFinite(minX)||!isFinite(minY)||!isFinite(maxX)||!isFinite(maxY)) return;
+          focusBoundingBox(minX,minY,maxX,maxY,0.68);
+        } catch(_){ /* ignore */ }
+      });
+    });
+    linesLegendBodyEl.appendChild(entry);
+  }
+  if(linesLegendStatusEl){
+    linesLegendStatusEl.textContent = `${visibleCount} linii`;
+  }
+  // loadLegendState() może w międzyczasie przywrócić desktopowy stan zwinięcia na
+  // #lines-legend-body (hidden=true); na mobile widoczność karty "Linie" steruje
+  // wyłącznie tab-switcher, więc synchronizuj ponownie po każdej przebudowie.
+  if(typeof reparentForLayout === 'function') reparentForLayout();
+}
+
+function focusLine(line){
+  if(!line || !Array.isArray(line.stations) || line.stations.length < 2 || !mapData) return;
+  // Wylicz bounding box linii w układzie pikseli mapy
+  const index = new Map(mapData.points.map(p=>[p.id,p]));
+  let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+  for(const sid of line.stations){
+    const pt = index.get(sid); if(!pt) continue;
+    const {x,y} = pointToPx(pt);
+    if(x<minX) minX=x; if(y<minY) minY=y; if(x>maxX) maxX=x; if(y>maxY) maxY=y;
+  }
+  if(!isFinite(minX) || !isFinite(minY) || !isFinite(maxX) || !isFinite(maxY)) return;
+  // Użyj tej samej proporcji (fill factor) co focusRouteBBox dla spójności UX
+  focusBoundingBox(minX,minY,maxX,maxY,0.68);
+}
+
+function focusBoundingBox(minX,minY,maxX,maxY,fillFactor){
+  const w = maxX - minX; const h = maxY - minY; if(w<=0||h<=0) return;
+  const viewW = viewport.clientWidth; const viewH = viewport.clientHeight;
+  const targetScale = Math.min( (viewW*fillFactor)/w, (viewH*fillFactor)/h );
+  const clamped = Math.min(maxScale, Math.max(minScale, targetScale));
+  scale = clamped;
+  const cx = (minX + maxX)/2; const cy = (minY + maxY)/2;
+  originX = (viewW/2) - cx * scale;
+  originY = (viewH/2) - cy * scale;
+  applyTransform();
+}
+
+async function load(){
+  console.log('[map] load() start');
+  // Wczytaj preferencje motywu zanim ustawimy źródło obrazka
+  loadThemeState();
+  updateImageSource();
+  loadingEl.hidden = false;
+  await new Promise(res=> setTimeout(res, 60));
+  try { await fetchMapData(false); } catch(e){ return; }
+  if(!mapData){
+    loadingEl.hidden = false;
+    loadingEl.textContent = 'Brak danych mapy';
+    return;
+  }
+  // Wczytaj stan legendy (jeśli istnieje); w przeciwnym razie ustaw domyślne ukrycie kolei/metra i linii
+  loadLegendState();
+  if(!hasLoadedLegendState){
+    activeCategories = new Set(['kolej','metro','airport','miasto_male','infrastruktura','players']);
+    showRailLines = false; showFlightLines = false; showLines = false;
+  } else {
+    // Jeśli użytkownik ma zapisany stan, ale jesteśmy w trybie ogólnym podczas ładowania – wymuś ukrycie kolei/metra.
+    if(currentMode === 'general'){
+      activeCategories.add('kolej');
+      activeCategories.add('metro');
+    }
+  }
+  // Zapamiętaj startowy stan linii dla general (po wczytaniu/ustawieniu domyślnym)
+  if(currentMode === 'general'){
+    lastGeneralShowRailLines = showRailLines;
+    lastGeneralShowFlightLines = showFlightLines;
+    lastGeneralShowLines = !!(showRailLines || showFlightLines);
+  }
+  buildLegend();
+  buildLinesLegend();
+  // Info bubble: desktop zawsze widoczny, mobile otwierany przyciskiem
+  const infoMobileMql = window.matchMedia('(max-width: 860px)');
+  const applyInfoLayout = ()=>{
+    if(infoMobileMql.matches){
+      setInfoBubbleVisible(false);
+    } else {
+      setInfoBubbleVisible(true);
+    }
+  };
+  applyInfoLayout();
+  infoMobileMql.addEventListener('change', applyInfoLayout);
+  if(infoFabBtn){
+    infoFabBtn.addEventListener('click', ()=> setInfoBubbleVisible(true));
+  }
+  if(infoCloseBtn){
+    infoCloseBtn.addEventListener('click', ()=> setInfoBubbleVisible(false));
+  }
+  await new Promise((resolve,reject)=>{
+    imgEl.onload = ()=> resolve();
+    imgEl.onerror = ()=> reject();
+    if(imgEl.complete) resolve();
+  });
+  try {
+  imgWidth = imgEl.naturalWidth; imgHeight = imgEl.naturalHeight;
+  if(!imgWidth || !imgHeight) throw new Error('Brak wymiarów mapy');
+  baseLogicalWidth = imgWidth; baseLogicalHeight = imgHeight; // zapisz logiczny rozmiar 1x
+    // Ustaw fizyczny rozmiar płótna i warstw
+    canvas.style.width = imgWidth + 'px';
+    canvas.style.height = imgHeight + 'px';
+    if(linesCanvas){
+      // Początkowa neutralizacja transformu i rozmiar dopasowany do viewportu
+      linesCanvas.style.position = 'absolute';
+      linesCanvas.style.top = '0';
+      linesCanvas.style.left = '0';
+      linesCanvas.style.pointerEvents = 'none';
+      linesCanvas.style.zIndex = '10';
+      // markersLayer jest w tym samym kontenerze i przychodzi po canvasie w DOM, więc pozostaje nad liniami
+      if(markersLayer){
+        markersLayer.style.zIndex = '20';
+      }
+    }
+    markersLayer.style.width = imgWidth + 'px';
+    markersLayer.style.height = imgHeight + 'px';
+  ensureMarkerSublayers();
+  ensureTilesContainer();
+    // Dopiero teraz budujemy warstwy (znamy środek)
+    await fetchLinesData(false);
+  // Po wczytaniu linii dobuduj sekcję kategorii linii
+  buildLegend();
+  buildLinesLegend();
+    drawLines();
+    buildMarkers();
+  // Sklepy kHandel (jeśli włączone)
+  try { if(showShops){ await ensureShopsLoaded(); buildShopMarkers(); } } catch(_){ }
+  // Firmy kFirma (jeśli włączone)
+  try { if(showCompanies){ await ensureCompaniesLoaded(); buildCompanyMarkers(); } } catch(_){ }
+    // Fallback gdy viewport ma 0 wysokości (np. brak rozciągnięcia rodzica)
+    requestAnimationFrame(()=>{
+      const rect = viewport.getBoundingClientRect();
+      if(rect.height < 40){
+        viewport.style.minHeight = '100vh';
+      }
+    });
+    loadingEl.hidden = true;
+    rememberViewportSize();
+    // Po wczytaniu – sprawdź czy mamy żądanie fokusu z wyszukiwarki / sesji
+    if(!applyFocusFromSearchParams() && !applyFocusFromSession()){
+      centerOnSpawn();
+    }
+  } catch(e){
+    loadingEl.hidden = false;
+    loadingEl.textContent = 'Nie udało się ustalić wymiarów mapy (brak pliku mapy?)';
+    console.error('[map] load() fatal', e);
+  }
+}
+
+function showCrosshairDuringPan(){
+  if(!crosshairEl) return;
+  crosshairEl.classList.add('visible');
+  if(crosshairHideTimeout){ clearTimeout(crosshairHideTimeout); crosshairHideTimeout = null; }
+}
+
+function scheduleCrosshairHide(delay = 5000){
+  if(!crosshairEl) return;
+  if(crosshairHideTimeout) clearTimeout(crosshairHideTimeout);
+  crosshairHideTimeout = setTimeout(()=>{
+    crosshairEl.classList.remove('visible');
+    crosshairHideTimeout = null;
+  }, delay);
+}
+
+// Panowanie
+function computeCenterAndDistance(){
+  const arr = Array.from(pointers.values());
+  if(arr.length < 2) return { center:null, distance:0 };
+  const [a,b] = arr;
+  const center = { x:(a.x + b.x)/2, y:(a.y + b.y)/2 };
+  const dx = a.x - b.x; const dy = a.y - b.y;
+  const distance = Math.hypot(dx, dy);
+  return { center, distance };
+}
+
+viewport.addEventListener('pointerdown', e=>{
+  // Kliknięcia w elementy UI (w tym link marki i popovery klastrów) nie powinny rozpoczynać panowania ani przechwytywać wskaźnika
+  const isUi = !!(e.target.closest('.marker')
+    || e.target.closest('.cluster-popover')
+    || e.target.closest('.map-toolbar')
+    || e.target.closest('.map-sidepanel')
+    || e.target.closest('.point-panel')
+    || e.target.closest('#map-brand')
+    || e.target.closest('#lines-legend')
+    || e.target.closest('#btn-filters'));
+  if(isUi) return;
+  pointers.set(e.pointerId, { x:e.clientX, y:e.clientY });
+  if(pointers.size === 2){
+    // Start pinch
+    pinchActive = true;
+    isPanning = false;
+    const { center, distance } = computeCenterAndDistance();
+    lastPinchCenter = center; lastPinchDistance = distance;
+  } else if(pointers.size === 1 && !pinchActive){
+    if(isUi) return; // klik na UI/markerze – nie zaczynaj panowania ani capture
+    isPanning = true; panStart.x = e.clientX; panStart.y = e.clientY; panOriginStart.x = originX; panOriginStart.y = originY;
+    viewport.setPointerCapture(e.pointerId);
+  }
+});
+
+viewport.addEventListener('pointermove', e=>{
+  if(pointers.has(e.pointerId)) pointers.set(e.pointerId, { x:e.clientX, y:e.clientY });
+  if(pinchActive && pointers.size >= 2){
+    const { center, distance } = computeCenterAndDistance();
+    if(!center || !lastPinchCenter || !lastPinchDistance) return;
+    // Pan o zmianę środka gestu
+    originX += (center.x - lastPinchCenter.x);
+    originY += (center.y - lastPinchCenter.y);
+    // Zoom względem bieżącego środka
+    const factor = distance / lastPinchDistance;
+    // setScale oczekuje współrzędnych ekranowych (względem viewportu)
+    const rect = viewport.getBoundingClientRect();
+    const sX = center.x - rect.left;
+    const sY = center.y - rect.top;
+    setScale(scale * factor, sX, sY);
+    lastPinchCenter = center; lastPinchDistance = distance;
+    showCrosshairDuringPan();
+    return;
+  }
+  if(!isPanning) return;
+  originX = panOriginStart.x + (e.clientX - panStart.x);
+  originY = panOriginStart.y + (e.clientY - panStart.y);
+  applyTransform();
+  showCrosshairDuringPan();
+});
+
+function endPointerInteraction(e){
+  const hadActiveMove = isPanning || pinchActive;
+  // Usuń pointer z mapy
+  if(pointers.has(e.pointerId)) pointers.delete(e.pointerId);
+  // Jeśli kończymy gest pinch (mniej niż 2 aktywne) – reset
+  if(pinchActive && pointers.size < 2){
+    pinchActive = false;
+    lastPinchCenter = null; lastPinchDistance = 0;
+  }
+  // Zakończ panowanie po puszczeniu głównego wskaźnika
+  if(isPanning){
+    isPanning = false;
+  }
+  if(hadActiveMove && !isPanning && !pinchActive){
+    scheduleCrosshairHide();
+  }
+}
+
+viewport.addEventListener('pointerup', endPointerInteraction);
+viewport.addEventListener('pointercancel', endPointerInteraction);
+// Fallback: jeśli z jakiegoś powodu capture się nie utrzymało i użytkownik wyjdzie kursorem poza viewport
+window.addEventListener('mouseup', () => {
+  const hadActiveMove = isPanning || pinchActive;
+  if(isPanning) isPanning=false;
+  pinchActive=false;
+  pointers.clear();
+  if(hadActiveMove){ scheduleCrosshairHide(); }
+});
+
+// --- Focus helpers (naprawiona sekcja) ---
+function applyFocusFromSearchParams(){
+  const params = new URLSearchParams(window.location.search);
+  // 0) shop=ID – otwarcie ofert sklepu w wynikach + fokus na jego pozycję
+  const shopParam = params.get('shop');
+  if(shopParam){
+    try {
+      (async ()=>{
+        try { if(shopsData===null) await ensureShopsLoaded(); } catch(_){}
+        const s = Array.isArray(shopsData) ? shopsData.find(x=> x.id === shopParam) : null;
+        if(s){
+          // Upewnij się, że warstwa sklepów jest włączona
+          if(!showShops){ showShops = true; saveLegendState(); buildLegend(); }
+          try { buildShopMarkers(); } catch(_){ }
+          openShopInSearch(s.id);
+        }
+      })();
+    } catch(_){}
+    return true;
+  }
+  // 0a) company/firma=ID – fokus na firmę (kFirma)
+  const companyParam = params.get('company') || params.get('firma');
+  if(companyParam){
+    try {
+      (async ()=>{
+        try { if(companiesData===null) await ensureCompaniesLoaded(); } catch(_){}
+        const c = Array.isArray(companiesData) ? companiesData.find(x=> x.id === companyParam || x.knip === companyParam || x.name === companyParam) : null;
+        let handled = false;
+        if(c){
+          if(!showCompanies){ showCompanies = true; saveLegendState(); buildLegend(); }
+          try { buildCompanyMarkers(); } catch(_){ }
+          openCompanyInSearch(c.id);
+          handled = true;
+        } else {
+          // Fallback: jeśli w linku są koordynaty, otwórz fokus po nich
+          const focusRaw = params.get('focus');
+          if(focusRaw){
+            const parts = focusRaw.split(',').map(s=> s.trim()).filter(Boolean);
+            if(parts.length === 2 || parts.length === 3){
+              const fx = Number(parts[0]);
+              const fz = Number(parts[parts.length-1]);
+              if(Number.isFinite(fx) && Number.isFinite(fz)){
+                const zoomParam = params.get('zoom');
+                const zoomVal = zoomParam !== null ? Number(zoomParam) : NaN;
+                const desiredScale = isFinite(zoomVal) ? Math.min(maxScale, Math.max(minScale, zoomVal)) : null;
+                const label = params.get('fl') || params.get('label') || 'Cel';
+                focusLogicalPoint(fx, fz, { pulse:true, label, desiredScale });
+                handled = true;
+              }
+            }
+          }
+        }
+        if(handled){ return; }
+      })();
+    } catch(_){ }
+    return true;
+  }
+  // 0b) point=ID – fokus na punkt po ID i pokazanie jego szczegółów
+  const pointParam = params.get('point');
+  if(pointParam){
+    try {
+      const pt = mapData?.points?.find(p=> p.id === pointParam);
+      if(pt){ focusPointById(pt.id); return true; }
+    } catch(_){}
+  }
+  // 1) focus=x,y,z lub focus=x,z – centrowanie i tymczasowy marker
+  const focusRaw = params.get('focus');
+  if(focusRaw){
+    const parts = focusRaw.split(',').map(s=> s.trim()).filter(Boolean);
+    if(parts.length === 2 || parts.length === 3){
+      const x = Number(parts[0]);
+      const z = Number(parts[parts.length-1]);
+      if(isFinite(x) && isFinite(z)){
+        const zoomParam = params.get('zoom');
+        const zoomVal = zoomParam !== null ? Number(zoomParam) : NaN;
+        const desiredScale = isFinite(zoomVal) ? Math.min(maxScale, Math.max(minScale, zoomVal)) : null;
+        const label = params.get('fl') || params.get('label') || 'Cel';
+        focusLogicalPoint(x, z, { pulse:true, label, desiredScale });
+        return true;
+      }
+    }
+  }
+  const fx = params.get('fx'); const fz = params.get('fz'); const fl = params.get('fl');
+  const zoomParam = params.get('zoom');
+  const zoomVal = zoomParam !== null ? Number(zoomParam) : NaN;
+  const desiredScale = isFinite(zoomVal) ? Math.min(maxScale, Math.max(minScale, zoomVal)) : null;
+  const lineParam = params.get('line');
+  if(lineParam){
+    // Spróbuj podświetlić linię po jej ID
+    if(linesData && Array.isArray(linesData.lines)){
+      const ln = linesData.lines.find(l=> l.id === lineParam);
+      if(ln){
+        highlightedLineId = ln.id;
+        // Włącz tryb transport i linie
+        if(currentMode !== 'transport') applyMode('transport');
+        showLines = true;
+        drawLines(); buildLinesLegend();
+        // Przybliż bbox linii
+        focusLine(ln);
+        return true;
+      }
+    }
+    // Jeśli nie znaleziono – nie przerywaj, może jest focus punktowy równolegle
+  }
+  if(fx===null || fz===null) return false;
+  const x = Number(fx), z = Number(fz);
+  if(!isFinite(x) || !isFinite(z)) return false;
+  focusLogicalPoint(x, z, { pulse:true, label: fl, desiredScale });
+  return true;
+}
+function applyFocusFromSession(){
+  try {
+    // Najpierw linia (ważniejsze – większy obiekt)
+    const rawLine = sessionStorage.getItem('map.focus.line');
+    if(rawLine){
+      const objL = JSON.parse(rawLine);
+      if(objL && objL.lineId && (!objL.ts || (Date.now()-objL.ts) < 10*60*1000)){
+        if(linesData && Array.isArray(linesData.lines)){
+          const ln = linesData.lines.find(l=> l.id === objL.lineId);
+          if(ln){
+            highlightedLineId = ln.id;
+            if(currentMode !== 'transport') applyMode('transport');
+            showLines = true;
+            drawLines(); buildLinesLegend();
+            focusLine(ln);
+            sessionStorage.removeItem('map.focus.line');
+            return true;
+          }
+        }
+      }
+    }
+    const raw = sessionStorage.getItem('map.focus.player');
+    if(!raw) return false;
+    const obj = JSON.parse(raw);
+    if(!obj || typeof obj !== 'object') return false;
+    const { x, z, ts, label } = obj;
+    if(!isFinite(x) || !isFinite(z)) return false;
+    if(ts && (Date.now() - ts) > 5*60*1000) return false;
+    focusLogicalPoint(x, z, { pulse:true, label });
+    sessionStorage.removeItem('map.focus.player');
+    return true;
+  } catch(_){ return false; }
+}
+function focusLogicalPoint(x,z, opts){
+  opts = opts || {}; const withPulse = !!opts.pulse; const label = opts.label || null;
+  const meta = mapData?.meta || {}; const unitsPerPixel = meta.unitsPerPixel || 4; const originMode = meta.origin || 'top-left';
+  let pxX, pxY;
+  if(originMode === 'center'){
+    pxX = (imgWidth/2) + (x / unitsPerPixel);
+    pxY = (imgHeight/2) + (z / unitsPerPixel);
+  } else { pxX = x; pxY = z; }
+  const desiredScale = opts.desiredScale != null ? opts.desiredScale : Math.max(scale, 1.4);
+  scale = Math.min(maxScale, Math.max(minScale, desiredScale));
+  originX = (viewport.clientWidth/2) - pxX * scale;
+  originY = (viewport.clientHeight/2) - pxY * scale;
+  applyTransform();
+  if(withPulse){ pulseAt(pxX, pxY, label); }
+}
+function pulseAt(pxX, pxY, label){
+  try {
+    buildMarkers();
+    const markers = Array.from(markersLayer.querySelectorAll('.marker'));
+    let candidate = null;
+    if(label){
+      const norm = label.toLowerCase();
+      candidate = markers.find(m => m.querySelector('.marker-label')?.textContent?.toLowerCase() === norm) || null;
+    }
+    if(!candidate){
+      let best=null; let bestDist=Infinity;
+      for(const m of markers){
+        if(!m.classList.contains('player-marker')) continue;
+        const mx = Number(m.dataset.px), my = Number(m.dataset.py);
+        const dx = mx - pxX, dy = my - pxY; const d = dx*dx + dy*dy;
+        if(d<bestDist){ bestDist=d; best=m; }
+      }
+      if(best && bestDist <= 1600) candidate = best;
+    }
+    if(candidate){
+      // Restart animacji jeśli wcześniej już pulsował
+      if(candidate.classList.contains('pulse')){
+        candidate.classList.remove('pulse');
+        // wymuszenie reflow aby animacja mogła się ponownie uruchomić
+        void candidate.offsetWidth;
+      }
+      candidate.classList.add('pulse');
+      // Dodaj również pierścień aby użytkownik na pewno zauważył fokus
+      const ring = document.createElement('div');
+      ring.className='focus-pulse';
+      ring.style.left = candidate.dataset.px + 'px';
+      ring.style.top = candidate.dataset.py + 'px';
+      markersLayer.appendChild(ring);
+      setTimeout(()=> ring.remove(), 4500);
+      setTimeout(()=> candidate.classList.remove('pulse'), 4200);
+      return;
+    }
+    // Brak markera – utwórz tymczasowy (ephemeral) marker gracza aby wizualnie wskazać punkt
+    const wrap = document.createElement('div');
+    wrap.className = 'marker pulse ephemeral-player player-marker';
+    wrap.style.left = pxX + 'px';
+    wrap.style.top = pxY + 'px';
+    wrap.dataset.category = 'players';
+    wrap.dataset.px = String(pxX);
+    wrap.dataset.py = String(pxY);
+    const btn = document.createElement('button');
+    btn.className = 'marker-btn';
+    btn.style.background = '#AC1943';
+    const icon = document.createElement('img');
+    icon.src = '/icns_ui/person.svg';
+    icon.alt = '';
+    icon.setAttribute('aria-hidden','true');
+    btn.appendChild(icon);
+    const lab = document.createElement('div');
+    lab.className = 'marker-label';
+    lab.textContent = label || 'Gracz';
+    wrap.appendChild(btn); wrap.appendChild(lab);
+    markersLayer.appendChild(wrap);
+    setTimeout(()=>{ wrap.classList.remove('pulse'); }, 4200);
+    // Usuń całkowicie po kilku sekundach żeby nie zaśmiecać warstwy
+    setTimeout(()=>{ if(wrap.isConnected) wrap.remove(); }, 15000);
+  } catch(_){ }
+}
+
+// Wheel zoom (naprawiony listener)
+viewport.addEventListener('wheel', e=>{
+  e.preventDefault();
+  const delta = e.deltaY < 0 ? 1.15 : 0.85;
+  const rect = viewport.getBoundingClientRect();
+  const sX = e.clientX - rect.left; const sY = e.clientY - rect.top;
+  setScale(scale * delta, sX, sY);
+  maybeUpdateClusters();
+  try { maybeUpdateShopClusters(); } catch(_){ }
+  try { maybeUpdateCompanyClusters(); } catch(_){ }
+}, { passive:false });
+
+// Zoom buttons (zapewnienie pojedynczych listenerów)
+if(btnZoomIn) btnZoomIn.addEventListener('click', ()=>{ const cx=viewport.clientWidth/2, cy=viewport.clientHeight/2; setScale(scale*1.25, cx, cy); });
+if(btnZoomOut) btnZoomOut.addEventListener('click', ()=>{ const cx=viewport.clientWidth/2, cy=viewport.clientHeight/2; setScale(scale*0.8, cx, cy); maybeUpdateClusters(); try { maybeUpdateShopClusters(); } catch(_){ } try { maybeUpdateCompanyClusters(); } catch(_){ } });
+if(btnZoomReset) btnZoomReset.addEventListener('click', ()=>{ scale=1; originX=0; originY=0; applyTransform(); centerOnSpawn(); });
+if (closePanelBtn) closePanelBtn.addEventListener('click', closePanel);
+if (pinPanelBtn) pinPanelBtn.addEventListener('click', ()=>{ panel?.classList.toggle('pinned'); const icon=document.getElementById('pin-panel-icon'); if(icon){ icon.style.setProperty('--icon', panel.classList.contains('pinned') ? "url('/icns_ui/unpin.svg')" : "url('/icns_ui/pin.svg')"); } });
+// Przełącz motyw mapy (tylko grafika mapy: base + kafelki). Nie zmienia stylu całego UI.
+if(btnTheme){
+  btnTheme.addEventListener('click', ()=>{
+    // Przełącz z obecnie renderowanego motywu na przeciwny (bazując na pickTheme dla spójności z auto)
+    const currentRendered = pickTheme();
+    const next = currentRendered === 'light' ? 'dark' : 'light';
+    currentTheme = next; // ustaw tryb jawny (wyłącz auto)
+    saveThemeState();
+    // Odśwież bazowy obraz i kafelki w nowym motywie z płynnym przejściem
+    updateImageSource();
+    drawLines(); // kolory linii mogą mieć warianty light/dark
+    purgeTilesOfOtherTheme();
+    if(currentResolutionFactor > 1){
+      // Po czyszczeniu kafelków innego motywu odbuduj placeholdery obecnego poziomu, aby mogły się ponownie załadować.
+      buildTilesForCurrentLevel();
+      awaitingFirstHiResTile = true;
+      canvas.classList.remove('hires-on'); // dopóki pierwszy kafelek nie dojedzie
+    }
+    updateVisibleTiles();
+    window.dispatchEvent(new CustomEvent('theme-change'));
+  });
+}
+
+// Kopiuj link z fokusem na aktualny środek widoku
+if(btnCopyFocus){
+  btnCopyFocus.addEventListener('click', async ()=>{
+    try {
+      if(!mapData || !imgWidth || !imgHeight){ return; }
+      const meta = mapData.meta || {}; const unitsPerPixel = meta.unitsPerPixel || 4; const originMode = meta.origin || 'top-left';
+      // Środek viewportu w przestrzeni mapy (px)
+      const centerMapX = (-originX + viewport.clientWidth/2) / scale;
+      const centerMapY = (-originY + viewport.clientHeight/2) / scale;
+      // Przelicz na współrzędne logiczne (x,z)
+      let logicX, logicZ;
+      if(originMode === 'center'){
+        logicX = (centerMapX - (imgWidth/2)) * unitsPerPixel;
+        logicZ = (centerMapY - (imgHeight/2)) * unitsPerPixel;
+      } else {
+        logicX = centerMapX;
+        logicZ = centerMapY;
+      }
+      // Zaokrąglij do pełnych jednostek dla czytelności
+      const X = Math.round(logicX);
+      const Z = Math.round(logicZ);
+      const clampedZoom = Math.min(maxScale, Math.max(minScale, scale));
+      const url = new URL(location.href);
+      url.searchParams.set('focus', `${X},${Z}`);
+      url.searchParams.set('label', 'Punkt');
+      url.searchParams.set('zoom', clampedZoom.toFixed(2));
+      // Kopiuj do schowka
+      await navigator.clipboard.writeText(url.toString());
+      // Prosta informacja zwrotna (title swap)
+      const prevTitle = btnCopyFocus.title;
+      btnCopyFocus.title = 'Skopiowano!';
+      const iconEl = btnCopyFocus.querySelector('img');
+      const originalSrc = iconEl?.getAttribute('src') || null;
+      const successIcon = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="%23FFFFFF"><path d="M382-240 154-468l57-57 171 171 367-367 57 57-424 424Z"/></svg>';
+      if(iconEl){ iconEl.setAttribute('src', successIcon); }
+      btnCopyFocus.classList.add('copied');
+      setTimeout(()=>{
+        if(iconEl && originalSrc){ iconEl.setAttribute('src', originalSrc); }
+        btnCopyFocus.classList.remove('copied');
+        btnCopyFocus.title = prevTitle || 'Kopiuj link do celu';
+      }, 1500);
+    } catch(_e){ /* ciche pominięcie */ }
+  });
+}
+viewport.addEventListener('click', (e)=>{
+  if(!panel || panel.hidden) return;
+  if(panel.classList.contains('pinned')) return; // przypięty – nie zamykaj kliknięciem w tło
+  // jeśli klik w środku panelu – pomiń
+  const within = panel.contains(e.target) || !!e.target.closest('.marker');
+  if(within) return;
+  closePanel();
+});
+
+// Picking linii w trybie admina – detekcja najbliższego segmentu kliknięcia
+if(isAdmin){
+  viewport.addEventListener('click', (e)=>{
+    if(!showLines) return; // linie nieaktywne
+    // pomiń kliknięcia na markerach (obsługuje je osobny listener)
+    if(e.target.closest('.marker')) return;
+    const segs = window.__adminLineSegments || [];
+    if(!segs.length) return;
+    const rect = viewport.getBoundingClientRect();
+    const x = e.clientX - rect.left; const y = e.clientY - rect.top;
+    let best=null; let bestDist=Infinity; const THRESH=8; // px
+    for(const s of segs){
+      const dist = pointSegmentDistance(x,y,s.x1,s.y1,s.x2,s.y2);
+      if(dist < bestDist){ bestDist=dist; best=s; }
+    }
+    if(best && bestDist <= THRESH){
+      window.dispatchEvent(new CustomEvent('admin:line-picked', { detail:{ id: best.lineId } }));
+    }
+  });
+}
+
+function pointSegmentDistance(px,py,x1,y1,x2,y2){
+  const dx = x2 - x1; const dy = y2 - y1;
+  if(dx===0 && dy===0) return Math.hypot(px-x1, py-y1);
+  let t = ((px - x1)*dx + (py - y1)*dy) / (dx*dx + dy*dy);
+  t = Math.max(0, Math.min(1, t));
+  const cx = x1 + t*dx; const cy = y1 + t*dy;
+  return Math.hypot(px-cx, py-cy);
+}
+
+window.addEventListener('keydown', e=>{
+  const ae = document.activeElement;
+  const tag = (ae && ae.tagName) ? ae.tagName.toLowerCase() : '';
+  const editable = ae && (ae.isContentEditable === true);
+  if(tag === 'input' || tag === 'textarea' || tag === 'select' || editable){
+    return; // nie obsługuj skrótów mapy podczas edycji pól
+  }
+  if(e.key === 'Escape') closePanel();
+  if(e.key === '+') setScale(scale*1.2, viewport.clientWidth/2 - originX, viewport.clientHeight/2 - originY);
+  if(e.key === '-') { setScale(scale*0.8, viewport.clientWidth/2 - originX, viewport.clientHeight/2 - originY); maybeUpdateClusters(); }
+  if(e.key === '0') { scale=1; originX=0; originY=0; applyTransform(); }
+  // Dostępność: przesuwanie mapy strzałkami (odpowiednik przeciągania myszą).
+  const PAN_STEP = 80;
+  if(e.key === 'ArrowUp'){ e.preventDefault(); originY += PAN_STEP; applyTransform(); }
+  else if(e.key === 'ArrowDown'){ e.preventDefault(); originY -= PAN_STEP; applyTransform(); }
+  else if(e.key === 'ArrowLeft'){ e.preventDefault(); originX += PAN_STEP; applyTransform(); }
+  else if(e.key === 'ArrowRight'){ e.preventDefault(); originX -= PAN_STEP; applyTransform(); }
+});
+
+// Reaguj na zmianę rozmiaru – odrysuj linie w przestrzeni ekranu
+window.addEventListener('resize', ()=>{ drawLines(); });
+window.addEventListener('resize', ()=>{ try { buildShopMarkers(); } catch(_){ } try { buildCompanyMarkers(); } catch(_){ } });
+window.addEventListener('resize', ()=>{
+  if(resizeRaf || !viewport || !mapData) return;
+  resizeRaf = requestAnimationFrame(()=>{
+    resizeRaf = null;
+    const prevW = lastViewportSize.w; const prevH = lastViewportSize.h;
+    const newW = viewport.clientWidth; const newH = viewport.clientHeight;
+    if(!prevW || !prevH){ rememberViewportSize(); return; }
+    const { x:logicX, z:logicZ } = screenToLogical(prevW/2, prevH/2);
+    const { x:pxX, y:pxY } = logicalToMapPx(logicX, logicZ);
+    originX = (newW/2) - pxX * scale;
+    originY = (newH/2) - pxY * scale;
+    applyTransform();
+    rememberViewportSize();
+  });
+});
+
+// --- Kafelki hi-res ---
+function ensureTilesContainer(){
+  if(tilesLayer) return;
+  tilesLayer = document.createElement('div');
+  tilesLayer.className = 'hires-tiles';
+  // Umieszczamy w canvasie mapy (przed markersLayer), bo canvas ma transform wspólny
+  canvas.insertBefore(tilesLayer, markersLayer);
+}
+
+function buildTilesForCurrentLevel(){
+  if(currentResolutionFactor === 1) { clearTiles(); return; }
+  const cfg = TILE_CONFIG[currentResolutionFactor];
+  if(!cfg) return;
+  const grid = cfg.grid;
+  const baseW = baseLogicalWidth;
+  const baseH = baseLogicalHeight;
+  const tileW = baseW / grid;
+  const tileH = baseH / grid;
+  // Jeśli już mamy kafelki dla tego poziomu, nie nadpisuj (lazy loading)
+  // Sprzątnij kafelki poprzedniego (jeśli downgraded - obecnie brak downgrade, ale zabezpieczenie)
+  for(const [key, el] of tiles.entries()){
+    if(!key.startsWith(currentResolutionFactor + 'x:')){ el.remove(); tiles.delete(key); }
+  }
+  for(let row=0; row<grid; row++){
+    for(let col=0; col<grid; col++){
+      const key = `${currentResolutionFactor}x:${row}:${col}`;
+      if(tiles.has(key)) continue;
+      const div = document.createElement('div');
+      div.className = 'tile';
+      div.style.left = (col*tileW) + 'px';
+      div.style.top = (row*tileH) + 'px';
+      div.style.width = tileW + 'px';
+      div.style.height = tileH + 'px';
+      // Obraz doładowany później (on-demand)
+      tilesLayer.appendChild(div);
+      tiles.set(key, div);
+    }
+  }
+}
+
+function clearTiles(){
+  for(const el of tiles.values()) el.remove();
+  tiles.clear();
+  if(tilesLayer){ tilesLayer.innerHTML=''; }
+}
+
+function updateVisibleTiles(){
+  if(currentResolutionFactor === 1) return;
+  const cfg = TILE_CONFIG[currentResolutionFactor];
+  if(!cfg) return;
+  const grid = cfg.grid;
+  const baseW = baseLogicalWidth;
+  const baseH = baseLogicalHeight;
+  const tileW = baseW / grid;
+  const tileH = baseH / grid;
+  // Ekran do układu mapy (odwrócenie transformu)
+  const { left: viewLeft, top: viewTop, right: viewRight, bottom: viewBottom } = getViewportMapPxBounds();
+  const margin = 0.5 * Math.max(tileW, tileH); // prefetch pół kafla
+  for(let row=0; row<grid; row++){
+    for(let col=0; col<grid; col++){
+      const key = `${currentResolutionFactor}x:${row}:${col}`;
+      const div = tiles.get(key);
+      if(!div) continue;
+      const x0 = col*tileW;
+      const y0 = row*tileH;
+      const x1 = x0 + tileW;
+      const y1 = y0 + tileH;
+      const visible = !(x1 < viewLeft - margin || x0 > viewRight + margin || y1 < viewTop - margin || y0 > viewBottom + margin);
+      if(visible){
+        if(!div.firstChild){
+          const img = new Image();
+          // Ścieżka kafelka: /map_light@2x_r{row}_c{col}.webp lub @4x
+          const theme = pickTheme();
+          let dir;
+          if(currentResolutionFactor === 2){
+            dir = theme === 'light' ? MAP_PATHS.tiles2xLightDir : MAP_PATHS.tiles2xDarkDir;
+          } else if(currentResolutionFactor === 4){
+            dir = theme === 'light' ? MAP_PATHS.tiles4xLightDir : MAP_PATHS.tiles4xDarkDir;
+          }
+          img.decoding = 'async';
+          img.loading = 'lazy';
+          img.addEventListener('load', ()=> {
+            img.classList.add('loaded');
+            // Po pierwszym kafelku hi-res załaduj – ukryj base
+            if(awaitingFirstHiResTile){
+              awaitingFirstHiResTile = false;
+              canvas.classList.add('hires-on');
+            }
+          });
+          img.src = `${dir}/map_${theme}@${currentResolutionFactor}x_r${row}_c${col}.webp`;
+          div.appendChild(img);
+        }
+        div.style.opacity = '1';
+      } else {
+        // Możemy wyczyścić dla oszczędności pamięci (lub zostawić). Zostawiamy obraz by uniknąć przeładowań.
+        div.style.opacity = '0';
+      }
+    }
+  }
+}
+
+function purgeTilesOfOtherTheme(){
+  if(!tilesLayer) return;
+  const theme = pickTheme();
+  for(const [key, el] of [...tiles.entries()]){
+    const img = el.querySelector('img');
+    if(!img) continue;
+    const isLight = img.src.includes('/light/');
+    if((theme === 'light' && !isLight) || (theme === 'dark' && isLight)){
+      el.remove();
+      tiles.delete(key);
+    }
+  }
+}
+
+load();
+// Globalne nasłuchy błędów runtime dla diagnostyki
+window.addEventListener('error', ev => {
+  console.error('[map] window error', ev.error || ev.message);
+});
+window.addEventListener('unhandledrejection', ev => {
+  console.error('[map] unhandledrejection', ev.reason);
+});
+
+// --- Tryby mapy ---
+function applyMode(mode){
+  const prev = currentMode;
+  currentMode = mode;
+  if(appRoot){ appRoot.dataset.mode = mode; }
+  // Ustaw aria-pressed na przyciskach
+  modeButtons.forEach(btn => {
+    const m = btn.getAttribute('data-mode');
+    btn.setAttribute('aria-pressed', (m===mode).toString());
+  });
+  // Sterowanie widocznością sekcji wyszukiwania (bez względu na kolejność ładowania route-search.js)
+  const pointSec = document.getElementById('point-search-section');
+  const routeSec = document.getElementById('route-search-section');
+  // Rozwijane panele wyników (bąbelek pod paskiem nawigacji) – pola wyszukiwania
+  // mieszkają w pasku nawigacji, ale wyniki/filtry nadal wyskakują osobno pod nim.
+  const pointDrop = document.getElementById('point-search-dropdown');
+  const routeDrop = document.getElementById('route-search-dropdown');
+  if(mode === 'transport'){
+    // Zapamiętaj stan linii w trybie ogólnym zanim wymusimy showLines
+    if(prev === 'general'){
+      lastGeneralShowRailLines = showRailLines;
+      lastGeneralShowFlightLines = showFlightLines;
+      lastGeneralShowLines = !!(showRailLines || showFlightLines); // legacy store
+    }
+    // Włącz widoczność linii automatycznie (obie grupy)
+    showRailLines = true;
+    showFlightLines = true;
+    showLines = true;
+    // Usuń z ukrytych kategorii linii wszystko (pokaż wszystkie), zachowaj hiddenLineCategories ale czyść
+    hiddenLineCategories.clear();
+    // Włącz kategorie stacji kolej/metro (usuń z activeCategories jeżeli były ukryte)
+  activeCategories.delete('kolej');
+  activeCategories.delete('metro');
+  activeCategories.delete('airport');
+    // Pokaż panel tras
+    window.TransportMode?.enable?.();
+    if(pointSec) pointSec.hidden = true;
+    if(routeSec) routeSec.hidden = false;
+    if(pointDrop) pointDrop.hidden = true;
+    if(routeDrop) routeDrop.hidden = false;
+    if(linesLegendEl) linesLegendEl.hidden = false;
+  } else {
+    // Wracamy do ogólnej: przywróć showLines wg legendy (nie nadpisujemy, ale jeśli chcemy można zostawić włączone)
+    window.TransportMode?.disable?.();
+    routeHighlightedSegments = null;
+    if(pointSec) pointSec.hidden = false;
+    if(routeSec) routeSec.hidden = true;
+    if(pointDrop) pointDrop.hidden = false;
+    if(routeDrop) routeDrop.hidden = true;
+  if(linesLegendEl) linesLegendEl.hidden = true;
+    // W trybie ogólnym zawsze ukrywamy stacje i metro (domyślnie niewidoczne).
+  activeCategories.add('kolej');
+  activeCategories.add('metro');
+  activeCategories.add('airport');
+    // Przywróć wcześniejszy stan linii z general
+    showRailLines = !!lastGeneralShowRailLines;
+    showFlightLines = !!lastGeneralShowFlightLines;
+    showLines = !!(showRailLines || showFlightLines);
+  }
+  // Wyczyść / odśwież wyniki punktów po zmianie trybu
+  if(pointResultsEl){
+    if(currentMode==='transport') pointResultsEl.innerHTML='';
+    else if(searchInput && searchInput.value.trim()) handleSearch();
+  }
+  saveLegendState();
+  buildLegend();
+  buildLinesLegend();
+  // Natychmiast przebuduj markery, aby odzwierciedlić widoczność kategorii po zmianie trybu
+  try { buildMarkers(); } catch(_){ }
+  // Po zmianie trybu zaktualizuj ewentualne repozycjonowanie legendy linii (CSS korzysta z data-mode)
+  repositionLinesLegend();
+  // Wiersz wyszukiwania (punkt vs trasa) ma inną wysokość w peek dolnego arkusza – przelicz po zmianie layoutu
+  requestAnimationFrame(updatePeekHeight);
+  // Natychmiastowy redraw warstwy linii (bug: pojawiały się dopiero po ruchu)
+  try {
+    drawLines(true);
+  } catch(e){ console.warn('[map] immediate drawLines failed', e); }
+  // Drugi redraw w następnym frame (czasem pierwszy następuje przed recalculacją layoutu paneli)
+  requestAnimationFrame(()=>{ try { drawLines(true); } catch(_e){} });
+}
+
+modeButtons.forEach(btn => {
+  btn.addEventListener('click', ()=>{
+    const m = btn.getAttribute('data-mode');
+    applyMode(m);
+  });
+});
+
+// Eksponuj do konsoli
+window.MapAppMode = { apply: applyMode };
+
+// Wymuś synchronizację trybu (m.in. chowa #lines-legend w trybie general). Skrypt jest
+// dołączany dynamicznie przez IslandLoader długo po DOMContentLoaded, więc ten event już
+// nie nadejdzie – jeśli dokument jest wciąż w trakcie ładowania, i tak nasłuchujemy na wszelki wypadek.
+if(document.readyState === 'loading'){
+  window.addEventListener('DOMContentLoaded', ()=>{ applyMode(currentMode); });
+} else {
+  applyMode(currentMode);
+}
+// Zastosuj domyślne ukrycia przed pierwszym budowaniem legendy / markerów (load() już ruszyło asynchronicznie)
+applyInitialCategoryVisibility();
+
+// === Warstwa polityczna (SVG) ===
+const politicalLayerEl = document.getElementById('political-layer');
+let politicalSvgLoaded = false;
+let politicalVisible = false;
+let politicalOpacity = 0.5; // domyślnie
+let politicalCheckboxEl = null; // legend checkbox
+let politicalOpacityWrapperEl = null; // slider container in legend
+function loadPoliticalSvg(){
+  if(politicalSvgLoaded || !politicalLayerEl) return;
+  fetch('/map/political.svg').then(r=>{
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    return r.text();
+  }).then(txt=>{
+    politicalLayerEl.innerHTML = txt;
+    politicalSvgLoaded = true;
+    applyPoliticalTransform();
+  }).catch(e=>{
+    console.warn('[map] political svg load failed', e.message);
+  });
+}
+function applyPoliticalTransform(){
+  if(!politicalLayerEl) return;
+  // Warstwa skalowana razem z mapą przez transform rodzica (#map-canvas)
+  // Nic specjalnego – SVG wypełnia 100% logicznej wielkości mapy.
+}
+// Włącz/wyłącz widoczność
+function updatePoliticalVisibility(){
+  if(!politicalLayerEl) return;
+  politicalLayerEl.style.display = politicalVisible ? 'block' : 'none';
+  politicalLayerEl.setAttribute('aria-hidden', (!politicalVisible).toString());
+  if(politicalVisible && !politicalSvgLoaded){ loadPoliticalSvg(); }
+  updatePoliticalControlsUI();
+}
+function updatePoliticalOpacity(){
+  if(!politicalLayerEl) return;
+  politicalLayerEl.style.opacity = politicalOpacity.toFixed(2);
+  try { localStorage.setItem('map.political.opacity', politicalOpacity.toString()); } catch(_){ }
+}
+function updatePoliticalControlsUI(){
+  if(politicalCheckboxEl){
+    politicalCheckboxEl.checked = politicalVisible;
+  }
+  if(politicalOpacityWrapperEl){
+    politicalOpacityWrapperEl.hidden = !politicalVisible;
+  }
+}
+// Przy uruchomieniu odczytaj poprzedni stan
+try {
+  const storedOp = localStorage.getItem('map.political.opacity');
+  if(storedOp){ const v = parseFloat(storedOp); if(!isNaN(v) && v>=0 && v<=1) politicalOpacity = v; }
+  const storedVis = localStorage.getItem('map.political.visible');
+  if(storedVis){ politicalVisible = storedVis === '1'; }
+} catch(_){ }
+updatePoliticalVisibility();
+updatePoliticalOpacity();
+
+// UI kontrolki – doczep do toolbara
+window.addEventListener('theme-change', ()=>{ /* hook na przyszłe kolory SVG */ });
+
+// Rozszerzenie legendy o checkbox warstwy politycznej
+const origBuildLegend = buildLegend;
+buildLegend = function(){
+  origBuildLegend();
+  try { addPoliticalLegendEntry(); } catch(_){ }
+};
+function addPoliticalLegendEntry(){
+  if(!legendEl) return;
+  // Jeśli już istnieje wpis – zaktualizuj referencję i wyjdź
+  const existing = legendEl.querySelector('[data-legend-political] input[type="checkbox"]');
+  if(existing){
+    politicalCheckboxEl = existing;
+    // Upewnij się, że wrapper suwaka istnieje
+    ensurePoliticalOpacityWrapper();
+    placePoliticalOpacityWrapper();
+    updatePoliticalControlsUI();
+    return;
+  }
+  // Kontener nagłówka WARSTWY jeśli brak
+  if(!legendEl.querySelector('[data-legend-political-heading]')){
+    const sep = document.createElement('div'); sep.className='legend-sep'; legendEl.appendChild(sep);
+    const heading = document.createElement('div'); heading.className='legend-heading'; heading.textContent='WARSTWY'; heading.setAttribute('data-legend-political-heading','1'); legendEl.appendChild(heading);
+  }
+  const label = document.createElement('label'); label.className='legend-item'; label.setAttribute('data-legend-political','1');
+  const fakeDot = document.createElement('span'); fakeDot.className='legend-dot'; fakeDot.style.background = '#AC1943';
+  const cb = document.createElement('input'); cb.type='checkbox'; cb.checked = politicalVisible; cb.setAttribute('aria-label','Pokaż mapę polityczną');
+  cb.addEventListener('change', ()=>{
+    politicalVisible = cb.checked;
+    try { localStorage.setItem('map.political.visible', politicalVisible? '1':'0'); } catch(_){ }
+    updatePoliticalVisibility();
+  });
+  const text = document.createElement('span'); text.className='legend-label'; text.textContent='Mapa polityczna';
+  label.appendChild(cb); label.appendChild(fakeDot); label.appendChild(text);
+  legendEl.appendChild(label);
+  politicalCheckboxEl = cb;
+  ensurePoliticalOpacityWrapper(label);
+  placePoliticalOpacityWrapper();
+  updatePoliticalControlsUI();
+}
+
+function ensurePoliticalOpacityWrapper(afterElement){
+  if(politicalOpacityWrapperEl) return;
+  const wrap = document.createElement('div');
+  wrap.className = 'political-opacity-legend';
+  const lab = document.createElement('label'); lab.textContent='Przezroczystość'; lab.setAttribute('for','political-opacity');
+  const range = document.createElement('input'); range.type='range'; range.min='0'; range.max='1'; range.step='0.01'; range.id='political-opacity'; range.value = politicalOpacity.toString(); range.setAttribute('aria-label','Przezroczystość mapy politycznej');
+  range.addEventListener('input', ()=>{ politicalOpacity = parseFloat(range.value)||0; updatePoliticalOpacity(); });
+  wrap.appendChild(lab); wrap.appendChild(range);
+  politicalOpacityWrapperEl = wrap;
+  if(afterElement){
+    afterElement.insertAdjacentElement('afterend', wrap);
+  } else if(legendEl){
+    legendEl.appendChild(wrap);
+  }
+}
+
+function placePoliticalOpacityWrapper(){
+  if(!politicalOpacityWrapperEl || !legendEl) return;
+  const isMobile = window.innerWidth <= 860;
+  const labelEl = legendEl.querySelector('[data-legend-political]');
+  if(isMobile){
+    // Wewnątrz legendy tuż pod etykietą
+    if(labelEl && politicalOpacityWrapperEl.previousElementSibling !== labelEl){
+      labelEl.insertAdjacentElement('afterend', politicalOpacityWrapperEl);
+    }
+    politicalOpacityWrapperEl.classList.add('in-legend-mobile');
+  } else {
+    // Osobny bąbelek poza legendą (w panelu) – wstaw po elemencie legendy
+    const sidepanel = document.getElementById('filters-panel');
+    if(sidepanel && politicalOpacityWrapperEl.parentElement !== sidepanel){
+      legendEl.insertAdjacentElement('afterend', politicalOpacityWrapperEl);
+    } else if(sidepanel && politicalOpacityWrapperEl.previousElementSibling !== legendEl){
+      legendEl.insertAdjacentElement('afterend', politicalOpacityWrapperEl);
+    }
+    politicalOpacityWrapperEl.classList.remove('in-legend-mobile');
+  }
+}
+
+window.addEventListener('resize', placePoliticalOpacityWrapper);
+
+
+// Legenda linii (#lines-legend) nie musi uciekać na górę na wąskich ekranach –
+// zostaje zawsze w prawym dolnym rogu na desktopie; na mobile jej treść jest
+// przenoszona do karty "Linie" w dolnym arkuszu (patrz reparentForLayout niżej).
+function repositionLinesLegend(){ /* no-op: pozycja stała przez CSS */ }
+
+// --- MOBILE UI: dolny arkusz "Legenda" (peek + przeciąganie + karty) ---
+// #btn-filters jest stałym uchwytem u góry panelu (patrz page.js). Domyślnie
+// (peek/zwinięty) widoczny jest tylko uchwyt + pasek wyszukiwania (#map-search-row,
+// przeniesiony tu z pływającej karty na desktopie). Rozwinięcie (przeciągnięcie w
+// górę albo tapnięcie/klawiatura na uchwycie) odsłania karty Legenda/Linie/Wyniki
+// poniżej wyszukiwarki – patrz reparentForLayout() i initSheetTabs().
+let mobileFiltersEnabled = false;
+function isMobileLayout(){ return window.innerWidth <= 860; }
+function setFiltersOpen(open){
+  const sidepanel = document.getElementById('filters-panel');
+  if(!sidepanel) return;
+  sidepanel.classList.toggle('open', open);
+  if(filtersToggleBtn) filtersToggleBtn.setAttribute('aria-expanded', open.toString());
+}
+
+function reparentForLayout(){
+  const mobile = isMobileLayout();
+  const searchRow = document.getElementById('map-search-row');
+  const searchFloat = document.getElementById('map-search-float');
+  const sheetSearchSlot = document.getElementById('sheet-search-slot');
+  const resultsBubble = document.getElementById('search-bubble');
+  const resultsPanel = document.getElementById('results-panel');
+  const linesBody = document.getElementById('lines-legend-body');
+  const linesLegendShell = document.getElementById('lines-legend');
+  const linesPanel = document.getElementById('lines-panel');
+
+  if(mobile){
+    if(searchRow && sheetSearchSlot && searchRow.parentElement !== sheetSearchSlot) sheetSearchSlot.appendChild(searchRow);
+    if(resultsBubble && resultsPanel && resultsBubble.parentElement !== resultsPanel) resultsPanel.appendChild(resultsBubble);
+    if(linesBody && linesPanel){
+      if(linesBody.parentElement !== linesPanel) linesPanel.appendChild(linesBody);
+      // Na desktopie #lines-legend-body jest ukrywane przez własny toggle "Linie ▼"
+      // (domyślnie zwinięty, i loadLegendState() może to odtworzyć przy każdej
+      // przebudowie); w karcie "Linie" to sam tab-switcher decyduje o widoczności,
+      // więc zawsze odkrywamy treść — niezależnie od tego, czy przenosiny właśnie
+      // się zdarzyły, czy element już tu był.
+      linesBody.hidden = false;
+    }
+  } else {
+    if(searchRow && searchFloat && searchRow.parentElement !== searchFloat) searchFloat.insertBefore(searchRow, searchFloat.firstChild);
+    if(resultsBubble && searchFloat && resultsBubble.parentElement !== searchFloat) searchFloat.appendChild(resultsBubble);
+    if(linesBody && linesLegendShell && linesBody.parentElement !== linesLegendShell){
+      linesLegendShell.appendChild(linesBody);
+      // Przywróć stan zwinięcia zgodny z desktopowym przyciskiem "Linie ▼/▲"
+      linesBody.hidden = linesLegendShell.classList.contains('collapsed');
+    }
+  }
+  updatePeekHeight();
+}
+
+// Stan spoczynku (peek) pokazuje uchwyt + wyszukiwarkę – ich łączna wysokość zależy
+// od trybu (wiersz punktu ma 1 linię, wiersz trasy potrafi się zawinąć do 3 linii na
+// wąskich ekranach), więc mierzymy ją w JS zamiast zakładać stałą wartość w CSS.
+function updatePeekHeight(){
+  const panel = document.getElementById('filters-panel');
+  if(!panel || !panel.classList.contains('mobile-sheet')) return;
+  const slot = document.getElementById('sheet-search-slot');
+  let h = filtersToggleBtn ? filtersToggleBtn.getBoundingClientRect().height : 0;
+  if(slot) h += slot.getBoundingClientRect().height;
+  if(h > 0) panel.style.setProperty('--filters-peek', h + 'px');
+}
+
+function ensureMobileSheet(){
+  if(!legendEl) return;
+  const sidepanel = document.getElementById('filters-panel');
+  if(!sidepanel) return;
+  if(isMobileLayout()){
+    mobileFiltersEnabled = true;
+    sidepanel.classList.add('mobile-sheet');
+    if(filtersToggleBtn) filtersToggleBtn.hidden = false;
+  } else {
+    mobileFiltersEnabled = false;
+    sidepanel.classList.remove('mobile-sheet','open');
+    if(filtersToggleBtn){ filtersToggleBtn.hidden = true; filtersToggleBtn.setAttribute('aria-expanded','false'); }
+  }
+  reparentForLayout();
+}
+ensureMobileSheet();
+window.addEventListener('resize', ()=>{ ensureMobileSheet(); });
+
+// --- Karty w dolnym arkuszu (Legenda / Linie / Wyniki) ---
+function initSheetTabs(){
+  const tabs = Array.from(document.querySelectorAll('.sheet-tab'));
+  const panels = Array.from(document.querySelectorAll('.sheet-panel'));
+  if(!tabs.length || !panels.length) return;
+  function selectTab(name){
+    tabs.forEach(t => t.setAttribute('aria-selected', (t.dataset.tab === name).toString()));
+    panels.forEach(p => { p.hidden = p.dataset.panel !== name; });
+  }
+  tabs.forEach(t => t.addEventListener('click', ()=> selectTab(t.dataset.tab)));
+  selectTab('legend');
+  // Aktywne wyszukiwanie na mobile: rozwiń arkusz i pokaż kartę wyników od razu,
+  // żeby użytkownik widział rezultaty w miarę wpisywania (karta i tak jest ukryta
+  // przez CSS dopóki nie ma czego pokazać – patrz .search-dropdown w map.css).
+  const openAndShowResults = ()=>{
+    if(!isMobileLayout()) return;
+    setFiltersOpen(true);
+    selectTab('results');
+  };
+  searchInput?.addEventListener('focus', openAndShowResults);
+  searchInput?.addEventListener('input', ()=>{ if(searchInput.value.trim()) openAndShowResults(); });
+  document.getElementById('route-from')?.addEventListener('focus', openAndShowResults);
+  document.getElementById('route-to')?.addEventListener('focus', openAndShowResults);
+  document.getElementById('route-search')?.addEventListener('click', openAndShowResults);
+}
+initSheetTabs();
+
+// --- Gest przeciągania arkusza (mobile): dostępny z obu stanów (peek/otwarty) ---
+(function initFiltersDrag(){
+  const panel = document.getElementById('filters-panel');
+  const handle = filtersToggleBtn;
+  if(!panel || !handle) return;
+  let startY = 0, dragging = false, moved = false, startOpen = false, peekPx = 56, suppressClick = false;
+  function isMobile(){ return window.innerWidth <= 860; }
+  function onPointerDown(e){
+    if(!isMobile() || !mobileFiltersEnabled) return;
+    startY = e.clientY; dragging = true; moved = false;
+    startOpen = panel.classList.contains('open');
+    updatePeekHeight();
+    const cssPeek = parseFloat(getComputedStyle(panel).getPropertyValue('--filters-peek'));
+    peekPx = !isNaN(cssPeek) ? cssPeek : (handle.getBoundingClientRect().height || 56);
+    panel.classList.add('dragging');
+    panel.style.transition = 'none';
+  }
+  function onPointerMove(e){
+    if(!dragging) return;
+    const dy = e.clientY - startY;
+    if(!moved && Math.abs(dy) > 4){ moved = true; suppressClick = true; }
+    if(!moved) return;
+    const panelH = panel.getBoundingClientRect().height || (window.innerHeight * 0.5);
+    const max = Math.max(0, panelH - peekPx);
+    const base = startOpen ? 0 : max;
+    const next = Math.min(max, Math.max(0, base + dy));
+    panel.style.transform = `translateY(${next}px)`;
+  }
+  function onPointerUp(e){
+    if(!dragging) return;
+    dragging = false;
+    panel.classList.remove('dragging');
+    panel.style.transition = '';
+    panel.style.transform = '';
+    if(!moved) return; // zwykłe tapnięcie – zostaw obsłudze zdarzenia click (też dostępne z klawiatury)
+    const dy = e.clientY - startY;
+    const threshold = 48;
+    setFiltersOpen(startOpen ? dy < threshold : dy < -threshold);
+  }
+  handle.addEventListener('pointerdown', onPointerDown);
+  window.addEventListener('pointermove', onPointerMove);
+  window.addEventListener('pointerup', onPointerUp);
+  handle.addEventListener('click', ()=>{
+    if(suppressClick){ suppressClick = false; return; }
+    setFiltersOpen(!panel.classList.contains('open'));
+  });
+})();
+// Zamknij panel filtrów przy tap poza (mobile)
+document.addEventListener('click', (e)=>{
+  if(!mobileFiltersEnabled) return;
+  const sidepanel = document.getElementById('filters-panel');
+  if(!sidepanel || !sidepanel.classList.contains('open')) return;
+  if(sidepanel.contains(e.target)) return;
+  setFiltersOpen(false);
+});
+
+// --- Wskaźnik koordynatów kursora (desktop) ---
+(()=>{
+  try{
+    const isDesktop = (navigator.maxTouchPoints||0) === 0 && window.matchMedia('(pointer: fine)').matches;
+    if(!isDesktop || !viewport) return;
+    viewport.addEventListener('pointermove', (e)=>{ __lastPointerPos = { x:e.clientX, y:e.clientY }; updateCursorCoords(e.clientX, e.clientY); });
+    viewport.addEventListener('pointerleave', ()=>{ __lastPointerPos = null; if(legendCursorEl) legendCursorEl.textContent='—'; });
+  }catch(_){ }
+})();
+
+// Odbierz highlight trasy z route-search.js
+window.addEventListener('route:highlight', e=>{
+  const legs = e.detail?.legs || [];
+  if(!linesData || !Array.isArray(linesData.lines)) return;
+  if(legs.length === 0){
+    routeHighlightedSegments = null;
+    highlightedLineId = null;
+    selectedLineId = null;
+    routeEndpoints = null;
+    removeRouteEndpointMarkers();
+    lastRouteBBoxKey = null;
+    drawLines();
+    return;
+  }
+  // Upewnij się, że stacje kolej/metro oraz lotniska są widoczne (użytkownik może mieć je wyłączone w trybie general przed przełączeniem)
+  activeCategories.delete('kolej');
+  activeCategories.delete('metro');
+  activeCategories.delete('airport');
+  saveLegendState();
+  buildLegend();
+  // Budujemy mapę lineId -> stacje po kolei (scalamy, jeśli kilka nóg tej samej linii – rzadkie)
+  const map = new Map();
+  for(const leg of legs){
+    if(!leg?.lineId || !Array.isArray(leg.stations) || leg.stations.length<2) continue;
+    if(!map.has(leg.lineId)) map.set(leg.lineId, { stations:[...leg.stations] });
+    else {
+      const entry = map.get(leg.lineId);
+      // Spróbuj płynnie dokleić (gdy ostatni == pierwszy nowego lub odwrotnie) – w przeciwnym razie zostaw pierwszą sekwencję
+      const cur = entry.stations;
+      const first = leg.stations[0];
+      const last = leg.stations[leg.stations.length-1];
+      if(cur[cur.length-1] === first){
+        entry.stations.push(...leg.stations.slice(1));
+      } else if(cur[0] === last){
+        // Odwrócona kolejność – doklej z przodu
+        entry.stations = [...leg.stations.slice(0,-1), ...entry.stations];
+      }
+    }
+  }
+  routeHighlightedSegments = map;
+  // Endpoints (pierwsza stacja pierwszej nogi & ostatnia stacja ostatniej nogi)
+  try {
+    const firstLeg = legs[0];
+    const lastLeg = legs[legs.length-1];
+    const startId = firstLeg.stations[0];
+    const endId = lastLeg.stations[lastLeg.stations.length-1];
+    const idx = new Map(mapData.points.map(p=>[p.id,p]));
+    const sp = idx.get(startId); const ep = idx.get(endId);
+    if(sp && ep){
+      const spPx = pointToPx(sp); const epPx = pointToPx(ep);
+      routeEndpoints = { start:{ id:startId, x:spPx.x, y:spPx.y }, end:{ id:endId, x:epPx.x, y:epPx.y } };
+      renderRouteEndpointMarkers();
+    }
+  } catch(_){ routeEndpoints=null; }
+  // Nie ustawiamy highlightedLineId żeby nie pogrubiać całej linii – tylko segmenty.
+  if(currentMode !== 'transport') applyMode('transport');
+  drawLines();
+  ensureRouteAnimation();
+  focusRouteBBox(legs);
+});
+
+function focusRouteBBox(legs){
+  if(!mapData || !Array.isArray(legs) || !legs.length) return;
+  const idx = new Map(mapData.points.map(p=>[p.id,p]));
+  let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+  for(const leg of legs){
+    for(const sidRaw of (leg.stations||[])){
+      const sid = typeof sidRaw==='string' ? sidRaw.replace(/\*$/,'') : sidRaw;
+      const pt = idx.get(sid); if(!pt) continue;
+      const {x,y} = pointToPx(pt);
+      if(x<minX) minX=x; if(y<minY) minY=y; if(x>maxX) maxX=x; if(y>maxY) maxY=y;
+    }
+  }
+  if(!isFinite(minX)||!isFinite(minY)||!isFinite(maxX)||!isFinite(maxY)) return;
+  const key = [minX,minY,maxX,maxY].map(n=>n.toFixed(1)).join('|');
+  if(key === lastRouteBBoxKey) return; // uniknij powtórnego zoomowania tej samej trasy
+  lastRouteBBoxKey = key;
+  const w = maxX - minX; const h = maxY - minY; if(w<=0||h<=0) return;
+  const viewW = viewport.clientWidth; const viewH = viewport.clientHeight;
+  const targetScale = Math.min( (viewW*0.68)/w, (viewH*0.68)/h );
+  const clamped = Math.min(maxScale, Math.max(minScale, targetScale));
+  scale = clamped;
+  const cx = (minX + maxX)/2; const cy = (minY + maxY)/2;
+  originX = (viewW/2) - cx * scale;
+  originY = (viewH/2) - cy * scale;
+  applyTransform();
+}
+
+function renderRouteEndpointMarkers(){
+  if(!markersLayer) return;
+  removeRouteEndpointMarkers();
+  if(!routeEndpoints) return;
+  const create = (id,label,cls)=>{
+    const el = document.createElement('div');
+    el.id = id; el.className = 'route-marker '+cls; el.setAttribute('aria-label', label);
+    el.textContent = label;
+    markersLayer.appendChild(el);
+    return el;
+  };
+  const startEl = create('route-start-marker','S','start');
+  const endEl = create('route-end-marker','E','end');
+  positionRouteEndpointMarkers();
+}
+function positionRouteEndpointMarkers(){
+  if(!routeEndpoints) return;
+  const startEl = document.getElementById('route-start-marker');
+  const endEl = document.getElementById('route-end-marker');
+  if(startEl){ startEl.style.left = routeEndpoints.start.x + 'px'; startEl.style.top = routeEndpoints.start.y + 'px'; }
+  if(endEl){ endEl.style.left = routeEndpoints.end.x + 'px'; endEl.style.top = routeEndpoints.end.y + 'px'; }
+}
+function removeRouteEndpointMarkers(){
+  const s = document.getElementById('route-start-marker'); if(s) s.remove();
+  const e = document.getElementById('route-end-marker'); if(e) e.remove();
+}
+
+// Aktualizuj po transformie (pozycje bazowe w pikselach mapy nie zmieniają się – transform rodzica skaluje). Jeśli jednak zmienisz system później, łatwo dopasować.
+const origApplyTransform = applyTransform;
+applyTransform = function(){
+  origApplyTransform();
+  positionRouteEndpointMarkers();
+  maybeUpdateClusters();
+  rememberViewportSize();
+  // Po transformie markery sklepów skalowane są przez transform rodzica – pozycje bazowe w px mapy pozostają.
+};
+
+// Udostępnij prosty interfejs dla panelu admina (live-reload markerów po zapisie)
+window.MapApp = {
+  reload: async () => {
+    await fetchMapData(true);
+    await fetchLinesData(true);
+    buildLegend();
+    buildLinesLegend();
+    drawLines();
+    buildMarkers();
+  },
+  rebuildMarkers: () => { drawLines(); buildMarkers(); },
+  focusPoint: (pointId) => {
+    if(!mapData) return;
+    const p = mapData.points.find(pt=>pt.id===pointId); if(!p) return;
+    const { x, y } = pointToPx(p);
+    const viewW = viewport.clientWidth; const viewH = viewport.clientHeight;
+    originX = (viewW/2) - x * scale;
+    originY = (viewH/2) - y * scale;
+    applyTransform();
+  },
+  reloadLines: (data)=>{
+    if(data && data.lines){ linesData = data; }
+    buildLinesLegend();
+    drawLines();
+  },
+  highlightLine: (lineId)=>{
+    if(!linesData) return;
+    const ln = linesData.lines.find(l=>l.id===lineId); if(!ln) return;
+    const evt = new CustomEvent('route:highlight', { detail:{ legs:[ { lineId:ln.id, stations: ln.stations||[] } ] } });
+    window.dispatchEvent(evt);
+  }
+};
+
+// Reaguj na zmianę systemowego motywu, gdy tryb ustawiony na auto
+try {
+  const mql = window.matchMedia('(prefers-color-scheme: dark)');
+  if(mql && typeof mql.addEventListener === 'function'){
+    mql.addEventListener('change', () => {
+      if(currentTheme === 'auto') {
+        updateImageSource();
+        drawLines();
+        // Zmień zestaw kafelków na właściwy motyw i dopiero po pierwszym kafelku ukryj base
+        purgeTilesOfOtherTheme();
+        if(currentResolutionFactor > 1){
+          awaitingFirstHiResTile = true;
+          canvas.classList.remove('hires-on');
+        }
+        updateVisibleTiles();
+      }
+      window.dispatchEvent(new CustomEvent('theme-change'));
+    });
+  }
+} catch(_) {}
+
+// Obsługa toggle legendy linii
+if(linesLegendToggleBtn && linesLegendEl && linesLegendBodyEl){
+  linesLegendToggleBtn.addEventListener('click', ()=>{
+    const collapsed = linesLegendEl.classList.toggle('collapsed');
+    linesLegendBodyEl.hidden = collapsed;
+    linesLegendToggleBtn.setAttribute('aria-expanded', (!collapsed).toString());
+    linesLegendToggleBtn.textContent = collapsed ? 'Linie ▼' : 'Linie ▲';
+    saveLegendState();
+  });
+}
+
+// Odbuduj listę po zmianie motywu (kolory różne w jasnym/ciemnym)
+document.addEventListener('visibilitychange', ()=> { if(!document.hidden) buildLinesLegend(); });
+window.addEventListener('theme-change', ()=>{ try { buildShopMarkers(); } catch(_){ } try { buildCompanyMarkers(); } catch(_){ } });
+
+// --- Tryb mobilny lite (wydajność) ---
+const isMobileDevice = (()=> {
+  const ua = navigator.userAgent || '';
+  return /Mobi|Android|iPhone|iPad|iPod/i.test(ua) || (matchMedia('(pointer:coarse)').matches && window.innerWidth < 1100);
+})();
+const mobileLiteMode = isMobileDevice && (window.innerWidth < 950); // główna heurystyka
+if(mobileLiteMode){
+  document.documentElement.classList.add('lite-map');
+  // Ogranicz maksymalny zoom (mniejsze zużycie CPU przy skalowaniu UI)
+  maxScale = 2.2;
+  // Wymuś DPR=1 dla rysowania linii – oszczędność pamięci i fill-rate
+  __MOBILE_LITE_FORCE_DPR1 = true;
+}
+
+// Throttle rysowania linii dla mobile (redukcja CPU przy szybkim pan/zoom)
+let scheduledLines = false;
+function scheduleDrawLines(){
+  if(!mobileLiteMode){ drawLines(); return; }
+  if(scheduledLines) return;
+  scheduledLines = true;
+  requestAnimationFrame(()=>{ scheduledLines = false; drawLines(); });
+}
+
+// Wrap or patch funkcje wydajności w trybie lite
+const origMaybeUpgradeToHiRes = maybeUpgradeToHiRes;
+maybeUpgradeToHiRes = function(){
+  if(mobileLiteMode) return; // pomiń ładowanie hi-res na mobile
+  origMaybeUpgradeToHiRes();
+};
+
+// Ograniczenie animacji tras – brak stałej pętli na mobile
+const origEnsureRouteAnimation = ensureRouteAnimation;
+ensureRouteAnimation = function(){
+  if(mobileLiteMode){
+    // Na mobile statyczne podświetlenie – po prostu narysuj raz
+    drawLines();
+    return;
+  }
+  origEnsureRouteAnimation();
+};
+
+// Patch applyTransform by throttle
+const _origApplyTransformLiteWrap = applyTransform;
+applyTransform = function(){
+  _origApplyTransformLiteWrap();
+  if(mobileLiteMode){
+    // zamień bezpośrednie drawLines na harmonogram
+    scheduleDrawLines();
+    // Pokaż etykiety dopiero przy większym zbliżeniu
+    const root = document.documentElement;
+    if(scale > 1.1){
+      if(!root.classList.contains('lite-show-labels')) root.classList.add('lite-show-labels');
+    } else {
+      if(root.classList.contains('lite-show-labels')) root.classList.remove('lite-show-labels');
+    }
+  }
+};
+
+// Zapobiegaj przewijaniu strony/pull-to-refresh w obszarze mapy
+if(mobileLiteMode){
+  viewport.addEventListener('touchmove', e=>{ e.preventDefault(); }, { passive:false });
+  // Linie legend toggle – zablokuj double-tap zoom i overscroll
+  if(linesLegendToggleBtn){
+    linesLegendToggleBtn.addEventListener('touchstart', e=>{ e.preventDefault(); }, { passive:false });
+  }
+  // Minimalizuj częstotliwość przebudowy klastrów: bardziej agresywne klastrowanie
+  // (nadpisujemy parametry jeśli wcześniejsze były załadowane)
+  if(typeof CLUSTER_ZOOM_THRESHOLD !== 'undefined'){
+    // Wymuszone klastrowanie prawie zawsze przy mniejszym i średnim zoomie – brak bezpośredniego redeklarowania const, więc dodajemy globalną flage
+    window.__clusterMobileBias = 1;
+  }
+}
+
+// --- Rozszerzenie dla edytora zrzutów ekranu (public/map-screenshot.js) ---
+// Granice widocznego fragmentu mapy w px mapy (współdzielone przez updateVisibleTiles i eksport zrzutu).
+function getViewportMapPxBounds(){
+  const viewLeft = -originX/scale;
+  const viewTop = -originY/scale;
+  return {
+    left: viewLeft,
+    top: viewTop,
+    right: viewLeft + viewport.clientWidth/scale,
+    bottom: viewTop + viewport.clientHeight/scale
+  };
+}
+
+// Powiadamia zewnętrzne skrypty (np. map-screenshot.js) o każdej zmianie pan/zoom, żeby mogły
+// przerysować własną nakładkę w tym samym rytmie co drawLines().
+const transformListeners = new Set();
+const _origApplyTransformForScreenshot = applyTransform;
+applyTransform = function(){
+  _origApplyTransformForScreenshot();
+  transformListeners.forEach(cb=>{ try{ cb(); } catch(_){ } });
+};
+
+// Rasteryzuje to, co aktualnie widać w viewporcie (obraz bazowy + ew. załadowane kafelki hi-res)
+// do podanego kontekstu 2D, przycięte do bieżącego kadru i przeskalowane do destWidth/destHeight.
+// Kafelki, które jeszcze się nie doładowały, po prostu nie przykrywają bazowego obrazu w tym miejscu –
+// więc wynik jest zawsze kompletny (co najwyżej mniej ostry tam, gdzie hi-res jeszcze nie dojechał).
+function renderBaseMapToCanvas(ctx, destWidth, destHeight){
+  if(!imgEl || !imgWidth || !imgHeight) return;
+  const bounds = getViewportMapPxBounds();
+  const viewW = bounds.right - bounds.left;
+  const viewH = bounds.bottom - bounds.top;
+  if(viewW <= 0 || viewH <= 0) return;
+  const destScaleX = destWidth / viewW;
+  const destScaleY = destHeight / viewH;
+
+  function drawClampedFull(img, naturalW, naturalH){
+    const srcLeft = Math.max(0, bounds.left);
+    const srcTop = Math.max(0, bounds.top);
+    const srcRight = Math.min(naturalW, bounds.right);
+    const srcBottom = Math.min(naturalH, bounds.bottom);
+    const srcW = srcRight - srcLeft;
+    const srcH = srcBottom - srcTop;
+    if(srcW <= 0 || srcH <= 0) return;
+    const dx = (srcLeft - bounds.left) * destScaleX;
+    const dy = (srcTop - bounds.top) * destScaleY;
+    ctx.drawImage(img, srcLeft, srcTop, srcW, srcH, dx, dy, srcW*destScaleX, srcH*destScaleY);
+  }
+
+  // Baza zawsze najpierw (dostępna od razu, imgEl nigdy nie jest usuwany z DOM – tylko wizualnie ukrywany).
+  drawClampedFull(imgEl, imgWidth, imgHeight);
+
+  if(currentResolutionFactor !== 1 && canvas.classList.contains('hires-on')){
+    for(const el of tiles.values()){
+      const img = el.firstChild;
+      if(!img || !img.complete || !img.naturalWidth) continue;
+      const tileLeft = parseFloat(el.style.left) || 0;
+      const tileTop = parseFloat(el.style.top) || 0;
+      const tileW = parseFloat(el.style.width) || 0;
+      const tileH = parseFloat(el.style.height) || 0;
+      const ix0 = Math.max(tileLeft, bounds.left);
+      const iy0 = Math.max(tileTop, bounds.top);
+      const ix1 = Math.min(tileLeft+tileW, bounds.right);
+      const iy1 = Math.min(tileTop+tileH, bounds.bottom);
+      if(ix1 <= ix0 || iy1 <= iy0) continue;
+      const srcScaleX = img.naturalWidth / tileW;
+      const srcScaleY = img.naturalHeight / tileH;
+      const sx = (ix0 - tileLeft) * srcScaleX;
+      const sy = (iy0 - tileTop) * srcScaleY;
+      const sw = (ix1 - ix0) * srcScaleX;
+      const sh = (iy1 - iy0) * srcScaleY;
+      const dx = (ix0 - bounds.left) * destScaleX;
+      const dy = (iy0 - bounds.top) * destScaleY;
+      ctx.drawImage(img, sx, sy, sw, sh, dx, dy, (ix1-ix0)*destScaleX, (iy1-iy0)*destScaleY);
+    }
+  }
+}
+
+// Udostępnij edytorowi zrzutów ekranu odczyt stanu widoku i konwersje współrzędnych, bez ujawniania
+// wewnętrznych zmiennych map.js na window (spójnie z resztą window.MapApp powyżej).
+Object.assign(window.MapApp, {
+  getViewState: () => ({
+    scale, originX, originY, imgWidth, imgHeight,
+    unitsPerPixel: mapData?.meta?.unitsPerPixel || 4,
+    originMode: mapData?.meta?.origin || 'top-left'
+  }),
+  screenToLogical,
+  logicalToMapPx,
+  screenToMapPx: (clientX, clientY) => {
+    const rect = viewport.getBoundingClientRect();
+    return { x: (clientX - rect.left - originX)/scale, y: (clientY - rect.top - originY)/scale };
+  },
+  onTransform: (cb) => { transformListeners.add(cb); return () => transformListeners.delete(cb); },
+  getViewportMapPxBounds,
+  renderBaseMapToCanvas
+});
+

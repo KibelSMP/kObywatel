@@ -1,0 +1,316 @@
+/*
+  Edytor zrzutów ekranu / adnotacji na mapie. Reużywa tokeny zdefiniowane na :root
+  przez map.css (--panel-bg, --panel-border, --accent, --btn-bg, --shadow) — bez
+  nowych custom properties. Panel narzędziowy ma własny, prosty breakpoint (860px,
+  spójny z resztą map.css) i NIE korzysta z maszynerii zakładek/reparentingu
+  .map-sidepanel (zbyt sprzężonej z legendą/filtrami).
+*/
+
+.screenshot-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  touch-action: none;
+}
+
+.screenshot-toolbar {
+  /*
+    Same slot #filters-panel (the legend) occupies in the other two modes —
+    that panel is hidden for the duration of editor mode (see enterEditorMode
+    in map-screenshot.js), so there's no overlap, and the editor visually
+    "replaces" the legend the way Edytor replaces Ogólne/Transport.
+  */
+  position: absolute;
+  top: .75rem;
+  right: .75rem;
+  min-width: 200px;
+  width: 320px;
+  max-width: 340px;
+  max-height: 80vh;
+  overflow: auto;
+  z-index: 70;
+  display: flex;
+  flex-direction: column;
+  gap: .7rem;
+  background: var(--panel-bg);
+  -webkit-backdrop-filter: blur(16px) saturate(170%);
+  backdrop-filter: blur(16px) saturate(170%);
+  border: 1px solid var(--panel-border);
+  border-radius: 16px;
+  padding: .9rem 1rem 1.1rem;
+  box-shadow: var(--shadow);
+  font-size: .8rem;
+  color: var(--color-kotext);
+}
+
+.screenshot-toolbar[hidden] {
+  display: none !important;
+}
+
+.screenshot-toolbar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.screenshot-toolbar-title {
+  font-weight: 700;
+  font-size: .85rem;
+}
+
+#screenshot-close {
+  background: none;
+  border: none;
+  color: var(--color-kodim);
+  font-size: 1.05rem;
+  cursor: pointer;
+  line-height: 1;
+  padding: .2rem;
+}
+
+#screenshot-close:hover {
+  color: var(--color-kotext);
+}
+
+.screenshot-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .3rem;
+}
+
+.screenshot-tool-btn {
+  border: 1px solid var(--panel-border);
+  background: var(--btn-bg);
+  color: var(--color-kotext);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 38px;
+  height: 38px;
+  padding: 0;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background .15s, color .15s, border-color .15s;
+}
+
+.screenshot-tool-btn:hover {
+  border-color: var(--accent);
+}
+
+.screenshot-tool-btn[aria-pressed="true"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--color-koaccenttext);
+}
+
+.screenshot-style-row {
+  display: flex;
+  gap: .6rem;
+}
+
+.screenshot-field {
+  display: flex;
+  flex-direction: column;
+  gap: .25rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.screenshot-field > span:first-child {
+  color: var(--color-kodim);
+  font-size: .7rem;
+}
+
+.screenshot-field input[type="color"] {
+  width: 100%;
+  height: 28px;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.screenshot-field input[type="range"] {
+  accent-color: var(--accent);
+  width: 100%;
+}
+
+.screenshot-field-value {
+  color: var(--color-kodim);
+  font-size: .7rem;
+  align-self: flex-end;
+}
+
+.screenshot-text-row[hidden] {
+  display: none !important;
+}
+
+.screenshot-coord-form {
+  display: flex;
+  flex-direction: column;
+  gap: .4rem;
+  border-top: 1px solid var(--panel-border);
+  padding-top: .6rem;
+}
+
+.screenshot-coord-form[hidden] {
+  display: none !important;
+}
+
+.screenshot-coord-title {
+  font-size: .7rem;
+  color: var(--color-kodim);
+}
+
+.screenshot-coord-inputs {
+  display: flex;
+  align-items: center;
+  gap: .3rem;
+  flex-wrap: wrap;
+}
+
+.screenshot-coord-inputs input {
+  width: 3.4rem;
+  min-width: 0;
+  background: var(--btn-bg);
+  border: 1px solid var(--panel-border);
+  color: var(--color-kotext);
+  border-radius: 6px;
+  padding: .3rem .4rem;
+  font-size: .78rem;
+}
+
+.screenshot-coord-inputs input[hidden] {
+  display: none !important;
+}
+
+.screenshot-coord-sep {
+  color: var(--color-kodim);
+}
+
+.screenshot-coord-sep[hidden] {
+  display: none !important;
+}
+
+.screenshot-coord-form button {
+  border: 1px solid var(--panel-border);
+  background: var(--btn-bg);
+  color: var(--color-kotext);
+  font-size: .75rem;
+  font-weight: 600;
+  padding: .4rem .6rem;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.screenshot-coord-form button:hover,
+.screenshot-actions-row button:not(:disabled):hover {
+  border-color: var(--accent);
+}
+
+.screenshot-actions-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .4rem;
+  border-top: 1px solid var(--panel-border);
+  padding-top: .6rem;
+}
+
+.screenshot-actions-row button {
+  border: 1px solid var(--panel-border);
+  background: var(--btn-bg);
+  color: var(--color-kotext);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 38px;
+  padding: 0;
+  border-radius: 8px;
+  cursor: pointer;
+  flex: 1 1 45%;
+}
+
+.screenshot-actions-row button:disabled {
+  opacity: .45;
+  cursor: default;
+}
+
+.screenshot-export {
+  display: flex;
+  flex-direction: column;
+  gap: .5rem;
+  border-top: 1px solid var(--panel-border);
+  padding-top: .6rem;
+}
+
+.screenshot-export-format {
+  display: flex;
+  gap: .9rem;
+  font-size: .78rem;
+}
+
+.screenshot-pdf-options {
+  display: flex;
+  gap: .6rem;
+}
+
+.screenshot-pdf-options[hidden] {
+  display: none !important;
+}
+
+.screenshot-pdf-options select {
+  width: 100%;
+  background: var(--btn-bg);
+  border: 1px solid var(--panel-border);
+  color: var(--color-kotext);
+  border-radius: 6px;
+  padding: .3rem .4rem;
+  font-size: .78rem;
+}
+
+.screenshot-export-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .4rem;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: var(--color-koaccenttext);
+  font-weight: 700;
+  font-size: .8rem;
+  padding: .55rem .7rem;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.screenshot-export-btn:hover {
+  filter: brightness(1.08);
+}
+
+/* Tymczasowe pole tekstowe narzędzia "Tekst", pozycjonowane nad canvasem w
+   przestrzeni ekranu (przeliczane na bieżąco w map-screenshot.js). */
+.screenshot-text-input {
+  position: fixed;
+  z-index: 1000;
+  background: var(--panel-bg);
+  border: 1px solid var(--accent);
+  color: var(--color-kotext);
+  border-radius: 6px;
+  padding: .2rem .4rem;
+  font-size: .85rem;
+  min-width: 8rem;
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+}
+
+@media (max-width: 860px) {
+  .screenshot-toolbar {
+    left: .6rem;
+    right: .6rem;
+    top: .6rem;
+    width: auto;
+    max-width: none;
+    max-height: 70vh;
+  }
+}

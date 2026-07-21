@@ -2,3 +2,16 @@
 .obsidian
 /temporary_scripts
 /retro
+
+# Next.js / Node
+/node_modules
+/.next
+/out
+next-env.d.ts
+.vercel
+*.tsbuildinfo
+
+# Migration reference (originals being rewritten as React; deleted at end)
+/_legacy
+
+_verify.mjs
