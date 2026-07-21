@@ -2794,12 +2794,7 @@ function updateVisibleTiles(){
   const tileW = baseW / grid;
   const tileH = baseH / grid;
   // Ekran do układu mapy (odwrócenie transformu)
-  // punkt (0,0) mapy przekształcony na ekran: (originX, originY)
-  // więc odwrotnie: pxMapX = (screenX - originX)/scale
-  const viewLeft = -originX/scale;
-  const viewTop = -originY/scale;
-  const viewRight = viewLeft + viewport.clientWidth/scale;
-  const viewBottom = viewTop + viewport.clientHeight/scale;
+  const { left: viewLeft, top: viewTop, right: viewRight, bottom: viewBottom } = getViewportMapPxBounds();
   const margin = 0.5 * Math.max(tileW, tileH); // prefetch pół kafla
   for(let row=0; row<grid; row++){
     for(let col=0; col<grid; col++){
@@ -3553,4 +3548,100 @@ if(mobileLiteMode){
     window.__clusterMobileBias = 1;
   }
 }
+
+// --- Rozszerzenie dla edytora zrzutów ekranu (public/map-screenshot.js) ---
+// Granice widocznego fragmentu mapy w px mapy (współdzielone przez updateVisibleTiles i eksport zrzutu).
+function getViewportMapPxBounds(){
+  const viewLeft = -originX/scale;
+  const viewTop = -originY/scale;
+  return {
+    left: viewLeft,
+    top: viewTop,
+    right: viewLeft + viewport.clientWidth/scale,
+    bottom: viewTop + viewport.clientHeight/scale
+  };
+}
+
+// Powiadamia zewnętrzne skrypty (np. map-screenshot.js) o każdej zmianie pan/zoom, żeby mogły
+// przerysować własną nakładkę w tym samym rytmie co drawLines().
+const transformListeners = new Set();
+const _origApplyTransformForScreenshot = applyTransform;
+applyTransform = function(){
+  _origApplyTransformForScreenshot();
+  transformListeners.forEach(cb=>{ try{ cb(); } catch(_){ } });
+};
+
+// Rasteryzuje to, co aktualnie widać w viewporcie (obraz bazowy + ew. załadowane kafelki hi-res)
+// do podanego kontekstu 2D, przycięte do bieżącego kadru i przeskalowane do destWidth/destHeight.
+// Kafelki, które jeszcze się nie doładowały, po prostu nie przykrywają bazowego obrazu w tym miejscu –
+// więc wynik jest zawsze kompletny (co najwyżej mniej ostry tam, gdzie hi-res jeszcze nie dojechał).
+function renderBaseMapToCanvas(ctx, destWidth, destHeight){
+  if(!imgEl || !imgWidth || !imgHeight) return;
+  const bounds = getViewportMapPxBounds();
+  const viewW = bounds.right - bounds.left;
+  const viewH = bounds.bottom - bounds.top;
+  if(viewW <= 0 || viewH <= 0) return;
+  const destScaleX = destWidth / viewW;
+  const destScaleY = destHeight / viewH;
+
+  function drawClampedFull(img, naturalW, naturalH){
+    const srcLeft = Math.max(0, bounds.left);
+    const srcTop = Math.max(0, bounds.top);
+    const srcRight = Math.min(naturalW, bounds.right);
+    const srcBottom = Math.min(naturalH, bounds.bottom);
+    const srcW = srcRight - srcLeft;
+    const srcH = srcBottom - srcTop;
+    if(srcW <= 0 || srcH <= 0) return;
+    const dx = (srcLeft - bounds.left) * destScaleX;
+    const dy = (srcTop - bounds.top) * destScaleY;
+    ctx.drawImage(img, srcLeft, srcTop, srcW, srcH, dx, dy, srcW*destScaleX, srcH*destScaleY);
+  }
+
+  // Baza zawsze najpierw (dostępna od razu, imgEl nigdy nie jest usuwany z DOM – tylko wizualnie ukrywany).
+  drawClampedFull(imgEl, imgWidth, imgHeight);
+
+  if(currentResolutionFactor !== 1 && canvas.classList.contains('hires-on')){
+    for(const el of tiles.values()){
+      const img = el.firstChild;
+      if(!img || !img.complete || !img.naturalWidth) continue;
+      const tileLeft = parseFloat(el.style.left) || 0;
+      const tileTop = parseFloat(el.style.top) || 0;
+      const tileW = parseFloat(el.style.width) || 0;
+      const tileH = parseFloat(el.style.height) || 0;
+      const ix0 = Math.max(tileLeft, bounds.left);
+      const iy0 = Math.max(tileTop, bounds.top);
+      const ix1 = Math.min(tileLeft+tileW, bounds.right);
+      const iy1 = Math.min(tileTop+tileH, bounds.bottom);
+      if(ix1 <= ix0 || iy1 <= iy0) continue;
+      const srcScaleX = img.naturalWidth / tileW;
+      const srcScaleY = img.naturalHeight / tileH;
+      const sx = (ix0 - tileLeft) * srcScaleX;
+      const sy = (iy0 - tileTop) * srcScaleY;
+      const sw = (ix1 - ix0) * srcScaleX;
+      const sh = (iy1 - iy0) * srcScaleY;
+      const dx = (ix0 - bounds.left) * destScaleX;
+      const dy = (iy0 - bounds.top) * destScaleY;
+      ctx.drawImage(img, sx, sy, sw, sh, dx, dy, (ix1-ix0)*destScaleX, (iy1-iy0)*destScaleY);
+    }
+  }
+}
+
+// Udostępnij edytorowi zrzutów ekranu odczyt stanu widoku i konwersje współrzędnych, bez ujawniania
+// wewnętrznych zmiennych map.js na window (spójnie z resztą window.MapApp powyżej).
+Object.assign(window.MapApp, {
+  getViewState: () => ({
+    scale, originX, originY, imgWidth, imgHeight,
+    unitsPerPixel: mapData?.meta?.unitsPerPixel || 4,
+    originMode: mapData?.meta?.origin || 'top-left'
+  }),
+  screenToLogical,
+  logicalToMapPx,
+  screenToMapPx: (clientX, clientY) => {
+    const rect = viewport.getBoundingClientRect();
+    return { x: (clientX - rect.left - originX)/scale, y: (clientY - rect.top - originY)/scale };
+  },
+  onTransform: (cb) => { transformListeners.add(cb); return () => transformListeners.delete(cb); },
+  getViewportMapPxBounds,
+  renderBaseMapToCanvas
+});
 
