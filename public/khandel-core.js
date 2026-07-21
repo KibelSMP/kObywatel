@@ -8,6 +8,13 @@ let priceMax = '';
 let groupMode = 'none';
 const PAGE_SIZE = 60;
 
+// --- Trasa handlowa: katalog przedmiotów i graf wymian ---
+let itemCatalog = new Map();
+let tradeGraph = new Map();
+let edgeListings = new Map();
+let sellListings = new Map();
+let lastRouteResult = null;
+
 // Klucz sortowania ofert – identyfikator oferty (fallback na nazwę przedmiotu)
 const getIdentifier = (p)=>{
   if(!p) return '';
@@ -40,6 +47,13 @@ const groupNoneBtn = null;
 const groupCityBtn = null;
 const groupStoreBtn = null;
 const segmented = null;
+const routeResultsEl = document.getElementById('route-results');
+const routeHaveInput = document.getElementById('route-have-input');
+const routeWantInput = document.getElementById('route-want-input');
+const routeHaveSuggest = document.getElementById('route-have-suggest');
+const routeWantSuggest = document.getElementById('route-want-suggest');
+const routeSwapBtn = document.getElementById('route-swap-btn');
+const routeSearchBtn = document.getElementById('route-search-btn');
 
 // --- Funkcje pomocnicze językowe ---
 function pickName(obj, fallback){
@@ -98,14 +112,15 @@ function updatePriceToggleVisual(){
 }
 function setGroupMode(mode){ groupMode = mode; setGroupPressed(); updatePriceToggleVisual(); }
 
-// Płynne przewinięcie do wyników z uwzględnieniem wysokości nagłówka
-function scrollToProducts(){
-  if(!productsEl) return;
+// Płynne przewinięcie do dowolnego wyniku z uwzględnieniem wysokości nagłówka
+function scrollToEl(el){
+  if(!el) return;
   const header = document.querySelector('.app-header');
   const headerH = header ? header.offsetHeight : 0;
-  const y = productsEl.getBoundingClientRect().top + window.scrollY - Math.max(12, headerH + 8);
+  const y = el.getBoundingClientRect().top + window.scrollY - Math.max(12, headerH + 8);
   window.scrollTo({ top: y, behavior: 'smooth' });
 }
+function scrollToProducts(){ scrollToEl(productsEl); }
 
 // --- Ikony Minecraft ---
 const MC_ASSETS_VERSION = '1.20.4';
@@ -148,6 +163,251 @@ function createIcon(item, size=48, enchanted=false){
   };
   applyStage();
   return wrap;
+}
+
+// --- Trasa handlowa: katalog przedmiotów ---
+// Klucz węzła grafu to surowy identyfikator Minecraft (item), małymi
+// literami. Wyjątek: enchanted/customItem wpisy dzielą jeden id Minecrafta
+// mimo że są zupełnie różnymi przedmiotami do wymiany (np. "enchanted_book"
+// to i "Zaklęta książka [Naprawa]", i "[Przeszycie IV]"; "paper" bywa
+// walutą "Kibelion") – dla nich doklejamy do klucza znormalizowaną nazwę,
+// żeby nie zlewać ich w jeden węzeł grafu. Nazwa (nie currentLang) jest
+// używana, więc klucz jest stabilny niezależnie od przełącznika języka.
+function itemKeyOf(obj){
+  if(!obj || !obj.item) return '';
+  const base = String(obj.item).toLowerCase().trim();
+  if(!base) return '';
+  if(obj.enchanted || obj.customItem){
+    const label = String(obj.nameEn || obj.name || '').toLowerCase().trim();
+    if(label) return `${base}|${label}`;
+  }
+  return base;
+}
+function baseItemId(key){ return String(key||'').split('|')[0]; }
+
+function buildItemCatalog(products){
+  const map = new Map();
+  const looksLikeFallback = (name, key)=> !name || name===key;
+  const consider = (key, namePl, nameEn, enchanted)=>{
+    if(!key) return;
+    const existing = map.get(key);
+    if(!existing){
+      map.set(key, { key, namePl: namePl || key, nameEn: nameEn || namePl || key, enchanted: !!enchanted });
+    } else {
+      if(looksLikeFallback(existing.namePl, key) && !looksLikeFallback(namePl, key)) existing.namePl = namePl;
+      if(looksLikeFallback(existing.nameEn, key) && !looksLikeFallback(nameEn, key)) existing.nameEn = nameEn;
+    }
+  };
+  products.forEach(p=>{
+    consider(itemKeyOf(p.product), p.productName || p.product?.name, p.productNameEn || p.product?.nameEn, p.product?.enchanted);
+    [p.price1, p.price2].forEach(pr=>{ if(pr) consider(itemKeyOf(pr), pr.name, pr.nameEn, pr.enchanted); });
+  });
+  return map;
+}
+
+function catalogDisplayName(key){
+  const entry = itemCatalog.get(key);
+  if(!entry) return key;
+  return currentLang==='en' ? (entry.nameEn || entry.namePl || key) : (entry.namePl || entry.nameEn || key);
+}
+
+function catalogList(){
+  return [...itemCatalog.values()].sort((a,b)=>{
+    const an = catalogDisplayName(a.key);
+    const bn = catalogDisplayName(b.key);
+    return an.localeCompare(bn, 'pl', { sensitivity:'base' });
+  });
+}
+
+function findItemMatches(queryRaw, limit=8){
+  const q = (queryRaw||'').toLowerCase().trim();
+  const list = catalogList();
+  if(!q) return list.slice(0, limit);
+  const scored = [];
+  for(const entry of list){
+    const namePl = entry.namePl.toLowerCase();
+    const nameEn = entry.nameEn.toLowerCase();
+    let score = -1;
+    if(entry.key===q || namePl===q || nameEn===q) score = 0;
+    else if(entry.key.startsWith(q) || namePl.startsWith(q) || nameEn.startsWith(q)) score = 1;
+    else if(entry.key.includes(q) || namePl.includes(q) || nameEn.includes(q)) score = 2;
+    if(score>=0) scored.push({ entry, score });
+  }
+  scored.sort((a,b)=> a.score - b.score);
+  return scored.slice(0, limit).map(s=>s.entry);
+}
+
+function resolveItemKey(inputEl){
+  if(!inputEl) return null;
+  if(inputEl.dataset.resolvedKey) return inputEl.dataset.resolvedKey;
+  const matches = findItemMatches(inputEl.value, 1);
+  return matches[0] ? matches[0].key : null;
+}
+
+// --- Trasa handlowa: graf wymian ---
+// Każda oferta to skierowana krawędź: price1/price2 (co płacisz) -> product
+// (co dostajesz). Node grafu = itemKeyOf(...). edgeListings przechowuje
+// wszystkie oferty realizujące daną krawędź (do wyboru najlepszej stawki
+// i pokazania alternatywnych sklepów), tradeGraph to zdeduplikowana lista
+// sąsiadów do przeszukiwania BFS.
+function buildTradeGraph(products){
+  const graph = new Map();
+  const listings = new Map();
+  const sellListings = new Map();
+  products.forEach(p=>{
+    const toKey = itemKeyOf(p.product);
+    if(!toKey) return;
+    if(!sellListings.has(toKey)) sellListings.set(toKey, []);
+    sellListings.get(toKey).push(p);
+    [['price1', p.price1], ['price2', p.price2]].forEach(([side, pr])=>{
+      if(!pr) return;
+      const fromKey = itemKeyOf(pr);
+      // brak krawędzi z przedmiotu do samego siebie – to nie jest wymiana
+      if(!fromKey || fromKey===toKey) return;
+      const edgeKey = `${fromKey}→${toKey}`;
+      if(!listings.has(edgeKey)) listings.set(edgeKey, []);
+      listings.get(edgeKey).push({ listing: p, priceSideKey: side });
+      if(!graph.has(fromKey)) graph.set(fromKey, new Set());
+      graph.get(fromKey).add(toKey);
+    });
+  });
+  return { graph, listings, sellListings };
+}
+
+function reconstructPath(predecessor, srcKey, dstKey){
+  const path = [dstKey];
+  let cur = dstKey;
+  while(cur !== srcKey){
+    cur = predecessor.get(cur);
+    path.unshift(cur);
+  }
+  return path;
+}
+
+// BFS zamiast Dijkstry celowo – graf jest nieważony, liczy się liczba
+// przeskoków, nie "koszt" krawędzi.
+function bfsShortestPath(srcKey, dstKey, excludedEdges){
+  if(!srcKey || !dstKey || srcKey === dstKey) return null;
+  if(!tradeGraph.has(srcKey)) return null;
+  const visited = new Set([srcKey]);
+  const predecessor = new Map();
+  const queue = [srcKey];
+  let qi = 0;
+  while(qi < queue.length){
+    const cur = queue[qi++];
+    const neighbors = tradeGraph.get(cur);
+    if(!neighbors) continue;
+    for(const next of neighbors){
+      if(excludedEdges && excludedEdges.has(`${cur}→${next}`)) continue;
+      if(visited.has(next)) continue;
+      visited.add(next);
+      predecessor.set(next, cur);
+      if(next === dstKey) return reconstructPath(predecessor, srcKey, dstKey);
+      queue.push(next);
+    }
+  }
+  return null;
+}
+
+function pathEdges(path){
+  const edges = [];
+  for(let i=1;i<path.length;i++) edges.push(`${path[i-1]}→${path[i]}`);
+  return edges;
+}
+
+// Alternatywy: dla każdej krawędzi głównej trasy szukamy najkrótszej ścieżki
+// z jej wykluczeniem. Zatrzymujemy się przy limicie albo gdy kolejna próba
+// nie daje nowej, jeszcze niewidzianej trasy – bez sztucznego dopełniania.
+function generateAlternateRoutes(primaryPath, srcKey, dstKey, maxAlternates=3){
+  const found = [primaryPath];
+  const signatures = new Set([primaryPath.join('>')]);
+  for(const excluded of pathEdges(primaryPath)){
+    if(found.length >= maxAlternates+1) break;
+    const candidate = bfsShortestPath(srcKey, dstKey, new Set([excluded]));
+    if(candidate){
+      const sig = candidate.join('>');
+      if(!signatures.has(sig)){ signatures.add(sig); found.push(candidate); }
+    }
+  }
+  return found.slice(1);
+}
+
+// Wiele ofert wymaga DWÓCH składników jednocześnie (np. sklep-wioska:
+// 12× Szmaragd + 1× Książka -> Zaklęta książka [Naprawa]) – to nie są
+// alternatywne sposoby zapłaty, tylko wymagane razem price1 I price2.
+// Trasa chodzi tylko po jednym z nich (tym, którym doszła do tej oferty);
+// drugi trzeba pokazać jako dodatkowy, niezależny od trasy koszt, zamiast
+// go pomijać.
+function otherPriceSide(sideKey){ return sideKey==='price1' ? 'price2' : 'price1'; }
+
+// Spośród wszystkich ofert realizujących krawędź from->to wybierz tę o
+// najniższej stawce (price.qty/product.qty); remisy rozstrzyga getIdentifier.
+function pickBestListingForEdge(fromKey, toKey){
+  const candidates = edgeListings.get(`${fromKey}→${toKey}`) || [];
+  let best = null, bestRate = Infinity;
+  candidates.forEach(c=>{
+    const priceObj = c.listing[c.priceSideKey];
+    const productObj = c.listing.product;
+    if(!priceObj || !productObj || !productObj.qty) return;
+    const rate = priceObj.qty / productObj.qty;
+    const better = !best || rate < bestRate || (rate === bestRate && getIdentifier(c.listing) < getIdentifier(best.listing));
+    if(better){ bestRate = rate; best = c; }
+  });
+  return { chosen: best, alternateCount: candidates.length ? candidates.length - 1 : 0, allCandidates: candidates };
+}
+
+// Ilości wstecz: zaczynamy od "chcę 1 sztukę ostatniego przedmiotu" i idziemy
+// od końca trasy do początku, za każdym razem zaokrąglając w górę do pełnych
+// "transakcji" oferty. To szacunek – pomija limity zapasów/slotów sklepu.
+function computeRouteQuantities(path){
+  const rawHops = [];
+  let needed = 1;
+  for(let i = path.length-1; i>0; i--){
+    const fromKey = path[i-1], toKey = path[i];
+    const { chosen, alternateCount, allCandidates } = pickBestListingForEdge(fromKey, toKey);
+    if(!chosen) return null;
+    const priceObj = chosen.listing[chosen.priceSideKey];
+    const productObj = chosen.listing.product;
+    const neededQty = needed;
+    const lots = Math.ceil(neededQty / productObj.qty);
+    const spendQty = lots * priceObj.qty;
+    const secondaryObj = chosen.listing[otherPriceSide(chosen.priceSideKey)];
+    const secondary = secondaryObj ? {
+      key: itemKeyOf(secondaryObj),
+      name: secondaryObj.name, nameEn: secondaryObj.nameEn,
+      enchanted: !!secondaryObj.enchanted,
+      qty: secondaryObj.qty * lots,
+    } : null;
+    rawHops.unshift({
+      fromKey, toKey,
+      listing: chosen.listing,
+      priceSideKey: chosen.priceSideKey,
+      producedQty: productObj.qty * lots,
+      neededQty, spendQty, lots, secondary,
+      alternateCount, allCandidates,
+    });
+    needed = spendQty;
+  }
+  return rawHops;
+}
+
+function computeRoute(srcKey, dstKey){
+  if(!srcKey || !dstKey) return { state: 'unresolved' };
+  if(srcKey === dstKey) return { state: 'same' };
+  const path = bfsShortestPath(srcKey, dstKey);
+  if(!path) return { state: 'notfound' };
+  const hops = computeRouteQuantities(path);
+  if(!hops) return { state: 'notfound' };
+  const alternates = generateAlternateRoutes(path, srcKey, dstKey, 3)
+    .map(p=>({ path: p, hops: computeRouteQuantities(p) }))
+    .filter(a=>a.hops);
+  return { state: 'ok', path, hops, alternates };
+}
+
+// Wspólny link do mapy sklepu, używany też przez kartę oferty poniżej.
+function shopMapHref(listing){
+  const shopId = `${listing.storeLocation || ''}||${listing.storeName || 'Sklep'}`;
+  return `/map/?shop=${encodeURIComponent(shopId)}`;
 }
 
 // --- Filtry ---
@@ -267,7 +527,7 @@ function createOfferCard(p, includeMeta=true){
   if(Number.isFinite(p.x)&&Number.isFinite(p.y)&&Number.isFinite(p.z)){
     const btn = document.createElement('button'); btn.type='button'; btn.className='mini-btn card-coords-btn';
     btn.innerHTML = `<span class="ui-icon" style="--icon:url(/icns_ui/map_search.svg)" aria-hidden="true"></span> ${p.x}, ${p.y}, ${p.z}`;
-    btn.addEventListener('click', ()=>{ const shopId = `${p.storeLocation || ''}||${p.storeName || 'Sklep'}`; window.open(`/map/?shop=${encodeURIComponent(shopId)}`,'_blank','noopener'); });
+    btn.addEventListener('click', ()=>{ window.open(shopMapHref(p),'_blank','noopener'); });
     details.appendChild(btn);
   }
   if(p.notes){ details.appendChild(createNotesElement(p.notes)); }
@@ -398,6 +658,266 @@ function renderAll(){
   const list = filterBase('none'); renderFlat(list);
 }
 
+// --- Trasa handlowa: renderowanie ---
+function routeStateMessage(state){
+  const messages = {
+    empty: currentLang==='en' ? 'Select both items.' : 'Wybierz oba przedmioty.',
+    same: currentLang==='en' ? 'Choose two different items.' : 'Wybierz dwa różne przedmioty.',
+    unresolved: currentLang==='en' ? 'Item not found.' : 'Nie znaleziono przedmiotu.',
+    notfound: currentLang==='en' ? 'No trade route found between these items.' : 'Nie znaleziono trasy handlowej między tymi przedmiotami.',
+  };
+  return messages[state] || '';
+}
+
+function buildRouteStepsEl(hops){
+  const wrap = document.createElement('div'); wrap.className = 'route-steps';
+  hops.forEach(hop=>{
+    const step = document.createElement('div'); step.className = 'route-step';
+
+    const fromNode = document.createElement('div'); fromNode.className = 'route-step-node';
+    fromNode.appendChild(createIcon(baseItemId(hop.fromKey), 32, !!hop.listing[hop.priceSideKey]?.enchanted));
+    const fromLabel = document.createElement('span');
+    fromLabel.textContent = `${hop.spendQty}× ${catalogDisplayName(hop.fromKey)}`;
+    fromNode.appendChild(fromLabel);
+    step.appendChild(fromNode);
+
+    const connector = document.createElement('div'); connector.className = 'route-step-connector';
+    const arrow = document.createElement('span'); arrow.className = 'route-step-arrow'; arrow.textContent = '→';
+    connector.appendChild(arrow);
+    const storeLink = document.createElement('a'); storeLink.className = 'route-step-store';
+    storeLink.href = shopMapHref(hop.listing); storeLink.target = '_blank'; storeLink.rel = 'noopener';
+    storeLink.textContent = [hop.listing.storeName, hop.listing.storeLocation].filter(Boolean).join(' • ') || '—';
+    connector.appendChild(storeLink);
+    if(hop.secondary){
+      const sec = document.createElement('div'); sec.className = 'route-step-secondary';
+      sec.title = currentLang==='en'
+        ? 'Extra ingredient this trade also requires — not obtained via the route'
+        : 'Dodatkowy składnik wymagany do tej transakcji – nieuwzględniony w trasie';
+      sec.appendChild(createIcon(baseItemId(hop.secondary.key), 20, hop.secondary.enchanted));
+      const secLabel = document.createElement('span');
+      const secName = currentLang==='en' ? (hop.secondary.nameEn || hop.secondary.name) : (hop.secondary.name || hop.secondary.nameEn);
+      secLabel.textContent = `+ ${hop.secondary.qty}× ${secName || hop.secondary.key}`;
+      sec.appendChild(secLabel);
+      connector.appendChild(sec);
+    }
+    if(hop.alternateCount > 0){
+      const altBtn = document.createElement('button'); altBtn.type = 'button'; altBtn.className = 'route-step-alt-toggle mini-btn';
+      altBtn.textContent = currentLang==='en' ? `+${hop.alternateCount} more offers` : `+${hop.alternateCount} innych ofert`;
+      const altList = document.createElement('ul'); altList.className = 'route-alt-list'; altList.hidden = true;
+      hop.allCandidates.forEach(c=>{
+        if(c.listing === hop.listing && c.priceSideKey === hop.priceSideKey) return;
+        const priceObj = c.listing[c.priceSideKey];
+        const otherObj = c.listing[otherPriceSide(c.priceSideKey)];
+        const extra = otherObj ? ` + ${otherObj.qty}× ${catalogDisplayName(itemKeyOf(otherObj))}` : '';
+        const li = document.createElement('li');
+        li.textContent = `${c.listing.storeName || '—'}${c.listing.storeLocation ? ' • '+c.listing.storeLocation : ''} (${priceObj.qty}× → ${c.listing.product.qty}×${extra})`;
+        altList.appendChild(li);
+      });
+      altBtn.addEventListener('click', ()=>{ altList.hidden = !altList.hidden; });
+      connector.appendChild(altBtn); connector.appendChild(altList);
+    }
+    step.appendChild(connector);
+
+    const toNode = document.createElement('div'); toNode.className = 'route-step-node';
+    toNode.appendChild(createIcon(baseItemId(hop.toKey), 32, !!hop.listing.product?.enchanted));
+    const toLabel = document.createElement('span');
+    const surplus = hop.producedQty > hop.neededQty ? ` (${currentLang==='en'?'produces':'daje'} ${hop.producedQty})` : '';
+    toLabel.textContent = `${hop.neededQty}× ${catalogDisplayName(hop.toKey)}${surplus}`;
+    toNode.appendChild(toLabel);
+    step.appendChild(toNode);
+
+    wrap.appendChild(step);
+  });
+  return wrap;
+}
+
+// Zsumowane dodatkowe składniki (price2/price1 nieużyte przez trasę) z całej
+// głównej trasy, żeby dało się je zobaczyć w jednym miejscu jako listę zakupów.
+function collectSecondaryIngredients(hops){
+  const totals = new Map();
+  hops.forEach(hop=>{
+    if(!hop.secondary) return;
+    const existing = totals.get(hop.secondary.key);
+    if(existing) existing.qty += hop.secondary.qty;
+    else totals.set(hop.secondary.key, { ...hop.secondary });
+  });
+  return [...totals.values()];
+}
+
+// Gdzie/u kogo faktycznie kupić dany przedmiot – przeszukuje sellListings
+// (wszystkie oferty, gdzie ten przedmiot jest "product", niezależnie od
+// tego, czy leży na głównej trasie). Potrzebne dla "dodatkowych składników",
+// żeby nie zostawiać gracza z samą nazwą i ilością bez wskazówki skąd to wziąć.
+function buildIngredientSourcesEl(key, limit=4){
+  const wrap = document.createElement('div'); wrap.className = 'route-extra-sources';
+  const candidates = sellListings.get(key) || [];
+  if(!candidates.length){
+    const p = document.createElement('p'); p.className = 'route-extra-sources-empty';
+    p.textContent = currentLang==='en' ? 'No listing in the data sells this.' : 'Brak oferty sprzedaży tego przedmiotu w bazie.';
+    wrap.appendChild(p);
+    return wrap;
+  }
+  const list = document.createElement('ul'); list.className = 'route-extra-sources-list';
+  candidates.slice(0, limit).forEach(listing=>{
+    const li = document.createElement('li');
+    const link = document.createElement('a'); link.className = 'route-step-store';
+    link.href = shopMapHref(listing); link.target = '_blank'; link.rel = 'noopener';
+    link.textContent = [listing.storeName, listing.storeLocation].filter(Boolean).join(' • ') || '—';
+    li.appendChild(link);
+    const priceParts = [listing.price1, listing.price2].filter(Boolean).map(pr=>{
+      const name = currentLang==='en' ? (pr.nameEn || pr.name) : (pr.name || pr.nameEn);
+      return `${pr.qty}× ${name || pr.item}`;
+    });
+    const price = document.createElement('span'); price.className = 'route-extra-source-price';
+    price.textContent = `${priceParts.join(' + ')} → ${listing.product.qty}× ${catalogDisplayName(key)}`;
+    li.appendChild(price);
+    list.appendChild(li);
+  });
+  wrap.appendChild(list);
+  if(candidates.length > limit){
+    const more = document.createElement('p'); more.className = 'route-extra-sources-more';
+    more.textContent = currentLang==='en' ? `+${candidates.length-limit} more offers` : `+${candidates.length-limit} innych ofert`;
+    wrap.appendChild(more);
+  }
+  return wrap;
+}
+
+function renderRouteResult(result){
+  if(!routeResultsEl) return;
+  routeResultsEl.innerHTML = '';
+  if(!result) return;
+  if(result.state !== 'ok'){
+    const empty = document.createElement('p'); empty.className = 'route-empty';
+    empty.textContent = routeStateMessage(result.state);
+    routeResultsEl.appendChild(empty);
+    return;
+  }
+  routeResultsEl.appendChild(buildRouteStepsEl(result.hops));
+
+  const extras = collectSecondaryIngredients(result.hops);
+  if(extras.length){
+    const extraWrap = document.createElement('div'); extraWrap.className = 'route-extras';
+    const heading = document.createElement('h3');
+    heading.textContent = currentLang==='en' ? 'Also required (outside the route)' : 'Dodatkowo potrzebne (poza trasą)';
+    extraWrap.appendChild(heading);
+    const list = document.createElement('ul'); list.className = 'route-extras-list';
+    extras.forEach(ex=>{
+      const li = document.createElement('li');
+      const head = document.createElement('div'); head.className = 'route-extras-item-head';
+      head.appendChild(createIcon(baseItemId(ex.key), 22, ex.enchanted));
+      const span = document.createElement('span');
+      const name = currentLang==='en' ? (ex.nameEn || ex.name) : (ex.name || ex.nameEn);
+      span.textContent = `${ex.qty}× ${name || ex.key}`;
+      head.appendChild(span);
+      li.appendChild(head);
+      li.appendChild(buildIngredientSourcesEl(ex.key));
+      list.appendChild(li);
+    });
+    extraWrap.appendChild(list);
+    routeResultsEl.appendChild(extraWrap);
+  }
+
+  const disclaimer = document.createElement('p'); disclaimer.className = 'route-disclaimer';
+  disclaimer.textContent = currentLang==='en'
+    ? 'Quantities are estimates and ignore shop stock/slot limits.'
+    : 'Ilości są szacunkowe i pomijają limity zapasów/slotów sklepów.';
+  routeResultsEl.appendChild(disclaimer);
+
+  if(result.alternates && result.alternates.length){
+    const altWrap = document.createElement('div'); altWrap.className = 'route-alternates';
+    const heading = document.createElement('h3');
+    heading.textContent = currentLang==='en' ? 'Alternate routes' : 'Alternatywne trasy';
+    altWrap.appendChild(heading);
+    result.alternates.forEach(alt=>{
+      const details = document.createElement('details'); details.className = 'route-alt-route';
+      const summary = document.createElement('summary');
+      const middle = alt.path.slice(1,-1).map(k=>catalogDisplayName(k)).join(', ');
+      const hopCount = alt.path.length - 1;
+      summary.textContent = middle
+        ? (currentLang==='en' ? `${hopCount} hops via ${middle}` : `${hopCount} przeskoków przez ${middle}`)
+        : (currentLang==='en' ? `${hopCount} hop` : `${hopCount} przeskok`);
+      details.appendChild(summary);
+      details.appendChild(buildRouteStepsEl(alt.hops));
+      altWrap.appendChild(details);
+    });
+    routeResultsEl.appendChild(altWrap);
+  }
+}
+
+// --- Trasa handlowa: autouzupełnianie i zdarzenia ---
+function renderSuggestList(listEl, matches, onPick){
+  listEl.innerHTML = '';
+  if(!matches.length){ listEl.hidden = true; return; }
+  matches.forEach(entry=>{
+    const li = document.createElement('li'); li.className = 'route-suggest-item';
+    li.appendChild(createIcon(baseItemId(entry.key), 20, !!entry.enchanted));
+    const span = document.createElement('span'); span.textContent = catalogDisplayName(entry.key);
+    li.appendChild(span);
+    // mousedown (nie click) żeby zdążyć wybrać zanim blur ukryje listę
+    li.addEventListener('mousedown', (e)=>{ e.preventDefault(); onPick(entry); });
+    listEl.appendChild(li);
+  });
+  listEl.hidden = false;
+}
+
+function wireRouteAutocomplete(inputEl, listEl){
+  if(!inputEl || !listEl) return;
+  const pick = (entry)=>{
+    inputEl.value = catalogDisplayName(entry.key);
+    inputEl.dataset.resolvedKey = entry.key;
+    listEl.hidden = true;
+  };
+  const showMatches = ()=>{ renderSuggestList(listEl, findItemMatches(inputEl.value, 8), pick); };
+  inputEl.addEventListener('input', ()=>{ delete inputEl.dataset.resolvedKey; showMatches(); });
+  inputEl.addEventListener('focus', showMatches);
+  inputEl.addEventListener('blur', ()=>{ setTimeout(()=>{ listEl.hidden = true; }, 150); });
+}
+
+function updateRouteFinderLangUI(){
+  const t = currentLang==='en'
+    ? { title:'Trade route', desc:"Enter what you have and what you want to buy — we'll find a chain of trades between offers.", have:'You have', want:'Want to buy', placeholder:'Search item…', swap:'Swap', search:'Find route' }
+    : { title:'Trasa handlowa', desc:'Podaj co masz i co chcesz kupić — znajdziemy łańcuch wymian między ofertami.', have:'Masz', want:'Chcesz kupić', placeholder:'Szukaj przedmiotu…', swap:'Zamień miejscami', search:'Znajdź trasę' };
+  const setText = (id, text)=>{ const el=document.getElementById(id); if(el) el.textContent = text; };
+  setText('route-finder-title', t.title);
+  setText('route-finder-desc', t.desc);
+  setText('route-have-label', t.have);
+  setText('route-want-label', t.want);
+  setText('route-search-btn', t.search);
+  if(routeHaveInput) routeHaveInput.placeholder = t.placeholder;
+  if(routeWantInput) routeWantInput.placeholder = t.placeholder;
+  if(routeSwapBtn) routeSwapBtn.setAttribute('aria-label', t.swap);
+  if(lastRouteResult) renderRouteResult(lastRouteResult);
+}
+
+function attachRouteFinderEvents(){
+  wireRouteAutocomplete(routeHaveInput, routeHaveSuggest);
+  wireRouteAutocomplete(routeWantInput, routeWantSuggest);
+  if(routeSwapBtn){
+    routeSwapBtn.addEventListener('click', ()=>{
+      const haveValue = routeHaveInput.value, haveKey = routeHaveInput.dataset.resolvedKey;
+      const wantValue = routeWantInput.value, wantKey = routeWantInput.dataset.resolvedKey;
+      routeHaveInput.value = wantValue;
+      routeWantInput.value = haveValue;
+      if(wantKey) routeHaveInput.dataset.resolvedKey = wantKey; else delete routeHaveInput.dataset.resolvedKey;
+      if(haveKey) routeWantInput.dataset.resolvedKey = haveKey; else delete routeWantInput.dataset.resolvedKey;
+    });
+  }
+  if(routeSearchBtn){
+    routeSearchBtn.addEventListener('click', ()=>{
+      if(routeHaveSuggest) routeHaveSuggest.hidden = true;
+      if(routeWantSuggest) routeWantSuggest.hidden = true;
+      const haveEmpty = !routeHaveInput?.value.trim();
+      const wantEmpty = !routeWantInput?.value.trim();
+      const result = (haveEmpty || wantEmpty)
+        ? { state: 'empty' }
+        : computeRoute(resolveItemKey(routeHaveInput), resolveItemKey(routeWantInput));
+      lastRouteResult = result;
+      renderRouteResult(result);
+      requestAnimationFrame(()=> scrollToEl(routeResultsEl));
+    });
+  }
+}
+
 // --- Zdarzenia ---
 function attachEvents(){
   const applyLangLabel = (btn)=>{ if(!btn) return; btn.textContent = currentLang==='pl'? 'PL 🇵🇱':'EN 🇬🇧'; };
@@ -408,6 +928,7 @@ function attachEvents(){
     if(searchInput){ searchInput.placeholder = computeSearchPlaceholder(); }
     if(mobileSearchInput){ mobileSearchInput.placeholder = computeSearchPlaceholder(); }
     updatePriceToggleVisual();
+    updateRouteFinderLangUI();
   };
   const applyLangDataAttr = ()=>{ try { document.documentElement.setAttribute('data-lang', currentLang); } catch(_){} };
   const switchLang = ()=>{
@@ -420,6 +941,7 @@ function attachEvents(){
   // Inicjalny stan UI językowego
   applyLangDataAttr();
   updateAllLangUI();
+  attachRouteFinderEvents();
   // Podłącz jeden, spójny handler do obu przycisków
   if(langToggle){ langToggle.replaceWith(langToggle.cloneNode(true)); }
   if(langToggleFloat){ langToggleFloat.replaceWith(langToggleFloat.cloneNode(true)); }
@@ -542,6 +1064,11 @@ async function load(){
     const list = await window.__db.fetchJson('data/khandel-products.json');
     allProducts = Array.isArray(list)? list: [];
     allProducts.sort((a,b)=> getIdentifier(a).localeCompare(getIdentifier(b), 'pl', { sensitivity:'base', numeric:true }));
+    itemCatalog = buildItemCatalog(allProducts);
+    const graphData = buildTradeGraph(allProducts);
+    tradeGraph = graphData.graph;
+    edgeListings = graphData.listings;
+    sellListings = graphData.sellListings;
     const qParam = new URLSearchParams(window.location.search).get('q');
     if(qParam){
       if(searchInput) searchInput.value = qParam;
