@@ -36,6 +36,8 @@ const searchInput = document.getElementById('point-search');
 const pointResultsEl = document.getElementById('point-search-results');
 const pointDetailEl = document.getElementById('point-search-detail');
 const pointSearchClearBtn = document.getElementById('point-search-clear');
+const searchBubbleEl = document.getElementById('search-bubble');
+const searchResultsCloseBtn = document.getElementById('search-results-close');
 // Nowa legenda linii (prawy dolny róg)
 const linesLegendEl = document.getElementById('lines-legend');
 const linesLegendBodyEl = document.getElementById('lines-legend-body');
@@ -1589,7 +1591,19 @@ function openPoint(id){
 
 function closePanel(){ if(panel) panel.hidden = true; }
 
+function expandSearchBubble(){ if(searchBubbleEl) searchBubbleEl.classList.remove('is-collapsed'); }
+// Route-search.js is a separate module instance and needs to reopen the shared
+// search bubble too when it renders new route results.
+window.__expandSearchBubble = expandSearchBubble;
+
+if(searchResultsCloseBtn){
+  searchResultsCloseBtn.addEventListener('click', ()=>{
+    if(searchBubbleEl) searchBubbleEl.classList.add('is-collapsed');
+  });
+}
+
 function handleSearch(){
+  expandSearchBubble();
   // Bez danych mapy nie ma czego filtrować
   if(!mapData || !Array.isArray(mapData.points)){
     if(pointResultsEl){ pointResultsEl.innerHTML=''; pointResultsEl.hidden = true; }

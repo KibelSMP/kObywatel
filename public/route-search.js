@@ -283,6 +283,7 @@ function fmtName(id){ return pointsIndex.get(id)?.name || id; }
 
 function renderResults(routes){
 	if(!resultsEl) return;
+	if(typeof window.__expandSearchBubble === 'function') window.__expandSearchBubble();
 	if(!routes.length){ resultsEl.innerHTML='<div class="empty">Brak połączenia.</div>'; return; }
 	const start = routes[0].legs[0].stations[0];
 	const end = routes[0].legs[routes[0].legs.length-1].stations.slice(-1)[0];

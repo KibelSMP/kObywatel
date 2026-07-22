@@ -11,17 +11,21 @@
     "serve:out": "npx serve out"
   },
   "dependencies": {
-    "jspdf": "^2.5.2",
-    "jspdf-autotable": "^3.8.4",
+    "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.8",
     "markdown-it": "^14.1.0",
-    "marked": "^12.0.2",
-    "next": "^15.1.6",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "marked": "^18.0.7",
+    "next": "^15.5.21",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4.0.0",
+    "@tailwindcss/postcss": "^4.3.3",
     "puppeteer-core": "^25.3.0",
-    "tailwindcss": "^4.0.0"
+    "tailwindcss": "^4.3.3"
+  },
+  "overrides": {
+    "sharp": "^0.35.3",
+    "postcss": "^8.5.22"
   }
 }

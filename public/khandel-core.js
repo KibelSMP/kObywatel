@@ -26,8 +26,8 @@ const getIdentifier = (p)=>{
 const breadcrumbEl = null;
 const productsEl = document.getElementById('khandel-products');
 const emptyEl = document.getElementById('empty');
-const langToggle = document.getElementById('lang-toggle');
-const langToggleFloat = document.getElementById('lang-toggle-float');
+let langToggle = document.getElementById('lang-toggle');
+let langToggleFloat = document.getElementById('lang-toggle-float');
 const searchInput = document.getElementById('khandel-search');
 let filterLocation = document.getElementById('khandel-filter-location');
 let filterStore = document.getElementById('khandel-filter-store');
@@ -920,7 +920,7 @@ function attachRouteFinderEvents(){
 
 // --- Zdarzenia ---
 function attachEvents(){
-  const applyLangLabel = (btn)=>{ if(!btn) return; btn.textContent = currentLang==='pl'? 'PL 🇵🇱':'EN 🇬🇧'; };
+  const applyLangLabel = (btn)=>{ if(!btn) return; btn.textContent = currentLang==='pl'? 'PL':'EN'; };
   const applyMobilePriceLabel = ()=>{ if(priceToggleMobile){ priceToggleMobile.textContent = currentLang==='pl'? 'Szukaj w cenach' : 'Search currency'; } };
   const updateAllLangUI = ()=>{
     applyLangLabel(langToggle); applyLangLabel(langToggleFloat);
@@ -945,10 +945,10 @@ function attachEvents(){
   // Podłącz jeden, spójny handler do obu przycisków
   if(langToggle){ langToggle.replaceWith(langToggle.cloneNode(true)); }
   if(langToggleFloat){ langToggleFloat.replaceWith(langToggleFloat.cloneNode(true)); }
-  const _langToggle = document.getElementById('lang-toggle');
-  const _langToggleFloat = document.getElementById('lang-toggle-float');
-  if(_langToggle){ _langToggle.addEventListener('click', switchLang); }
-  if(_langToggleFloat){ _langToggleFloat.addEventListener('click', switchLang); }
+  langToggle = document.getElementById('lang-toggle');
+  langToggleFloat = document.getElementById('lang-toggle-float');
+  if(langToggle){ langToggle.addEventListener('click', switchLang); }
+  if(langToggleFloat){ langToggleFloat.addEventListener('click', switchLang); }
   if(searchInput){ searchInput.addEventListener('input', ()=>{ renderAll(); }); }
   const syncInputs = (from, to)=>{ if(!from || !to) return; to.value = from.value; };
   if(searchInput && mobileSearchInput){
