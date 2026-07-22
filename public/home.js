@@ -5,6 +5,8 @@
 // window.__db, window.KWiedzaData, window.HomeLayout, window.escapeHtml,
 // window.productFallbackName.
 
+import { isStandalone } from './pwa-standalone.js';
+
 let __mapPointsCache = null;
 let __pointCategoryFilter = new Set();
 let __allPointMatches = [];
@@ -13,6 +15,8 @@ let __pointsShown = 0;
 let __mapLinesCache = null;
 let __lineMatches = [];
 const __MAX_LINE_RESULTS = 50;
+
+const PWA_HIDDEN_TILES = new Set(['tile-kpack']);
 
 async function fetchMapPoints() {
   if (__mapPointsCache) return __mapPointsCache;
@@ -225,6 +229,7 @@ const resultsDiv = document.getElementById('results');
 const skeleton = document.getElementById('skeleton');
 const homeTilesRoot = document.getElementById('home-tiles-root');
 const homeTilesGrid = document.querySelector('.home-tiles-grid');
+const tilesEditToggle = document.getElementById('tiles-edit-toggle');
 
 function hideHomeTiles() { if (homeTilesRoot) homeTilesRoot.hidden = true; }
 function showHomeTiles() { if (homeTilesRoot) homeTilesRoot.hidden = false; }
@@ -241,15 +246,48 @@ function applyHomeLayout() {
       if (!el) return;
       const locked = LOCKED.has(tile.id) || tile.locked;
       const isHidden = locked ? false : !!tile.hidden;
-      el.style.display = isHidden ? 'none' : '';
+      el.classList.toggle('is-hidden', isHidden);
+      el.classList.toggle('is-hidden-pwa', PWA_HIDDEN_TILES.has(tile.id) && isStandalone());
       frag.appendChild(el);
       map.delete(tile.id);
     });
-    map.forEach((el) => { el.style.display = ''; frag.appendChild(el); });
+    map.forEach((el) => { el.classList.remove('is-hidden'); frag.appendChild(el); });
     homeTilesGrid.appendChild(frag);
   }
   const searchWrap = document.getElementById('search-form');
   if (searchWrap) searchWrap.style.display = state.searchHidden ? 'none' : '';
+}
+
+function initTilesEditToggle() {
+  if (!tilesEditToggle || !homeTilesRoot) return;
+  tilesEditToggle.addEventListener('click', () => {
+    const editing = !homeTilesRoot.classList.contains('is-editing');
+    homeTilesRoot.classList.toggle('is-editing', editing);
+    tilesEditToggle.setAttribute('aria-pressed', String(editing));
+  });
+}
+
+function initTileHideToggle() {
+  if (!homeTilesGrid || !window.HomeLayout) return;
+  homeTilesGrid.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-hide-toggle]');
+    if (!btn) return;
+    const wrapper = btn.closest('[data-tile-wrapper]');
+    if (!wrapper) return;
+    const state = window.HomeLayout.load();
+    const tile = state.tiles.find((t) => t.id === wrapper.id);
+    if (!tile || window.HomeLayout.LOCKED.has(tile.id)) return;
+    tile.hidden = !tile.hidden;
+    window.HomeLayout.save(state);
+    applyHomeLayout();
+  });
+}
+
+function initPwaTileVisibility() {
+  const mq = window.matchMedia('(display-mode: standalone)');
+  const onChange = () => applyHomeLayout();
+  if (typeof mq.addEventListener === 'function') mq.addEventListener('change', onChange);
+  else if (typeof mq.addListener === 'function') mq.addListener(onChange);
 }
 
 // Drag-to-reorder (pointer events cover mouse + touch/pen uniformly). The handle
@@ -580,5 +618,8 @@ function bindSearch() {
 window.__db.loadConfig().then(() => {
   applyHomeLayout();
   initTileDragReorder();
+  initTilesEditToggle();
+  initTileHideToggle();
+  initPwaTileVisibility();
   bindSearch();
 });

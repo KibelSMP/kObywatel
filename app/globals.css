@@ -148,6 +148,46 @@
   background: color-mix(in srgb, var(--color-koaccent) 8%, transparent);
 }
 
+/* Tile edit mode: drag handle + hide toggle only appear once editing is on */
+#home-tiles-root:not(.is-editing) .tile-drag-handle,
+#home-tiles-root:not(.is-editing) .tile-hide-toggle {
+  display: none;
+}
+.tile-wrapper.is-hidden {
+  display: none;
+}
+#home-tiles-root.is-editing .tile-wrapper.is-hidden {
+  display: flex;
+  opacity: .45;
+}
+.tile-wrapper.is-hidden-pwa {
+  display: none !important;
+}
+
+.tile-hide-toggle .tile-hide-icon-hidden {
+  display: none;
+}
+.tile-wrapper.is-hidden .tile-hide-toggle .tile-hide-icon-visible {
+  display: none;
+}
+.tile-wrapper.is-hidden .tile-hide-toggle .tile-hide-icon-hidden {
+  display: block;
+}
+
+.tiles-edit-toggle .tiles-edit-toggle-label-on {
+  display: none;
+}
+.tiles-edit-toggle[aria-pressed="true"] {
+  border-color: var(--color-koaccent);
+  background: color-mix(in srgb, var(--color-koaccent) 15%, transparent);
+}
+.tiles-edit-toggle[aria-pressed="true"] .tiles-edit-toggle-label-off {
+  display: none;
+}
+.tiles-edit-toggle[aria-pressed="true"] .tiles-edit-toggle-label-on {
+  display: inline;
+}
+
 /* Thin scrollbar variant (used by kSejm filter row; ported from its inline CSS) */
 .subtle-scrollbar {
   scrollbar-width: thin;

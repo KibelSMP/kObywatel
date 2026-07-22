@@ -1,6 +1,7 @@
 import SiteHeader from '@/components/SiteHeader';
 import Icon from '@/components/Icon';
 import IslandLoader from '@/components/IslandLoader';
+import { LOCKED } from '@/lib/homeLayout';
 
 const TILES = [
   { id: 'tile-mapa', href: '/map/', icon: 'map', title: 'Mapa', desc: 'Przeglądaj punkty, linie i wyszukuj miejsca.' },
@@ -17,18 +18,26 @@ const TILES = [
 
 function Tile({ tile }) {
   const props = tile.external ? { target: '_blank', rel: 'noopener' } : {};
+  const hideable = !LOCKED.has(tile.id);
   return (
     <div id={tile.id} data-tile-wrapper className="tile-wrapper relative h-full">
       <a
         href={tile.href}
         {...props}
-        className="tile group flex h-full flex-col rounded-2xl border border-koborder bg-koelev p-5 pr-11 transition hover:-translate-y-0.5 hover:border-koaccent/70 hover:shadow-lg"
+        className="tile group flex h-full flex-col rounded-2xl border border-koborder bg-koelev p-5 pr-24 transition hover:-translate-y-0.5 hover:border-koaccent/70 hover:shadow-lg"
       >
         <div className="flex items-center gap-3">
           <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-koaccent/15 text-koaccent2">
             <Icon name={tile.icon} size={24} />
           </span>
-          <h2 className="text-lg font-bold text-kotext">{tile.title}</h2>
+          <h2 className="flex items-center gap-1.5 text-lg font-bold text-kotext">
+            {tile.title}
+            {tile.external && (
+              <span className="text-kodim" title="Otwiera się w nowej karcie" aria-label="Otwiera się w nowej karcie">
+                <Icon name="open_in_new_16dp" size={14} />
+              </span>
+            )}
+          </h2>
         </div>
         <p className="mt-3 line-clamp-2 min-h-10 text-sm text-kodim">{tile.desc}</p>
       </a>
@@ -40,6 +49,21 @@ function Tile({ tile }) {
       >
         <Icon name="drag_indicator" size={18} />
       </button>
+      {hideable && (
+        <button
+          type="button"
+          data-hide-toggle
+          className="tile-hide-toggle absolute right-12 top-2 grid h-9 w-9 place-items-center rounded-lg text-kodim/70 transition hover:bg-koelev2 hover:text-kotext focus-visible:outline focus-visible:outline-2 focus-visible:outline-koaccent"
+          aria-label={`Ukryj lub pokaż kafelek „${tile.title}”`}
+        >
+          <span className="tile-hide-icon-visible">
+            <Icon name="visibility" size={18} />
+          </span>
+          <span className="tile-hide-icon-hidden">
+            <Icon name="visibility_off" size={18} />
+          </span>
+        </button>
+      )}
     </div>
   );
 }
@@ -72,6 +96,18 @@ export default function HomePage() {
         <div id="results" className="mt-8" aria-live="polite" />
 
         <div id="home-tiles-root" className="mt-10">
+          <div className="mb-3 flex items-center justify-end">
+            <button
+              type="button"
+              id="tiles-edit-toggle"
+              className="tiles-edit-toggle inline-flex items-center gap-1.5 rounded-lg border border-koborder bg-koelev2 px-3 py-1.5 text-xs font-semibold text-kotext transition hover:border-koaccent"
+              aria-pressed="false"
+            >
+              <Icon name="edit" size={16} />
+              <span className="tiles-edit-toggle-label-off">Edytuj kafelki</span>
+              <span className="tiles-edit-toggle-label-on">Zakończ edycję</span>
+            </button>
+          </div>
           <div className="home-tiles-grid grid grid-cols-1 items-stretch gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {TILES.map((t) => (
               <Tile key={t.id} tile={t} />

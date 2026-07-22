@@ -68,6 +68,15 @@ export default function MapPage() {
             </div>
 
             <div id="search-bubble" className="search-dropdown" aria-label="Wyniki wyszukiwania">
+              <button
+                type="button"
+                id="search-results-close"
+                className="search-results-close"
+                aria-label="Ukryj wyniki wyszukiwania"
+                title="Ukryj wyniki wyszukiwania"
+              >
+                <Icon name="close" size={11} />
+              </button>
               <div id="point-search-dropdown" className="point-search-dropdown">
                 <div id="point-search-results" className="point-results" aria-live="polite" aria-label="Wyniki wyszukiwania punktów" hidden />
                 <div id="point-search-detail" className="point-detail" aria-live="polite" aria-label="Szczegóły punktu" hidden />

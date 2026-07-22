@@ -32,7 +32,7 @@ export default function KhandelPage() {
             type="button"
             className="rounded-xl border border-koborder bg-koelev2 px-3 py-2 text-sm font-semibold text-kotext transition hover:border-koaccent"
           >
-            PL 🇵🇱
+            PL
           </button>
         </div>
 
