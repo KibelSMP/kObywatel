@@ -37,7 +37,7 @@ export default function MapPage() {
             <div className="group" id="mode-toggle" role="group" aria-label="Tryb mapy">
               <button id="mode-general" className="mode-btn" data-mode="general" aria-pressed="true">Ogólne</button>
               <button id="mode-transport" className="mode-btn" data-mode="transport" aria-pressed="false">Transport</button>
-              <button id="mode-editor" className="mode-btn" data-mode="editor" aria-pressed="false">Edytor</button>
+              <button id="mode-editor" className="mode-btn" data-mode="editor" aria-pressed="false">Szkic</button>
             </div>
           }
         />
@@ -151,53 +151,97 @@ export default function MapPage() {
             <div className="point-content" id="point-content" />
           </div>
 
-          <div id="screenshot-toolbar" className="map-toolbar screenshot-toolbar" hidden aria-label="Edytor zrzutu ekranu">
-            <div className="screenshot-toolbar-header">
-              <span className="screenshot-toolbar-title">Edytor zrzutu ekranu</span>
-              <button type="button" id="screenshot-close" aria-label="Zamknij edytor" title="Zamknij edytor">✕</button>
+          <div id="screenshot-toolbar" className="sketch-toolbar" hidden aria-label="Szkic">
+            <div className="sketch-topline">
+              <div className="sketch-dock" id="sketch-dock" role="group" aria-label="Narzędzia rysowania">
+                <div className="sketch-dock-scroll">
+                  <button type="button" className="screenshot-tool-btn" data-tool="pan" aria-pressed="true" aria-label="Wskaźnik" title="Wskaźnik"><Icon name="pointer" size={18} /></button>
+                  <button type="button" className="screenshot-tool-btn" data-tool="select" aria-pressed="false" aria-label="Zaznacz" title="Zaznacz"><Icon name="select" size={18} /></button>
+                  <button type="button" className="screenshot-tool-btn" data-tool="pencil" aria-pressed="false" aria-label="Ołówek" title="Ołówek"><Icon name="pencil" size={18} /></button>
+                  <button type="button" className="screenshot-tool-btn" data-tool="line" aria-pressed="false" aria-label="Linia" title="Linia"><Icon name="line" size={18} /></button>
+                  <button type="button" className="screenshot-tool-btn" data-tool="arrow" aria-pressed="false" aria-label="Strzałka" title="Strzałka"><Icon name="arrow" size={18} /></button>
+                  <button type="button" className="screenshot-tool-btn" data-tool="rect" aria-pressed="false" aria-label="Prostokąt" title="Prostokąt"><Icon name="rectangle" size={18} /></button>
+                  <button type="button" className="screenshot-tool-btn" data-tool="ellipse" aria-pressed="false" aria-label="Elipsa" title="Elipsa"><Icon name="ellipse" size={18} /></button>
+                  <button type="button" className="screenshot-tool-btn" data-tool="text" aria-pressed="false" aria-label="Tekst" title="Tekst"><Icon name="text-tool" size={18} /></button>
+
+                  <div className="sketch-dock-divider" aria-hidden="true" />
+
+                  <button type="button" id="screenshot-undo" className="sketch-dock-btn" aria-label="Cofnij" title="Cofnij"><Icon name="undo" size={18} /></button>
+                  <button type="button" id="screenshot-redo" className="sketch-dock-btn" aria-label="Ponów" title="Ponów"><Icon name="redo" size={18} /></button>
+                  <button type="button" id="screenshot-delete-selected" className="sketch-dock-btn" aria-label="Usuń zaznaczony kształt" title="Usuń zaznaczony kształt" disabled><Icon name="delete" size={18} /></button>
+                  <button type="button" id="screenshot-clear" className="sketch-dock-btn" aria-label="Wyczyść wszystko" title="Wyczyść wszystko"><Icon name="clear-all" size={18} /></button>
+
+                  <div className="sketch-dock-divider" aria-hidden="true" />
+
+                  <button type="button" id="screenshot-export-toggle" className="sketch-dock-btn sketch-dock-export" aria-label="Eksportuj" title="Eksportuj" aria-expanded="false" aria-controls="sketch-export-panel">
+                    <Icon name="download" size={18} />
+                  </button>
+                </div>
+
+                <div className="sketch-export-panel" id="sketch-export-panel" hidden>
+                  <div className="screenshot-export-format" role="group" aria-label="Format eksportu">
+                    <label><input type="radio" name="screenshot-format" value="png" defaultChecked /> PNG</label>
+                    <label><input type="radio" name="screenshot-format" value="pdf" /> PDF</label>
+                  </div>
+                  <div className="screenshot-pdf-options" id="screenshot-pdf-options" hidden>
+                    <label className="screenshot-field">
+                      <span>Format strony</span>
+                      <select id="screenshot-page-format" defaultValue="a4">
+                        <option value="a4">A4</option>
+                        <option value="a3">A3</option>
+                        <option value="a5">A5</option>
+                        <option value="letter">Letter</option>
+                      </select>
+                    </label>
+                    <label className="screenshot-field">
+                      <span>Orientacja</span>
+                      <select id="screenshot-page-orientation" defaultValue="landscape">
+                        <option value="landscape">Poziomo</option>
+                        <option value="portrait">Pionowo</option>
+                      </select>
+                    </label>
+                  </div>
+                  <button type="button" id="screenshot-export-btn" className="screenshot-export-btn">
+                    <Icon name="download" size={16} /> Pobierz
+                  </button>
+                </div>
+              </div>
+
+              <div className="sketch-stylebar" id="sketch-stylebar">
+                <label className="sketch-swatch sketch-swatch--fill" id="screenshot-fill-row" hidden title="Kolor wypełnienia">
+                  <input type="color" id="screenshot-fill-color" defaultValue="#e11d48" aria-label="Kolor wypełnienia" />
+                </label>
+                <label className="sketch-swatch sketch-swatch--stroke" title="Kolor obrysu">
+                  <input type="color" id="screenshot-stroke-color" defaultValue="#e11d48" aria-label="Kolor obrysu" />
+                </label>
+                <div className="sketch-slider" id="screenshot-stroke-row">
+                  <input type="range" id="screenshot-stroke-width" min="1" max="10" step="1" defaultValue="2" aria-label="Grubość obrysu" />
+                  <span className="sketch-slider-value" id="screenshot-stroke-width-value">2</span>
+                </div>
+                <div className="sketch-slider" id="screenshot-text-size-row" hidden>
+                  <input type="range" id="screenshot-font-size" min="8" max="48" step="1" defaultValue="16" aria-label="Rozmiar tekstu" />
+                  <span className="sketch-slider-value" id="screenshot-font-size-value">16</span>
+                </div>
+                <label className="sketch-toggle" id="screenshot-fill-opacity-row" hidden title="Półprzezroczystość wypełnienia">
+                  <input type="checkbox" id="screenshot-fill-opacity" defaultChecked aria-label="Półprzezroczystość wypełnienia" />
+                  <span>Półprzezroczystość</span>
+                </label>
+
+                <button type="button" id="screenshot-coord-toggle" className="sketch-coord-btn" aria-expanded="false" aria-controls="screenshot-coord-form" hidden>
+                  Koordynaty
+                </button>
+              </div>
             </div>
 
-            <div className="screenshot-tools" role="group" aria-label="Narzędzia rysowania">
-              <button type="button" className="screenshot-tool-btn" data-tool="pan" aria-pressed="true" aria-label="Wskaźnik" title="Wskaźnik"><Icon name="pointer" size={18} /></button>
-              <button type="button" className="screenshot-tool-btn" data-tool="select" aria-pressed="false" aria-label="Zaznacz" title="Zaznacz"><Icon name="select" size={18} /></button>
-              <button type="button" className="screenshot-tool-btn" data-tool="pencil" aria-pressed="false" aria-label="Ołówek" title="Ołówek"><Icon name="pencil" size={18} /></button>
-              <button type="button" className="screenshot-tool-btn" data-tool="line" aria-pressed="false" aria-label="Linia" title="Linia"><Icon name="line" size={18} /></button>
-              <button type="button" className="screenshot-tool-btn" data-tool="arrow" aria-pressed="false" aria-label="Strzałka" title="Strzałka"><Icon name="arrow" size={18} /></button>
-              <button type="button" className="screenshot-tool-btn" data-tool="rect" aria-pressed="false" aria-label="Prostokąt" title="Prostokąt"><Icon name="rectangle" size={18} /></button>
-              <button type="button" className="screenshot-tool-btn" data-tool="ellipse" aria-pressed="false" aria-label="Elipsa" title="Elipsa"><Icon name="ellipse" size={18} /></button>
-              <button type="button" className="screenshot-tool-btn" data-tool="text" aria-pressed="false" aria-label="Tekst" title="Tekst"><Icon name="text-tool" size={18} /></button>
-            </div>
-
-            <div className="screenshot-style-row">
-              <label className="screenshot-field">
-                <span>Kolor obrysu</span>
-                <input type="color" id="screenshot-stroke-color" defaultValue="#e11d48" />
-              </label>
-              <label className="screenshot-field">
-                <span>Grubość obrysu (px mapy)</span>
-                <input type="range" id="screenshot-stroke-width" min="1" max="10" step="1" defaultValue="2" />
-                <span className="screenshot-field-value" id="screenshot-stroke-width-value">2</span>
-              </label>
-            </div>
-
-            <div className="screenshot-style-row">
-              <label className="screenshot-field">
-                <span>Kolor wypełnienia</span>
-                <input type="color" id="screenshot-fill-color" defaultValue="#e11d48" />
-              </label>
-              <label className="screenshot-field">
-                <span>Przezroczystość wypełnienia</span>
-                <input type="range" id="screenshot-fill-opacity" min="0" max="1" step="0.01" defaultValue="0.25" />
-                <span className="screenshot-field-value" id="screenshot-fill-opacity-value">25%</span>
-              </label>
-            </div>
-
-            <label className="screenshot-field screenshot-text-row" id="screenshot-text-size-row" hidden>
-              <span>Rozmiar tekstu (px mapy)</span>
-              <input type="range" id="screenshot-font-size" min="8" max="48" step="1" defaultValue="16" />
-              <span className="screenshot-field-value" id="screenshot-font-size-value">16</span>
-            </label>
-
+            {/*
+              Poza .sketch-dock celowo: .sketch-dock ma backdrop-filter, który (tak
+              jak filter/transform/will-change:transform) tworzy nowy containing
+              block dla position:fixed potomków — gdyby ten popover siedział w
+              środku, jego fixed top/left liczyłyby się względem .sketch-dock, nie
+              viewportu, i positionCoordForm() w map-screenshot.js (który zakłada
+              współrzędne z getBoundingClientRect() względem viewportu) wystawiałby
+              go w złym miejscu (zwłaszcza w mobilnym, dolnym układzie doku).
+            */}
             <div className="screenshot-coord-form" id="screenshot-coord-form" hidden>
               <div className="screenshot-coord-title">Dodaj wg współrzędnych (X, Z)</div>
               <div className="screenshot-coord-inputs">
@@ -208,41 +252,6 @@ export default function MapPage() {
                 <input type="number" id="screenshot-coord-z2" placeholder="Z2" aria-label="Z2" />
               </div>
               <button type="button" id="screenshot-coord-add">Dodaj kształt</button>
-            </div>
-
-            <div className="screenshot-actions-row">
-              <button type="button" id="screenshot-undo" aria-label="Cofnij" title="Cofnij"><Icon name="undo" size={18} /></button>
-              <button type="button" id="screenshot-redo" aria-label="Ponów" title="Ponów"><Icon name="redo" size={18} /></button>
-              <button type="button" id="screenshot-clear" aria-label="Wyczyść wszystko" title="Wyczyść wszystko"><Icon name="clear-all" size={18} /></button>
-              <button type="button" id="screenshot-delete-selected" aria-label="Usuń zaznaczony kształt" title="Usuń zaznaczony kształt" disabled><Icon name="delete" size={18} /></button>
-            </div>
-
-            <div className="screenshot-export">
-              <div className="screenshot-export-format" role="group" aria-label="Format eksportu">
-                <label><input type="radio" name="screenshot-format" value="png" defaultChecked /> PNG</label>
-                <label><input type="radio" name="screenshot-format" value="pdf" /> PDF</label>
-              </div>
-              <div className="screenshot-pdf-options" id="screenshot-pdf-options" hidden>
-                <label className="screenshot-field">
-                  <span>Format strony</span>
-                  <select id="screenshot-page-format" defaultValue="a4">
-                    <option value="a4">A4</option>
-                    <option value="a3">A3</option>
-                    <option value="a5">A5</option>
-                    <option value="letter">Letter</option>
-                  </select>
-                </label>
-                <label className="screenshot-field">
-                  <span>Orientacja</span>
-                  <select id="screenshot-page-orientation" defaultValue="landscape">
-                    <option value="landscape">Poziomo</option>
-                    <option value="portrait">Pionowo</option>
-                  </select>
-                </label>
-              </div>
-              <button type="button" id="screenshot-export-btn" className="screenshot-export-btn">
-                <Icon name="download" size={16} /> Pobierz
-              </button>
             </div>
           </div>
 
