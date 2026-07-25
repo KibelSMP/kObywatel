@@ -1,9 +1,23 @@
 /*
-  Edytor zrzutów ekranu / adnotacji na mapie. Reużywa tokeny zdefiniowane na :root
+  Szkic (edytor adnotacji na mapie). Reużywa tokeny zdefiniowane na :root
   przez map.css (--panel-bg, --panel-border, --accent, --btn-bg, --shadow) — bez
   nowych custom properties. Panel narzędziowy ma własny, prosty breakpoint (860px,
   spójny z resztą map.css) i NIE korzysta z maszynerii zakładek/reparentingu
   .map-sidepanel (zbyt sprzężonej z legendą/filtrami).
+
+  Układ (desktop): jeden rząd — dok narzędzi (przypięty do lewej krawędzi) i
+  bąbelek ustawień aktywnego narzędzia (kolory/grubość/rozmiar/wypełnienie) na
+  prawo od niego, druga "wysepka" edytora. Przycisk "Koordynaty" siedzi na
+  końcu TEJ DRUGIEJ wysepki (.sketch-stylebar), za checkboxem wypełnienia, i
+  jest ukrywany (atrybut hidden) dla narzędzi, które nie wspierają
+  wprowadzania współrzędnych (wskaźnik/zaznacz/ołówek) — patrz
+  updateCoordToggleAvailability() w map-screenshot.js. Jego pozycja w
+  .sketch-stylebar nie jest stała (inne swatch/slidery chowają się/pokazują w
+  zależności od narzędzia, więc przycisk przesuwa się w rzędzie) — dlatego
+  popover formularza NIE jest zaczepiony przez zwykłe position:absolute
+  względem .sketch-stylebar, tylko position:fixed wyliczany w JS z
+  getBoundingClientRect() przycisku (positionCoordForm()), żeby zawsze
+  wylądować dokładnie pod nim.
 */
 
 .screenshot-layer {
@@ -13,72 +27,218 @@
   touch-action: none;
 }
 
-.screenshot-toolbar {
+.sketch-toolbar {
   /*
     Same slot #filters-panel (the legend) occupies in the other two modes —
-    that panel is hidden for the duration of editor mode (see enterEditorMode
-    in map-screenshot.js), so there's no overlap, and the editor visually
-    "replaces" the legend the way Edytor replaces Ogólne/Transport.
+    that panel is hidden for the duration of sketch mode (see enterEditorMode
+    in map-screenshot.js), so there's no overlap, and Szkic visually "replaces"
+    the legend the way it replaces Ogólne/Transport. #map-search-float is hidden
+    the same way (it shares this same top-left corner).
   */
   position: absolute;
   top: .75rem;
-  right: .75rem;
-  min-width: 200px;
-  width: 320px;
-  max-width: 340px;
-  max-height: 80vh;
-  overflow: auto;
+  left: .75rem;
   z-index: 70;
   display: flex;
   flex-direction: column;
-  gap: .7rem;
+  align-items: flex-start;
+  gap: .6rem;
+  max-height: calc(100% - 1.5rem);
+  font-size: .8rem;
+  color: var(--color-kotext);
+  /* .sketch-toolbar/.sketch-topline są tylko kontenerami układu — nie mają
+     własnego tła, ale jako position:absolute nad #map-viewport wciąż
+     przechwytywałyby kliknięcia w każdym miejscu swojego (dużego, bo dok jest
+     wysoką kolumną) bounding boxa, łącznie z pustymi przerwami między dokiem a
+     paskiem stylu. pointer-events:none tutaj + pointer-events:auto na
+     faktycznych, widocznych panelach (dock/stylebar/popovery) przepuszcza
+     kliknięcia na canvas wszędzie poza realnie narysowanymi kontrolkami —
+     ten sam wzorzec co .markers-layer .markers-sub w map.css. */
+  pointer-events: none;
+}
+
+.sketch-toolbar[hidden] {
+  display: none !important;
+}
+
+.sketch-topline {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: .6rem;
+  min-height: 0;
+}
+
+.sketch-stylebar,
+.sketch-dock,
+.screenshot-coord-form,
+.sketch-export-panel {
   background: var(--panel-bg);
   -webkit-backdrop-filter: blur(16px) saturate(170%);
   backdrop-filter: blur(16px) saturate(170%);
   border: 1px solid var(--panel-border);
-  border-radius: 16px;
-  padding: .9rem 1rem 1.1rem;
   box-shadow: var(--shadow);
-  font-size: .8rem;
-  color: var(--color-kotext);
+  pointer-events: auto;
 }
 
-.screenshot-toolbar[hidden] {
+.sketch-stylebar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  border-radius: 16px;
+  padding: .5rem .6rem;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.sketch-swatch {
+  position: relative;
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.sketch-swatch[hidden] {
   display: none !important;
 }
 
-.screenshot-toolbar-header {
+/* Wypełnienie: pełny kwadrat w wybranym kolorze. */
+.sketch-swatch--fill {
+  background: var(--swatch-color, var(--btn-bg));
+  border: 1px solid var(--panel-border);
+}
+
+/* Obrys: pusty w środku (tło panelu), tylko kolorowa obwódka — odróżnia go
+   wizualnie od wypełnienia (patrz mockup Figma). */
+.sketch-swatch--stroke {
+  background: var(--panel-bg);
+  border: 2px solid var(--swatch-color, var(--panel-border));
+}
+
+.sketch-swatch input[type="color"] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: none;
+  padding: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.sketch-slider {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: .4rem;
+  min-width: 130px;
 }
 
-.screenshot-toolbar-title {
-  font-weight: 700;
-  font-size: .85rem;
+.sketch-slider[hidden] {
+  display: none !important;
 }
 
-#screenshot-close {
-  background: none;
-  border: none;
+.sketch-slider input[type="range"] {
+  flex: 1;
+  min-width: 0;
+  accent-color: var(--accent);
+}
+
+.sketch-slider-value {
   color: var(--color-kodim);
-  font-size: 1.05rem;
-  cursor: pointer;
-  line-height: 1;
-  padding: .2rem;
+  font-size: .7rem;
+  min-width: 0.2rem;
+  text-align: right;
 }
 
-#screenshot-close:hover {
+/* Przezroczystość wypełnienia: przełącznik (checkbox), nie suwak. Podpisany
+   ("Półprzezroczystość"), bo sam checkbox bez etykiety nie mówi nic o tym, co
+   przełącza. */
+.sketch-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  flex: none;
+  white-space: nowrap;
+  font-size: .75rem;
   color: var(--color-kotext);
+  cursor: pointer;
 }
 
-.screenshot-tools {
+.sketch-toggle[hidden] {
+  display: none !important;
+}
+
+.sketch-toggle input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+/* Przycisk "Koordynaty": bez ikony (sam napis), tej samej wysokości co
+   swatch kolorów po lewej (.sketch-swatch, 30px) — inaczej niż
+   .screenshot-tool-btn/.sketch-dock-btn (38px) z doku, żeby nie podbijał
+   wysokości .sketch-stylebar. Szerokość auto (dopasowana do napisu), nie
+   min-width:38px jak przyciski-ikony. */
+.sketch-coord-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 30px;
+  padding: 0 .6rem;
+  border: 1px solid var(--panel-border);
+  background: var(--btn-bg);
+  color: var(--color-kotext);
+  border-radius: 8px;
+  font-size: .75rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  flex: none;
+  transition: background .15s, color .15s, border-color .15s;
+}
+
+.sketch-coord-btn:hover,
+.sketch-coord-btn[aria-expanded="true"] {
+  border-color: var(--accent);
+}
+
+.sketch-coord-btn[hidden] {
+  display: none !important;
+}
+
+/* --- Dok narzędzi: kolumna ikon (narzędzia rysowania, cofnij/ponów/usuń/wyczyść, eksport) --- */
+
+.sketch-dock {
+  position: relative;
+  border-radius: 16px;
+  flex: none;
+}
+
+.sketch-dock-scroll {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: .3rem;
+  padding: .5rem;
+  min-height: 0;
+  max-height: 70vh;
+  overflow-y: auto;
 }
 
-.screenshot-tool-btn {
+.sketch-dock-divider {
+  height: 1px;
+  width: 100%;
+  background: var(--panel-border);
+  margin: .2rem 0;
+  flex: none;
+}
+
+.screenshot-tool-btn,
+.sketch-dock-btn {
   border: 1px solid var(--panel-border);
   background: var(--btn-bg);
   color: var(--color-kotext);
@@ -90,10 +250,12 @@
   padding: 0;
   border-radius: 8px;
   cursor: pointer;
-  transition: background .15s, color .15s, border-color .15s;
+  flex: none;
+  transition: background .15s, color .15s, border-color .15s, opacity .15s;
 }
 
-.screenshot-tool-btn:hover {
+.screenshot-tool-btn:hover,
+.sketch-dock-btn:not(:disabled):hover {
   border-color: var(--accent);
 }
 
@@ -103,55 +265,43 @@
   color: var(--color-koaccenttext);
 }
 
-.screenshot-style-row {
-  display: flex;
-  gap: .6rem;
+.sketch-dock-btn:disabled {
+  opacity: .45;
+  cursor: default;
 }
 
-.screenshot-field {
-  display: flex;
-  flex-direction: column;
-  gap: .25rem;
-  flex: 1;
-  min-width: 0;
+.sketch-dock-export {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--color-koaccenttext);
 }
 
-.screenshot-field > span:first-child {
-  color: var(--color-kodim);
-  font-size: .7rem;
+.sketch-dock-export:hover {
+  filter: brightness(1.08);
 }
 
-.screenshot-field input[type="color"] {
-  width: 100%;
-  height: 28px;
-  border: 1px solid var(--panel-border);
-  border-radius: 6px;
-  background: none;
-  padding: 0;
-  cursor: pointer;
-}
-
-.screenshot-field input[type="range"] {
-  accent-color: var(--accent);
-  width: 100%;
-}
-
-.screenshot-field-value {
-  color: var(--color-kodim);
-  font-size: .7rem;
-  align-self: flex-end;
-}
-
-.screenshot-text-row[hidden] {
-  display: none !important;
-}
+/* --- Formularz "Dodaj wg współrzędnych", jako popover pod przyciskiem "Koordynaty" ---
+   Pozycjonowany position:fixed i umieszczany dokładnie pod przyciskiem przez JS
+   (positionCoordForm() w map-screenshot.js, ten sam wzorzec co
+   .screenshot-text-input), bo przycisk siedzi wśród innych elementów w
+   .sketch-stylebar (swatch/slidery chowają się/pokazują zależnie od
+   narzędzia), więc jego pozycja w rzędzie nie jest stała.
+   W JSX (app/map/page.js) ten div jest CELOWO umieszczony poza .sketch-dock/
+   .sketch-stylebar — te mają backdrop-filter, który (jak filter/transform)
+   tworzy nowy containing block dla position:fixed potomków; gdyby popover był
+   ich potomkiem, jego top/left liczyłyby się względem tego panelu zamiast
+   viewportu i positionCoordForm() wystawiałby go w złym miejscu. */
 
 .screenshot-coord-form {
+  position: fixed;
+  z-index: 80;
   display: flex;
   flex-direction: column;
   gap: .4rem;
-  border-top: 1px solid var(--panel-border);
-  padding-top: .6rem;
+  width: 220px;
+  max-width: calc(100vw - 1.2rem);
+  border-radius: 14px;
+  padding: .6rem .7rem;
 }
 
 .screenshot-coord-form[hidden] {
@@ -204,44 +354,28 @@
   cursor: pointer;
 }
 
-.screenshot-coord-form button:hover,
-.screenshot-actions-row button:not(:disabled):hover {
+.screenshot-coord-form button:hover {
   border-color: var(--accent);
 }
 
-.screenshot-actions-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: .4rem;
-  border-top: 1px solid var(--panel-border);
-  padding-top: .6rem;
-}
+/* --- Popover eksportu, zakotwiczony przy przycisku eksportu w doku --- */
 
-.screenshot-actions-row button {
-  border: 1px solid var(--panel-border);
-  background: var(--btn-bg);
-  color: var(--color-kotext);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: 38px;
-  padding: 0;
-  border-radius: 8px;
-  cursor: pointer;
-  flex: 1 1 45%;
-}
-
-.screenshot-actions-row button:disabled {
-  opacity: .45;
-  cursor: default;
-}
-
-.screenshot-export {
+.sketch-export-panel {
+  position: absolute;
+  left: 100%;
+  bottom: 0;
+  margin-left: .6rem;
+  width: 220px;
   display: flex;
   flex-direction: column;
-  gap: .5rem;
-  border-top: 1px solid var(--panel-border);
-  padding-top: .6rem;
+  gap: .6rem;
+  border-radius: 14px;
+  padding: .7rem .8rem;
+  z-index: 75;
+}
+
+.sketch-export-panel[hidden] {
+  display: none !important;
 }
 
 .screenshot-export-format {
@@ -305,12 +439,52 @@
 }
 
 @media (max-width: 860px) {
-  .screenshot-toolbar {
+  .sketch-toolbar {
     left: .6rem;
     right: .6rem;
-    top: .6rem;
+    top: auto;
+    bottom: .6rem;
+    max-height: 60vh;
+  }
+
+  .sketch-topline {
+    flex-direction: column-reverse;
+    width: 100%;
+  }
+
+  .sketch-stylebar {
+    width: 100%;
+  }
+
+  .sketch-dock {
+    width: 100%;
+  }
+
+  .sketch-dock-scroll {
+    flex-direction: row;
+    flex-wrap: wrap;
+    max-height: none;
+    overflow: visible;
+    width: 100%;
+  }
+
+  .sketch-dock-divider {
+    width: 1px;
+    height: 38px;
+    align-self: stretch;
+    margin: 0 .2rem;
+  }
+
+  .sketch-dock-export {
+    flex: 1 1 100%;
+    height: 44px;
+  }
+
+  .sketch-export-panel {
+    left: 0;
+    right: 0;
+    bottom: calc(100% + .6rem);
+    margin-left: 0;
     width: auto;
-    max-width: none;
-    max-height: 70vh;
   }
 }

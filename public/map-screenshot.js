@@ -1,4 +1,4 @@
-// Edytor zrzutów ekranu / adnotacji na mapie. Wyspa (island) doczepiona do map.js:
+// Szkic (edytor adnotacji na mapie). Wyspa (island) doczepiona do map.js:
 // rysuje na dodatkowej, przezroczystej warstwie canvas (#screenshot-layer) wewnątrz
 // #map-canvas, wg dokładnie tego samego wzorca co #lines-layer w map.js (drawLines()) —
 // współrzędne przeliczane na świeżo z aktualnych scale/originX/originY przy każdym
@@ -6,11 +6,12 @@
 // window.MapApp (getViewState/screenToMapPx/logicalToMapPx/onTransform/renderBaseMapToCanvas),
 // wystawionego przez map.js – ten skrypt musi się ładować PO map.js.
 //
-// Edytor jest trzecim trybem w istniejącym przełączniku Ogólne/Transport (#mode-toggle,
-// przycisk #mode-editor) – map.js sam nie wie nic o "editor" jako trybie (jego
-// applyMode() traktuje każdą wartość inną niż 'transport' jak 'general', co jest
-// nieszkodliwym fallbackiem), więc chowanie punktów/legendy i otwieranie panelu
-// robimy tutaj, osobno od istniejącej logiki kategorii/tras w map.js.
+// Szkic jest trzecim trybem w istniejącym przełączniku Ogólne/Transport (#mode-toggle,
+// przycisk #mode-editor — id/data-mode zostają "editor" wewnętrznie, zmienia się tylko
+// widoczna etykieta) – map.js sam nie wie nic o "editor" jako trybie (jego applyMode()
+// traktuje każdą wartość inną niż 'transport' jak 'general', co jest nieszkodliwym
+// fallbackiem), więc chowanie punktów/legendy i otwieranie panelu robimy tutaj, osobno
+// od istniejącej logiki kategorii/tras w map.js.
 console.log('[map-screenshot] script start');
 
 const MapApp = window.MapApp;
@@ -24,21 +25,26 @@ const modeTransportBtn = document.getElementById('mode-transport');
 const modeEditorBtn = document.getElementById('mode-editor');
 const markersLayer = document.getElementById('markers-layer');
 const filtersPanel = document.getElementById('filters-panel');
+const searchFloat = document.getElementById('map-search-float');
 
 const toolbar = document.getElementById('screenshot-toolbar');
-const closeBtn = document.getElementById('screenshot-close');
 const toolButtons = Array.from(document.querySelectorAll('.screenshot-tool-btn'));
 
 const strokeColorInput = document.getElementById('screenshot-stroke-color');
+const strokeRow = document.getElementById('screenshot-stroke-row');
 const strokeWidthInput = document.getElementById('screenshot-stroke-width');
 const strokeWidthValueEl = document.getElementById('screenshot-stroke-width-value');
+const fillRow = document.getElementById('screenshot-fill-row');
 const fillColorInput = document.getElementById('screenshot-fill-color');
+const fillOpacityRow = document.getElementById('screenshot-fill-opacity-row');
 const fillOpacityInput = document.getElementById('screenshot-fill-opacity');
-const fillOpacityValueEl = document.getElementById('screenshot-fill-opacity-value');
 const fontSizeRow = document.getElementById('screenshot-text-size-row');
 const fontSizeInput = document.getElementById('screenshot-font-size');
 const fontSizeValueEl = document.getElementById('screenshot-font-size-value');
 
+const FILL_OPACITY_DEFAULT = 0.25;
+
+const coordToggleBtn = document.getElementById('screenshot-coord-toggle');
 const coordForm = document.getElementById('screenshot-coord-form');
 const coordX1 = document.getElementById('screenshot-coord-x1');
 const coordZ1 = document.getElementById('screenshot-coord-z1');
@@ -57,6 +63,8 @@ const pdfOptions = document.getElementById('screenshot-pdf-options');
 const pageFormatSelect = document.getElementById('screenshot-page-format');
 const pageOrientationSelect = document.getElementById('screenshot-page-orientation');
 const exportBtn = document.getElementById('screenshot-export-btn');
+const exportToggleBtn = document.getElementById('screenshot-export-toggle');
+const exportPanel = document.getElementById('sketch-export-panel');
 
 const SELECTION_COLOR = '#2563eb';
 
@@ -65,8 +73,14 @@ if (MapApp && canvasEl && ctx && viewport) {
   let strokeColor = strokeColorInput ? strokeColorInput.value : '#e11d48';
   let strokeWidthMapPx = strokeWidthInput ? Number(strokeWidthInput.value) : 2;
   let fillColor = fillColorInput ? fillColorInput.value : '#e11d48';
-  let fillOpacity = fillOpacityInput ? Number(fillOpacityInput.value) : 0.25;
+  let fillOpacity = fillOpacityInput ? (fillOpacityInput.checked ? FILL_OPACITY_DEFAULT : 0) : FILL_OPACITY_DEFAULT;
   let fontSizeMapPx = fontSizeInput ? Number(fontSizeInput.value) : 16;
+  let coordPanelOpen = false;
+
+  function setSwatchColor(input, value) {
+    const swatch = input && input.closest('.sketch-swatch');
+    if (swatch) swatch.style.setProperty('--swatch-color', value);
+  }
 
   let shapes = [];
   let activeShape = null;
@@ -496,6 +510,7 @@ if (MapApp && canvasEl && ctx && viewport) {
       strokeColor = shape.color;
       fontSizeMapPx = shape.fontSizeMapPx;
       if (strokeColorInput) strokeColorInput.value = shape.color;
+      setSwatchColor(strokeColorInput, shape.color);
       if (fontSizeInput) fontSizeInput.value = String(shape.fontSizeMapPx);
       if (fontSizeValueEl) fontSizeValueEl.textContent = String(shape.fontSizeMapPx);
       return;
@@ -503,20 +518,26 @@ if (MapApp && canvasEl && ctx && viewport) {
     strokeColor = shape.strokeColor;
     strokeWidthMapPx = shape.strokeWidthMapPx;
     if (strokeColorInput) strokeColorInput.value = shape.strokeColor;
+    setSwatchColor(strokeColorInput, shape.strokeColor);
     if (strokeWidthInput) strokeWidthInput.value = String(shape.strokeWidthMapPx);
     if (strokeWidthValueEl) strokeWidthValueEl.textContent = String(shape.strokeWidthMapPx);
     if (shape.type === 'rect' || shape.type === 'ellipse') {
       fillColor = shape.fillColor;
       fillOpacity = shape.fillOpacity;
       if (fillColorInput) fillColorInput.value = shape.fillColor;
-      if (fillOpacityInput) fillOpacityInput.value = String(shape.fillOpacity);
-      if (fillOpacityValueEl) fillOpacityValueEl.textContent = Math.round(shape.fillOpacity * 100) + '%';
+      setSwatchColor(fillColorInput, shape.fillColor);
+      if (fillOpacityInput) fillOpacityInput.checked = shape.fillOpacity > 0;
     }
   }
 
   function updateStyleRowsVisibility() {
-    const showFont = tool === 'text' || (tool === 'select' && selectedShape?.type === 'text');
+    const activeType = tool === 'select' ? selectedShape?.type : tool;
+    const showFont = activeType === 'text';
+    const showFill = activeType === 'rect' || activeType === 'ellipse';
     if (fontSizeRow) fontSizeRow.hidden = !showFont;
+    if (strokeRow) strokeRow.hidden = showFont;
+    if (fillRow) fillRow.hidden = !showFill;
+    if (fillOpacityRow) fillOpacityRow.hidden = !showFill;
   }
 
   function selectShape(idx) {
@@ -602,18 +623,66 @@ if (MapApp && canvasEl && ctx && viewport) {
     if (pendingTextInput) pendingTextInput.el.blur();
   }
 
-  function setTool(next) {
-    const leavingSelect = tool === 'select' && next !== 'select';
-    tool = next;
-    toolButtons.forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.tool === next)));
-    canvasEl.style.pointerEvents = next === 'pan' ? 'none' : 'auto';
-    canvasEl.style.cursor = next === 'pan' ? '' : next === 'select' ? 'default' : 'crosshair';
-    const supportsCoordForm = ['line', 'arrow', 'rect', 'ellipse', 'text'].includes(next);
-    if (coordForm) coordForm.hidden = !supportsCoordForm;
-    const singlePoint = next === 'text';
+  function closeExportPanel() {
+    if (exportPanel) exportPanel.hidden = true;
+    if (exportToggleBtn) exportToggleBtn.setAttribute('aria-expanded', 'false');
+  }
+
+  function closeCoordPanel() {
+    coordPanelOpen = false;
+    if (coordForm) coordForm.hidden = true;
+    if (coordToggleBtn) coordToggleBtn.setAttribute('aria-expanded', 'false');
+  }
+
+  // Przycisk "Koordynaty" siedzi w pasku stylu (.sketch-stylebar, druga
+  // "wysepka" edytora obok doku narzędzi), wśród swatchy/sliderów które same
+  // chowają się/pokazują zależnie od narzędzia — więc jego pozycja w rzędzie
+  // nie jest stała. Popover pozycjonujemy więc jako position:fixed, wyliczane
+  // z getBoundingClientRect() samego przycisku (ten sam wzorzec co
+  // repositionPendingTextInput() dla pola tekstowego narzędzia "Tekst"), żeby
+  // zawsze wylądować dokładnie pod nim, niezależnie od tego gdzie w rzędzie się
+  // znajduje i czy pasek stylu jest w układzie desktopowym czy mobilnym.
+  function positionCoordForm() {
+    if (!coordForm || !coordToggleBtn) return;
+    const gap = 8;
+    const rect = coordToggleBtn.getBoundingClientRect();
+    const prevVisibility = coordForm.style.visibility;
+    coordForm.style.visibility = 'hidden';
+    const formRect = coordForm.getBoundingClientRect();
+    coordForm.style.visibility = prevVisibility;
+
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const openUpward = spaceBelow < formRect.height + gap && rect.top > formRect.height + gap;
+    let top = openUpward ? rect.top - formRect.height - gap : rect.bottom + gap;
+    top = Math.max(gap, Math.min(top, window.innerHeight - formRect.height - gap));
+
+    let left = rect.left;
+    left = Math.max(gap, Math.min(left, window.innerWidth - formRect.width - gap));
+
+    coordForm.style.top = `${top}px`;
+    coordForm.style.left = `${left}px`;
+  }
+
+  function updateCoordToggleAvailability() {
+    const supportsCoordForm = ['line', 'arrow', 'rect', 'ellipse', 'text'].includes(tool);
+    if (coordToggleBtn) coordToggleBtn.hidden = !supportsCoordForm;
+    if (!supportsCoordForm) closeCoordPanel();
+    if (coordForm) coordForm.hidden = !(coordPanelOpen && supportsCoordForm);
+    if (coordPanelOpen && supportsCoordForm) positionCoordForm();
+    const singlePoint = tool === 'text';
     if (coordX2) coordX2.hidden = singlePoint;
     if (coordZ2) coordZ2.hidden = singlePoint;
     if (coordSep) coordSep.hidden = singlePoint;
+  }
+
+  function setTool(next) {
+    const leavingSelect = tool === 'select' && next !== 'select';
+    tool = next;
+    closeExportPanel();
+    toolButtons.forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.tool === next)));
+    canvasEl.style.pointerEvents = next === 'pan' ? 'none' : 'auto';
+    canvasEl.style.cursor = next === 'pan' ? '' : next === 'select' ? 'default' : 'crosshair';
+    updateCoordToggleAvailability();
     cancelActiveDrawing();
     if (leavingSelect) selectShape(null);
     updateStyleRowsVisibility();
@@ -834,8 +903,8 @@ if (MapApp && canvasEl && ctx && viewport) {
     doc.save(`mapa-kobywatel-${stamp}.pdf`);
   }
 
-  // --- Wejście/wyjście trybu edytora, sterowane trzecim przyciskiem w #mode-toggle
-  //     (Ogólne/Transport/Edytor), a nie osobnym przełącznikiem. map.js sam obsłuży
+  // --- Wejście/wyjście trybu Szkicu, sterowane trzecim przyciskiem w #mode-toggle
+  //     (Ogólne/Transport/Szkic), a nie osobnym przełącznikiem. map.js sam obsłuży
   //     kliknięcie (jego applyMode('editor') zachowa się jak nieszkodliwy fallback
   //     do 'general'); tu tylko chowamy punkty/legendę i otwieramy panel.
 
@@ -843,6 +912,7 @@ if (MapApp && canvasEl && ctx && viewport) {
     if (toolbar) toolbar.hidden = false;
     if (markersLayer) markersLayer.style.display = 'none';
     if (filtersPanel) filtersPanel.style.display = 'none';
+    if (searchFloat) searchFloat.style.display = 'none';
     setTool('pan');
   }
 
@@ -850,6 +920,9 @@ if (MapApp && canvasEl && ctx && viewport) {
     if (toolbar) toolbar.hidden = true;
     if (markersLayer) markersLayer.style.display = '';
     if (filtersPanel) filtersPanel.style.display = '';
+    if (searchFloat) searchFloat.style.display = '';
+    closeExportPanel();
+    closeCoordPanel();
     setTool('pan');
   }
 
@@ -857,13 +930,14 @@ if (MapApp && canvasEl && ctx && viewport) {
     if (modeEditorBtn) modeEditorBtn.addEventListener('click', enterEditorMode);
     if (modeGeneralBtn) modeGeneralBtn.addEventListener('click', exitEditorMode);
     if (modeTransportBtn) modeTransportBtn.addEventListener('click', exitEditorMode);
-    if (closeBtn) closeBtn.addEventListener('click', () => modeGeneralBtn?.click());
 
     toolButtons.forEach((btn) => btn.addEventListener('click', () => setTool(btn.dataset.tool)));
 
     if (strokeColorInput) {
+      setSwatchColor(strokeColorInput, strokeColorInput.value);
       strokeColorInput.addEventListener('input', (e) => {
         strokeColor = e.target.value;
+        setSwatchColor(strokeColorInput, strokeColor);
         if (tool === 'select' && selectedShape) {
           ensureStyleEditSnapshot();
           if (selectedShape.type === 'text') selectedShape.color = strokeColor;
@@ -884,8 +958,10 @@ if (MapApp && canvasEl && ctx && viewport) {
       });
     }
     if (fillColorInput) {
+      setSwatchColor(fillColorInput, fillColorInput.value);
       fillColorInput.addEventListener('input', (e) => {
         fillColor = e.target.value;
+        setSwatchColor(fillColorInput, fillColor);
         if (tool === 'select' && selectedShape && (selectedShape.type === 'rect' || selectedShape.type === 'ellipse')) {
           ensureStyleEditSnapshot();
           selectedShape.fillColor = fillColor;
@@ -894,9 +970,8 @@ if (MapApp && canvasEl && ctx && viewport) {
       });
     }
     if (fillOpacityInput) {
-      fillOpacityInput.addEventListener('input', (e) => {
-        fillOpacity = Number(e.target.value);
-        if (fillOpacityValueEl) fillOpacityValueEl.textContent = Math.round(fillOpacity * 100) + '%';
+      fillOpacityInput.addEventListener('change', (e) => {
+        fillOpacity = e.target.checked ? FILL_OPACITY_DEFAULT : 0;
         if (tool === 'select' && selectedShape && (selectedShape.type === 'rect' || selectedShape.type === 'ellipse')) {
           ensureStyleEditSnapshot();
           selectedShape.fillOpacity = fillOpacity;
@@ -932,7 +1007,36 @@ if (MapApp && canvasEl && ctx && viewport) {
     );
 
     if (coordAddBtn) coordAddBtn.addEventListener('click', onCoordFormSubmit);
-    if (exportBtn) exportBtn.addEventListener('click', exportImage);
+
+    if (coordToggleBtn && coordForm) {
+      coordToggleBtn.addEventListener('click', () => {
+        if (coordToggleBtn.hidden) return;
+        coordPanelOpen = coordForm.hidden;
+        closeExportPanel();
+        coordForm.hidden = !coordPanelOpen;
+        if (coordPanelOpen) positionCoordForm();
+        coordToggleBtn.setAttribute('aria-expanded', String(coordPanelOpen));
+      });
+      window.addEventListener('resize', () => {
+        if (coordPanelOpen) positionCoordForm();
+      });
+    }
+
+    if (exportToggleBtn && exportPanel) {
+      exportToggleBtn.addEventListener('click', () => {
+        const next = exportPanel.hidden;
+        closeCoordPanel();
+        exportPanel.hidden = !next;
+        exportToggleBtn.setAttribute('aria-expanded', String(next));
+      });
+    }
+    if (exportBtn) {
+      exportBtn.addEventListener('click', () => {
+        exportImage();
+        if (exportPanel) exportPanel.hidden = true;
+        if (exportToggleBtn) exportToggleBtn.setAttribute('aria-expanded', 'false');
+      });
+    }
 
     canvasEl.addEventListener('pointerdown', onPointerDown);
     canvasEl.addEventListener('pointermove', onPointerMove);
