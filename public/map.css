@@ -2658,3 +2658,161 @@ body.light .timeline-node.transfer .node-icon {
     display: none !important;
   }
 }
+
+/* Integracja kLink (mod gracza) — patrz public/map.js, sekcja "KLink" */
+.klink-waypoint-btn {
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  color: var(--color-koaccenttext);
+  padding: .45rem .6rem;
+  font-size: .55rem;
+  font-weight: 600;
+  letter-spacing: .3px;
+  border-radius: 10px;
+  cursor: pointer;
+  align-self: flex-start;
+  transition: filter .2s;
+}
+
+.klink-waypoint-btn:hover {
+  filter: brightness(1.1);
+}
+
+.klink-player-marker {
+  pointer-events: none;
+  z-index: 25;
+}
+
+.klink-player-marker .marker-btn {
+  background: var(--accent);
+  position: relative;
+}
+
+.klink-player-marker .marker-btn::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  border: 2px solid var(--accent);
+  animation: klink-live-ping 1.8s ease-out infinite;
+}
+
+@keyframes klink-live-ping {
+  0% { transform: scale(.6); opacity: .8; }
+  100% { transform: scale(1.8); opacity: 0; }
+}
+
+.klink-banner {
+  position: absolute;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: .4rem;
+  width: min(300px, 80vw);
+  background: var(--panel-bg);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
+  backdrop-filter: blur(14px) saturate(160%);
+  border: 1px solid var(--panel-border);
+  padding: .55rem .7rem;
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  font-size: .65rem;
+  line-height: 1.35;
+}
+
+.klink-banner[hidden] {
+  display: none;
+}
+
+.klink-banner-header {
+  display: flex;
+  align-items: flex-start;
+  gap: .5rem;
+}
+
+.klink-banner-text {
+  flex: 1 1 auto;
+  color: var(--color-kotext);
+}
+
+.klink-banner-actions {
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+}
+
+.klink-banner-link,
+.klink-banner-refresh {
+  font-size: .6rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.klink-banner-link {
+  color: var(--accent);
+}
+
+.klink-banner-refresh {
+  background: var(--btn-bg);
+  color: var(--color-kotext);
+  border: 1px solid var(--panel-border);
+  padding: .3rem .55rem;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.klink-banner-refresh:hover {
+  border-color: var(--accent);
+}
+
+.klink-banner-close {
+  flex: 0 0 auto;
+  background: transparent;
+  color: var(--color-kotext);
+  opacity: .6;
+  border: none;
+  font-size: .65rem;
+  line-height: 1;
+  padding: .25rem;
+  cursor: pointer;
+}
+
+.klink-banner-close:hover {
+  opacity: 1;
+}
+
+/* Na mobile #map-controls żyje w innym miejscu (patrz media query .map-controls-float)
+   i koliduje z dolnym arkuszem #filters-panel, więc baner integracji tam nie pokazujemy. */
+@media (max-width:860px) {
+  .klink-banner {
+    display: none !important;
+  }
+}
+
+.klink-toast {
+  position: absolute;
+  left: 50%;
+  bottom: .75rem;
+  transform: translateX(-50%) translateY(6px);
+  z-index: 60;
+  background: var(--panel-bg);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
+  backdrop-filter: blur(14px) saturate(160%);
+  border: 1px solid var(--panel-border);
+  padding: .5rem .75rem;
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  font-size: .65rem;
+  font-weight: 600;
+  color: var(--color-kotext);
+  max-width: min(320px, 90vw);
+  text-align: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .2s, transform .2s;
+}
+
+.klink-toast.visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}

@@ -62,4 +62,4 @@ Bundled (in-repo, not external) data: kWiedza docs (`public/assets/docs/index.js
 
 ## Hosting
 
-Vercel, Next.js preset, static export. `vercel.json` sets security headers (CSP, X-Content-Type-Options, Referrer-Policy, Permissions-Policy). Custom domain `kobywatel-mc.stankiewiczm.eu` (was GitHub Pages; the `CNAME` file is retired on Vercel).
+Vercel, Next.js preset, static export. `vercel.json` sets security headers (CSP, X-Content-Type-Options, Referrer-Policy, Permissions-Policy). Custom domain `kobywatel-mc.stankiewiczm.eu` (was GitHub Pages; the GitHub Pages `CNAME` file was removed since Vercel manages the custom domain itself).

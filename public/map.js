@@ -8,6 +8,7 @@ const crosshairEl = document.getElementById('map-crosshair');
 let markersMainLayer = null; // standardowe punkty mapy
 let markersShopsLayer = null; // sklepy kHandel
 let markersCompaniesLayer = null; // firmy kFirma
+let markersKlinkPlayerLayer = null; // żywa pozycja gracza z integracji kLink
 const linesCanvas = document.getElementById('lines-layer');
 const linesCtx = linesCanvas ? linesCanvas.getContext('2d') : null;
 const loadingEl = document.getElementById('loading');
@@ -208,6 +209,11 @@ function ensureMarkerSublayers(){
     markersCompaniesLayer = document.createElement('div');
     markersCompaniesLayer.className = 'markers-sub markers-companies';
     markersLayer.appendChild(markersCompaniesLayer);
+  }
+  if(!markersKlinkPlayerLayer){
+    markersKlinkPlayerLayer = document.createElement('div');
+    markersKlinkPlayerLayer.className = 'markers-sub markers-klink-player';
+    markersLayer.appendChild(markersKlinkPlayerLayer);
   }
 }
 
@@ -1757,7 +1763,10 @@ function renderPointDetail(pt){
   const tags = (pt.tags||[]).map(t=> `<span class="tag">${escapeHtml(t)}</span>`).join('');
   pointDetailEl.innerHTML = `<h4>${escapeHtml(pt.name)}</h4>${pt.description?`<div>${escapeHtml(pt.description)}</div>`:''}
     <div class="meta"><span>X:${escapeHtml(pt.x)}</span><span>Z:${escapeHtml(logicY)}</span><span>ID:${escapeHtml(pt.id)}</span>${pt.category?`<span>Kategoria:${escapeHtml(pt.category)}</span>`:''}</div>
-    ${tags?`<div class="tags">${tags}</div>`:''}`;
+    ${tags?`<div class="tags">${tags}</div>`:''}
+    <button type="button" class="klink-waypoint-btn">Dodaj/aktualizuj waypoint w grze</button>`;
+  const klinkBtn = pointDetailEl.querySelector('.klink-waypoint-btn');
+  if(klinkBtn){ klinkBtn.addEventListener('click', ()=> klinkAddOrUpdateWaypoint(pt)); }
 }
 
 if(pointSearchClearBtn){
@@ -1775,10 +1784,7 @@ if(pointSearchClearBtn){
   });
 }
 
-// Prosta funkcja debounce do ograniczenia liczby przebudów przy wpisywaniu
-function debounce(fn, wait=120){
-  let t; return function(...args){ clearTimeout(t); t = setTimeout(()=> fn.apply(this,args), wait); };
-}
+const debounce = window.debounce;
 
 function updateSearchClearVisibility(){
   if(!pointSearchClearBtn || !searchInput) return;
@@ -2867,7 +2873,204 @@ function purgeTilesOfOtherTheme(){
   }
 }
 
+// --- Integracja kLink (mod gracza, patrz integracja-kobywatel.md) ---
+// Serwer lokalny nasłuchuje tylko, gdy gra jest otwarta i mod załadowany;
+// błąd sieciowy (fetch rzuca wyjątek) jest tu oczekiwanym, częstym stanem,
+// a nie awarią do zgłaszania.
+const KLINK_BASE = 'http://127.0.0.1:31371';
+const KLINK_INFO_URL = 'https://modrinth.com/modpack/kpack';
+let klinkPlayerPollTimer = null;
+let klinkRecovering = false; // blokuje równoległe próby odzyskania połączenia
+let klinkBannerEl = null;
+let klinkBannerResizeObserver = null;
+let klinkToastEl = null;
+let klinkToastTimer = null;
+
+// Zwraca Response albo null przy błędzie sieciowym (mod nieosiągalny) —
+// odróżnia to od odpowiedzi HTTP z błędem (mod działa, ale np. 409/404).
+async function klinkRequest(path, opts){
+  try { return await fetch(KLINK_BASE + path, opts); }
+  catch(_){ return null; }
+}
+
+async function klinkCheckHealth(){
+  const res = await klinkRequest('/health');
+  if(!res) return false;
+  try { const data = await res.json(); return !!(res.ok && data && data.ok); }
+  catch(_){ return false; }
+}
+
+async function klinkFetchStatusRaw(){
+  const res = await klinkRequest('/status');
+  return !!res;
+}
+
+// Wywoływane, gdy dowolny endpoint poza /health zgłosi błąd połączenia.
+// Health sprawdza wtedy stan moda: jeśli działa, ponawiamy /status i wracamy
+// do odpytywania pozycji; jeśli nie, pokazujemy baner braku integracji.
+async function klinkHandleConnectionLoss(){
+  if(klinkRecovering) return false;
+  klinkRecovering = true;
+  try {
+    stopKlinkPlayerPolling();
+    const healthy = await klinkCheckHealth();
+    if(healthy){
+      const statusOk = await klinkFetchStatusRaw();
+      if(statusOk){
+        hideKlinkBanner();
+        startKlinkPlayerPolling();
+        return true;
+      }
+    }
+    showKlinkBanner();
+    return false;
+  } finally {
+    klinkRecovering = false;
+  }
+}
+
+async function initKLink(){
+  const healthy = await klinkCheckHealth();
+  if(!healthy){ showKlinkBanner(); return; }
+  const statusOk = await klinkFetchStatusRaw();
+  if(!statusOk){ await klinkHandleConnectionLoss(); return; }
+  hideKlinkBanner();
+  startKlinkPlayerPolling();
+}
+
+function startKlinkPlayerPolling(){
+  if(klinkPlayerPollTimer) return;
+  klinkPlayerPollTimer = setInterval(klinkPollPlayer, 1000);
+  klinkPollPlayer();
+}
+
+function stopKlinkPlayerPolling(){
+  if(klinkPlayerPollTimer){ clearInterval(klinkPlayerPollTimer); klinkPlayerPollTimer = null; }
+  removeKlinkPlayerMarker();
+}
+
+async function klinkPollPlayer(){
+  const res = await klinkRequest('/player');
+  if(!res){ await klinkHandleConnectionLoss(); return; }
+  let data = null;
+  try { data = await res.json(); } catch(_){ }
+  if(data && data.ok && data.inGame && data.dimension === 'overworld' && isFinite(data.x) && isFinite(data.z)){
+    updateKlinkPlayerMarker(data.x, data.z);
+  } else {
+    removeKlinkPlayerMarker();
+  }
+}
+
+function updateKlinkPlayerMarker(worldX, worldZ){
+  if(!mapData || !imgWidth || !imgHeight) return;
+  ensureMarkerSublayers();
+  if(!markersKlinkPlayerLayer) return;
+  const { x: pxX, y: pxY } = logicalToPx(worldX, worldZ);
+  let wrap = markersKlinkPlayerLayer.querySelector('.klink-player-marker');
+  if(!wrap){
+    wrap = document.createElement('div');
+    wrap.className = 'marker klink-player-marker';
+    const btn = document.createElement('div');
+    btn.className = 'marker-btn';
+    const icon = document.createElement('img');
+    icon.src = '/icns_ui/person.svg';
+    icon.alt = '';
+    icon.setAttribute('aria-hidden', 'true');
+    btn.appendChild(icon);
+    wrap.appendChild(btn);
+    markersKlinkPlayerLayer.appendChild(wrap);
+  }
+  wrap.style.left = pxX + 'px';
+  wrap.style.top = pxY + 'px';
+  wrap.dataset.px = String(pxX);
+  wrap.dataset.py = String(pxY);
+}
+
+function removeKlinkPlayerMarker(){
+  if(markersKlinkPlayerLayer) markersKlinkPlayerLayer.innerHTML = '';
+}
+
+function ensureKlinkBanner(){
+  if(klinkBannerEl) return klinkBannerEl;
+  const el = document.createElement('div');
+  el.className = 'klink-banner';
+  el.hidden = true;
+  el.innerHTML = `<div class="klink-banner-header">` +
+      `<span class="klink-banner-text">Nie wykryto integracji z grą.</span>` +
+      `<button type="button" class="klink-banner-close" aria-label="Zamknij">✕</button>` +
+    `</div>` +
+    `<div class="klink-banner-actions">` +
+      `<a class="klink-banner-link" href="${KLINK_INFO_URL}" target="_blank" rel="noreferrer noopener">Dowiedz się więcej</a>` +
+      `<button type="button" class="klink-banner-refresh">Odśwież</button>` +
+    `</div>`;
+  el.querySelector('.klink-banner-refresh').addEventListener('click', ()=>{ initKLink(); });
+  el.querySelector('.klink-banner-close').addEventListener('click', ()=>{ hideKlinkBanner(); });
+  appRoot.appendChild(el);
+  klinkBannerEl = el;
+  const controls = document.getElementById('map-controls');
+  if(controls && window.ResizeObserver){
+    klinkBannerResizeObserver = new ResizeObserver(()=> positionKlinkBanner());
+    klinkBannerResizeObserver.observe(controls);
+  }
+  window.addEventListener('resize', positionKlinkBanner);
+  return el;
+}
+
+function positionKlinkBanner(){
+  if(!klinkBannerEl || klinkBannerEl.hidden || !appRoot) return;
+  const controls = document.getElementById('map-controls');
+  if(!controls) return;
+  const controlsRect = controls.getBoundingClientRect();
+  const appRect = appRoot.getBoundingClientRect();
+  klinkBannerEl.style.left = (controlsRect.left - appRect.left) + 'px';
+  klinkBannerEl.style.bottom = (appRect.bottom - controlsRect.top + 8) + 'px';
+}
+
+function showKlinkBanner(){
+  const el = ensureKlinkBanner();
+  el.hidden = false;
+  positionKlinkBanner();
+}
+
+function hideKlinkBanner(){
+  if(klinkBannerEl) klinkBannerEl.hidden = true;
+}
+
+function showKlinkToast(message){
+  if(!klinkToastEl){
+    klinkToastEl = document.createElement('div');
+    klinkToastEl.className = 'klink-toast';
+    appRoot.appendChild(klinkToastEl);
+  }
+  klinkToastEl.textContent = message;
+  klinkToastEl.classList.add('visible');
+  if(klinkToastTimer) clearTimeout(klinkToastTimer);
+  klinkToastTimer = setTimeout(()=> klinkToastEl.classList.remove('visible'), 4000);
+}
+
+async function klinkAddOrUpdateWaypoint(pt){
+  showKlinkToast('Otwórz grę, aby potwierdzić dodanie waypointa.');
+  const logicZ = (pt.z !== undefined ? pt.z : pt.y) || 0;
+  const res = await klinkRequest('/waypoint', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ points: [{ x: pt.x, z: logicZ, name: pt.name, id: pt.id }] })
+  });
+  if(!res){
+    showKlinkToast('Nie udało się połączyć z grą. Uruchom Minecraft z modem kLink.');
+    await klinkHandleConnectionLoss();
+    return;
+  }
+  if(res.status === 202) return; // domyślna ścieżka — toast "Otwórz grę" już wyświetlony
+  let data = null;
+  try { data = await res.json(); } catch(_){ }
+  if(res.ok && data?.ok){ showKlinkToast('Dodano waypoint w grze.'); return; }
+  if(data?.error === 'not_in_overworld'){ showKlinkToast('Wróć do Overworldu, aby dodać waypoint.'); return; }
+  showKlinkToast('Nie udało się dodać waypointa w grze.');
+}
+
 load();
+initKLink();
 // Globalne nasłuchy błędów runtime dla diagnostyki
 window.addEventListener('error', ev => {
   console.error('[map] window error', ev.error || ev.message);

@@ -231,9 +231,7 @@ function applyFilters() {
 }
 
 function bindFilters() {
-  let t = null;
-  const DEBOUNCE = 220;
-  searchEl?.addEventListener('input', () => { clearTimeout(t); t = setTimeout(applyFilters, DEBOUNCE); });
+  searchEl?.addEventListener('input', window.debounce(applyFilters, 220));
   businessTypeEl?.addEventListener('change', applyFilters);
   symbolEl?.addEventListener('change', applyFilters);
   voivEl?.addEventListener('change', applyFilters);

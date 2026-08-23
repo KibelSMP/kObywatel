@@ -610,9 +610,8 @@ function bindSearch() {
   if (form.__bound) return;
   form.__bound = true;
   form.addEventListener('submit', (e) => { e.preventDefault(); startSearch(queryInput.value); });
-  let t = null;
-  const DEBOUNCE = 250;
-  queryInput.addEventListener('input', () => { clearTimeout(t); t = setTimeout(() => startSearch(queryInput.value), DEBOUNCE); });
+  const onInput = window.debounce(() => startSearch(queryInput.value), 250);
+  queryInput.addEventListener('input', onInput);
 }
 
 window.__db.loadConfig().then(() => {
