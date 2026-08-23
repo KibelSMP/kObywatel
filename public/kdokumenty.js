@@ -3,7 +3,7 @@
 // weights, markdown-to-PDF renderer) and all form logic are VERBATIM; only status
 // classes and the back-button id were adjusted. Structural hooks (.kdok-box,
 // .kdok-toolbar, [data-action], [data-entity]) are preserved and provided by the
-// JSX shell. Globals: window.jspdf, window.marked.
+// JSX shell. Globals: window.jspdf, window.markdownit.
 
 const form = document.getElementById('kdok-form');
 const bodyInput = document.getElementById('docBody');
@@ -208,11 +208,12 @@ async function ensureLogoData() {
   return __logoPromise;
 }
 
+let __mdPreview = null;
 function updatePreview() {
   const val = bodyInput?.value || '';
-  if (window.marked) {
-    window.marked.setOptions({ breaks: true });
-    previewEl.innerHTML = window.marked.parse(val || '');
+  if (window.markdownit) {
+    if (!__mdPreview) __mdPreview = window.markdownit({ breaks: true });
+    previewEl.innerHTML = __mdPreview.render(val || '');
   } else {
     previewEl.textContent = val;
   }

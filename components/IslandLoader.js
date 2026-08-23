@@ -27,7 +27,6 @@ export default function IslandLoader({
   kwiedzaData = false,
   jspdf = false,
   autotable = false,
-  marked = false,
   homeLayout = false,
   navLayout = false,
 }) {
@@ -41,6 +40,7 @@ export default function IslandLoader({
         window.escapeHtml = u.escapeHtml;
         window.productMatchesQuery = u.productMatchesQuery;
         window.productFallbackName = u.productFallbackName;
+        window.debounce = u.debounce;
       }
       if (kwiedzaData) {
         const kd = await import('@/lib/kwiedzaData');
@@ -72,10 +72,6 @@ export default function IslandLoader({
       if (markdownIt) {
         const m = await import('markdown-it');
         window.markdownit = m.default;
-      }
-      if (marked) {
-        const mk = await import('marked');
-        window.marked = mk.marked || mk.default || mk;
       }
       if (jspdf) {
         const j = await import('jspdf');

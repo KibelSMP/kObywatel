@@ -114,7 +114,7 @@ export default function KdokumentyPage() {
         </div>
       </form>
 
-      <IslandLoader jspdf marked scripts={[{ src: '/kdokumenty.js', type: 'module' }]} />
+      <IslandLoader jspdf markdownIt scripts={[{ src: '/kdokumenty.js', type: 'module' }]} />
     </div>
   );
 }
