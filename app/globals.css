@@ -254,3 +254,291 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* =========================================================================
+   kLink "in-game" skin — active ONLY when kObywatel is opened inside the mod's
+   embedded browser (window.__klink.embedded; see tmp/integracja-kobywatel.md).
+   The beforeInteractive script in app/layout.js sets data-klink="embedded" on
+   <html>; force it for local preview with ?klinkskin=1 (clear with ?klinkskin=0).
+
+   Goal: every surface reads as a native Minecraft GUI widget — square corners,
+   chunky 2px bevelled frames, hard (blur-free) shadows, pixel-mono type with the
+   signature drop-shadow — WITHOUT leaving the kObywatel palette (accent #AC1943
+   and the dark surfaces are kept, only deepened).
+
+   Authored unlayered and scoped to :root[data-klink="embedded"], so it overrides
+   Tailwind's @layer utilities by cascade-layer order and is completely inert
+   when the attribute is absent. The map keeps its own copy of this block in
+   public/map.css (that stylesheet is loaded outside Tailwind and can't see this
+   one). !important here is deliberate: this is an opt-in whole-app reskin that
+   must beat per-element utility classes.
+   ========================================================================= */
+:root[data-klink="embedded"] {
+  /* Minecraft GUI is always dark — pin the dark token set regardless of the
+     player's OS light/dark preference, then deepen the backdrop. */
+  --color-kobg: #05080c;
+  --color-koelev: #0e1620;
+  --color-koelev2: #131f2b;
+  --color-koborder: #05080c;
+  --color-kotext: #e7edf4;
+  --color-kodim: #9fb0c3;
+  --color-koaccent2: #cc2d5a;
+  --color-koaccenttext: #fce7f3;
+
+  /* Skin primitives */
+  --mc-frame: #05080c;                     /* near-black outer frame line      */
+  --mc-outline: #2b3a4e;                    /* grey keyline MC widgets carry    */
+  --mc-light: rgba(255, 255, 255, 0.22);   /* top-left bevel highlight         */
+  --mc-dark: rgba(0, 0, 0, 0.55);          /* bottom-right bevel shadow        */
+  --mc-fill: #0c141d;                       /* generic widget fill             */
+  --mc-fill-sunken: #05080c;               /* text-field / inset fill         */
+  --mc-shadow: 6px 6px 0 0 rgba(0, 0, 0, 0.38); /* hard, blur-free drop shadow */
+  --mc-text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.65);
+  --mc-font: ui-monospace, "SF Mono", SFMono-Regular, "DejaVu Sans Mono", Consolas, "Liberation Mono", monospace;
+}
+
+/* Blanket: square every corner, drop every blur */
+:root[data-klink="embedded"] *,
+:root[data-klink="embedded"] *::before,
+:root[data-klink="embedded"] *::after {
+  border-radius: 0 !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+:root[data-klink="embedded"] body {
+  font-family: var(--mc-font);
+  -webkit-font-smoothing: none;
+  -moz-osx-font-smoothing: unset;
+  letter-spacing: 0.01em;
+  background-color: var(--color-kobg);
+  /* faint 32px block grid, echoing the tiled options-screen backdrop */
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.028) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.028) 1px, transparent 1px);
+  background-size: 32px 32px, 32px 32px;
+  background-attachment: fixed;
+}
+
+/* Signature Minecraft hard text shadow on anything that reads as UI copy */
+:root[data-klink="embedded"] h1,
+:root[data-klink="embedded"] h2,
+:root[data-klink="embedded"] h3,
+:root[data-klink="embedded"] h4,
+:root[data-klink="embedded"] p,
+:root[data-klink="embedded"] a,
+:root[data-klink="embedded"] span,
+:root[data-klink="embedded"] li,
+:root[data-klink="embedded"] label,
+:root[data-klink="embedded"] button,
+:root[data-klink="embedded"] th,
+:root[data-klink="embedded"] td,
+:root[data-klink="embedded"] input,
+:root[data-klink="embedded"] select {
+  text-shadow: var(--mc-text-shadow);
+}
+
+:root[data-klink="embedded"] h1 {
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* Header: solid game top-bar, no blur, black + accent underline */
+:root[data-klink="embedded"] header {
+  background-color: var(--color-kobg) !important;
+  border-bottom: 2px solid var(--mc-frame);
+  box-shadow: 0 2px 0 0 var(--color-koaccent), 0 8px 0 0 rgba(0, 0, 0, 0.35);
+}
+
+:root[data-klink="embedded"] footer {
+  border-top: 2px solid var(--mc-frame);
+  box-shadow: 0 -2px 0 0 var(--color-koaccent);
+}
+
+/* In-game these lead nowhere useful: Settings (header gear + mobile menu entry)
+   and the kPack tile (external Modrinth modpack — the player already has it). */
+:root[data-klink="embedded"] a[href="/settings/"],
+:root[data-klink="embedded"] #tile-kpack {
+  display: none !important;
+}
+
+/* Panels / cards: bevelled "widget" frame (flat fill — no gradients) */
+:root[data-klink="embedded"] [class*="bg-koelev"]:not(.tile),
+:root[data-klink="embedded"] .prose-kob pre {
+  background: var(--mc-fill) !important;
+  border: 2px solid var(--mc-frame) !important;
+  box-shadow:
+    inset 2px 2px 0 0 var(--mc-light),
+    inset -2px -2px 0 0 var(--mc-dark),
+    0 0 0 2px var(--mc-outline),
+    var(--mc-shadow);
+}
+
+/* Search fields whose editable <input> is wrapped in a styled row (home +
+   kHandel): the WRAPPER is the one sunken MC text field. Its inner input and
+   any inline icon / clear button stay completely bare — no nested box, border
+   or bevel from the generic input/button rules. */
+:root[data-klink="embedded"] #search-form > div,
+:root[data-klink="embedded"] div:has(> #khandel-search) {
+  background: var(--color-koelev2) !important;
+  border: 2px solid var(--mc-frame) !important;
+  box-shadow:
+    inset 2px 2px 0 0 var(--mc-dark),
+    inset -1px -1px 0 0 var(--mc-light) !important;
+}
+:root[data-klink="embedded"] #search-form input,
+:root[data-klink="embedded"] #search-form .search-icon,
+:root[data-klink="embedded"] #khandel-search,
+:root[data-klink="embedded"] #khandel-clear-search {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+}
+
+/* Buttons & tile links: a pressable bevelled button (flat fill — no gradients).
+   .marker-btn / .route-marker are excluded everywhere below — those are coloured
+   data points on the map, not GUI buttons (see also public/map.css). */
+:root[data-klink="embedded"] button:not(.marker-btn):not(.route-marker),
+:root[data-klink="embedded"] [role="button"]:not(.marker-btn):not(.route-marker),
+:root[data-klink="embedded"] a.tile,
+:root[data-klink="embedded"] input[type="submit"],
+:root[data-klink="embedded"] input[type="button"] {
+  background: var(--mc-fill) !important;
+  border: 2px solid var(--mc-frame) !important;
+  box-shadow:
+    inset 2px 2px 0 0 var(--mc-light),
+    inset -2px -2px 0 0 var(--mc-dark);
+  color: var(--color-kotext) !important;
+  text-shadow: var(--mc-text-shadow);
+  transition: none;
+}
+
+:root[data-klink="embedded"] button:not(.marker-btn):not(.route-marker):hover,
+:root[data-klink="embedded"] [role="button"]:not(.marker-btn):not(.route-marker):hover,
+:root[data-klink="embedded"] a.tile:hover,
+:root[data-klink="embedded"] input[type="submit"]:hover {
+  border-color: var(--color-koaccent) !important;
+  color: var(--color-koaccent2) !important;
+  background: color-mix(in srgb, var(--color-koaccent) 20%, var(--mc-fill)) !important;
+  transform: none !important;
+}
+
+:root[data-klink="embedded"] button:not(.marker-btn):not(.route-marker):active,
+:root[data-klink="embedded"] [role="button"]:not(.marker-btn):not(.route-marker):active,
+:root[data-klink="embedded"] a.tile:active,
+:root[data-klink="embedded"] input[type="submit"]:active {
+  box-shadow:
+    inset -2px -2px 0 0 var(--mc-light),
+    inset 2px 2px 0 0 var(--mc-dark);
+  transform: translate(1px, 1px) !important;
+}
+
+:root[data-klink="embedded"] button:disabled {
+  opacity: 0.5;
+}
+
+/* The tile links keep the widget drop-shadow the generic button rule omits */
+:root[data-klink="embedded"] a.tile {
+  box-shadow:
+    inset 2px 2px 0 0 var(--mc-light),
+    inset -2px -2px 0 0 var(--mc-dark),
+    0 0 0 2px var(--mc-outline),
+    var(--mc-shadow);
+}
+:root[data-klink="embedded"] a.tile:hover {
+  transform: translate(1px, 1px) !important;
+}
+
+/* aria-pressed toggles (map mode switch, tile-edit) → an accent-lit pressed well */
+:root[data-klink="embedded"] [aria-pressed="true"] {
+  border-color: var(--color-koaccent) !important;
+  color: var(--color-koaccenttext) !important;
+  background: color-mix(in srgb, var(--color-koaccent) 36%, black) !important;
+  box-shadow:
+    inset -2px -2px 0 0 var(--mc-light),
+    inset 2px 2px 0 0 var(--mc-dark) !important;
+}
+
+/* Text inputs / selects / textareas: a sunken MC field. Uses the koelev2 surface
+   colour (not the near-black --mc-fill-sunken) so standalone search fields —
+   kWiedza, kFirma — match the wrapped home/kHandel search bars above. */
+:root[data-klink="embedded"] input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="range"]),
+:root[data-klink="embedded"] select,
+:root[data-klink="embedded"] textarea {
+  background: var(--color-koelev2) !important;
+  border: 2px solid var(--mc-frame) !important;
+  box-shadow:
+    inset 2px 2px 0 0 var(--mc-dark),
+    inset -1px -1px 0 0 var(--mc-light);
+  color: var(--color-kotext) !important;
+  font-family: var(--mc-font);
+}
+
+:root[data-klink="embedded"] input:focus,
+:root[data-klink="embedded"] select:focus,
+:root[data-klink="embedded"] textarea:focus,
+:root[data-klink="embedded"] #search-form > div:focus-within,
+:root[data-klink="embedded"] div:has(> #khandel-search):focus-within {
+  outline: 2px solid var(--color-koaccent);
+  outline-offset: 2px;
+  border-color: var(--color-koaccent) !important;
+}
+
+/* Focus ring: square + accent (overrides the rounded global :focus-visible) */
+:root[data-klink="embedded"] :focus-visible {
+  outline: 2px solid var(--color-koaccent) !important;
+  outline-offset: 2px;
+  box-shadow: none !important;
+}
+
+/* Content links */
+:root[data-klink="embedded"] main a:not(.tile) {
+  color: var(--color-koaccent2);
+  text-decoration: none;
+}
+:root[data-klink="embedded"] main a:not(.tile):hover {
+  color: var(--color-koaccent);
+  text-decoration: underline;
+}
+
+/* Chunky square scrollbars */
+:root[data-klink="embedded"] ::-webkit-scrollbar {
+  width: 14px;
+  height: 14px;
+}
+:root[data-klink="embedded"] ::-webkit-scrollbar-track {
+  background: var(--mc-fill-sunken);
+  border: 2px solid var(--mc-frame);
+}
+:root[data-klink="embedded"] ::-webkit-scrollbar-thumb {
+  background: var(--color-koelev2);
+  border: 2px solid var(--mc-frame);
+  box-shadow:
+    inset 2px 2px 0 0 var(--mc-light),
+    inset -2px -2px 0 0 var(--mc-dark);
+}
+:root[data-klink="embedded"] ::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--color-koaccent) 40%, var(--color-koelev2));
+}
+
+/* Rendered-markdown odds and ends */
+:root[data-klink="embedded"] .prose-kob code {
+  background: var(--mc-fill-sunken);
+  border: 1px solid var(--mc-frame);
+}
+:root[data-klink="embedded"] .prose-kob pre code {
+  border: 0;
+}
+:root[data-klink="embedded"] .prose-kob blockquote {
+  border-left-width: 4px;
+}
+:root[data-klink="embedded"] hr,
+:root[data-klink="embedded"] .prose-kob hr {
+  border-top: 2px solid var(--mc-frame);
+  box-shadow: 0 1px 0 0 var(--mc-light);
+}
+:root[data-klink="embedded"] .prose-kob th,
+:root[data-klink="embedded"] .prose-kob td {
+  border: 2px solid var(--mc-frame);
+}

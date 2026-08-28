@@ -2816,3 +2816,82 @@ body.light .timeline-node.transfer .node-icon {
   opacity: 1;
   transform: translateX(-50%) translateY(0);
 }
+
+/* =========================================================================
+   kLink "in-game" skin for the map (see app/globals.css for the full rationale).
+   map.css is loaded outside Tailwind and defines its own design tokens, so the
+   shared skin can't reach it — instead re-point the map's --panel-*/--btn-bg/
+   --shadow tokens to the Minecraft widget look (square corners + blur removal
+   already come from the blanket rule in globals.css). Palette stays kObywatel.
+   ========================================================================= */
+:root[data-klink="embedded"] {
+  --panel-bg: #0c141d;
+  --panel-border: #05080c;
+  --btn-bg: #0c141d;
+  --accent: var(--color-koaccent);
+  --shadow:
+    inset 2px 2px 0 0 rgba(255, 255, 255, 0.18),
+    inset -2px -2px 0 0 rgba(0, 0, 0, 0.55),
+    0 0 0 2px #2b3a4e,
+    6px 6px 0 0 rgba(0, 0, 0, 0.4);
+}
+
+:root[data-klink="embedded"] .map-page-shell {
+  -webkit-font-smoothing: none;
+  font-family: ui-monospace, SFMono-Regular, "DejaVu Sans Mono", Consolas, monospace;
+}
+
+/* Sketch/screenshot mode is a desktop authoring tool — hide it in-game. */
+:root[data-klink="embedded"] #mode-editor {
+  display: none !important;
+}
+
+/* .marker-btn / .route-marker keep their category colours — they are data
+   points on the map, not GUI chrome. */
+:root[data-klink="embedded"] #map-app button:not(.marker-btn):not(.route-marker),
+:root[data-klink="embedded"] .mode-btn,
+:root[data-klink="embedded"] .map-controls-float button {
+  border: 2px solid #05080c !important;
+  box-shadow:
+    inset 2px 2px 0 0 rgba(255, 255, 255, 0.18),
+    inset -2px -2px 0 0 rgba(0, 0, 0, 0.55) !important;
+  text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.65);
+}
+
+:root[data-klink="embedded"] #map-app button:not(.marker-btn):not(.route-marker):active,
+:root[data-klink="embedded"] .mode-btn:active {
+  box-shadow:
+    inset -2px -2px 0 0 rgba(255, 255, 255, 0.18),
+    inset 2px 2px 0 0 rgba(0, 0, 0, 0.55) !important;
+}
+
+/* Active mode: solid bright accent + pressed-in bevel, so it clearly stands out
+   from the dark inactive buttons (the base .mode-btn reskin rule above gives
+   every button an identical raised frame otherwise). */
+:root[data-klink="embedded"] .mode-btn[aria-pressed="true"] {
+  background: var(--color-koaccent) !important;
+  border-color: var(--color-koaccent) !important;
+  color: var(--color-koaccenttext) !important;
+  box-shadow:
+    inset 2px 2px 0 0 rgba(0, 0, 0, 0.45),
+    inset -2px -2px 0 0 rgba(255, 255, 255, 0.25) !important;
+}
+
+:root[data-klink="embedded"] #map-app input,
+:root[data-klink="embedded"] #map-app select {
+  border: 2px solid #05080c !important;
+  box-shadow: inset 2px 2px 0 0 rgba(0, 0, 0, 0.55) !important;
+}
+
+/* Markers keep their category hue, but as a flat fill — the skin drops every
+   gradient (matches globals.css). First gradient stop becomes the solid colour. */
+:root[data-klink="embedded"] .shop-marker .marker-btn { background: #0ea5e9 !important; }
+:root[data-klink="embedded"] .company-marker .marker-btn { background: #a855f7 !important; }
+:root[data-klink="embedded"] .player-marker .marker-btn { background: #22c55e !important; }
+:root[data-klink="embedded"] .cluster-marker .cluster-btn { background: #363f4c !important; }
+:root[data-klink="embedded"] .cluster-marker.cluster-small .cluster-btn { background: #4b5563 !important; }
+:root[data-klink="embedded"] .cluster-marker.cluster-medium .cluster-btn { background: #2563eb !important; }
+:root[data-klink="embedded"] .cluster-marker.cluster-large .cluster-btn { background: #dc2626 !important; }
+:root[data-klink="embedded"] .route-marker { background: #ff4065 !important; }
+:root[data-klink="embedded"] .route-marker.end { background: #2ab4ff !important; }
+:root[data-klink="embedded"] .route-marker::after { background: none !important; }

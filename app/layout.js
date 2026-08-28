@@ -53,6 +53,28 @@ export default function RootLayout({ children }) {
             window.__deferredInstallPrompt = e;
           });`}
         </Script>
+        {/* kLink "in-game" skin toggle. The mod injects `window.__klink =
+            { embedded: true }` before page scripts when kObywatel is opened
+            inside its embedded Chromium browser (see tmp/integracja-kobywatel.md).
+            Stamp <html data-klink="embedded"> synchronously, before first paint,
+            so the Minecraft-GUI skin in globals.css/map.css applies with no
+            flash of the normal look. `?klinkskin=1` forces it on for local
+            preview outside the game (persisted); `?klinkskin=0` clears it. */}
+        <Script id="klink-embedded-skin" strategy="beforeInteractive">
+          {`(function () {
+            try {
+              var s = location.search || '';
+              if (s.indexOf('klinkskin=0') > -1) { try { localStorage.removeItem('klink-skin'); } catch (e) {} }
+              var forced = s.indexOf('klinkskin=1') > -1;
+              if (forced) { try { localStorage.setItem('klink-skin', '1'); } catch (e) {} }
+              var stored = false;
+              try { stored = localStorage.getItem('klink-skin') === '1'; } catch (e) {}
+              if ((window.__klink && window.__klink.embedded) || forced || stored) {
+                document.documentElement.setAttribute('data-klink', 'embedded');
+              }
+            } catch (e) {}
+          })();`}
+        </Script>
         {/* iOS launch/splash screens (media-query driven — not expressible via the
             metadata API, so rendered directly). React hoists these into <head>. */}
         {appleSplashScreens.map((s, i) => (

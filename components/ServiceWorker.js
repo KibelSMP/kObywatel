@@ -6,6 +6,7 @@
 // previously-dead SKIP_WAITING message with a real "new version" update banner.
 
 import { useEffect, useState } from 'react';
+import { isKlinkEmbedded } from '@/lib/utils';
 
 export default function ServiceWorker() {
   const [waiting, setWaiting] = useState(null);
@@ -62,7 +63,9 @@ export default function ServiceWorker() {
     };
   }, []);
 
-  if (!waiting) return null;
+  // SW still registers (offline/precache), but the "new version" banner is
+  // suppressed inside the game's embedded browser.
+  if (!waiting || isKlinkEmbedded()) return null;
 
   return (
     <div

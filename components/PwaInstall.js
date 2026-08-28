@@ -6,6 +6,7 @@
 // detection decides the banner should show.
 
 import { useEffect, useState, useCallback } from 'react';
+import { isKlinkEmbedded } from '@/lib/utils';
 
 const STORAGE_KEY_HIDE = 'pwaBanner:hide';
 const STORAGE_KEY_TS = 'pwaBanner:hideTs';
@@ -77,7 +78,8 @@ export default function PwaInstall() {
   const [deferred, setDeferred] = useState(null);
 
   useEffect(() => {
-    if (isStandalone() || !isSupportedBrowser() || shouldHide()) return;
+    // No PWA install prompt inside the game's embedded browser.
+    if (isKlinkEmbedded() || isStandalone() || !isSupportedBrowser() || shouldHide()) return;
 
     const applyCompact = () => {
       const ww = Math.min(window.innerWidth || 0, document.documentElement.clientWidth || 0);
