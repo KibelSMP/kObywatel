@@ -1757,14 +1757,15 @@ function focusPointById(id){
 
 function renderPointDetail(pt){
   if(!pointDetailEl){ return; }
-  if(!pt){ pointDetailEl.innerHTML=''; return; }
+  if(!pt){ pointDetailEl.innerHTML=''; klinkLastDetailPoint = null; return; }
+  klinkLastDetailPoint = pt;
   pointDetailEl.hidden = false;
   const logicY = (pt.z !== undefined ? pt.z : pt.y) || 0;
   const tags = (pt.tags||[]).map(t=> `<span class="tag">${escapeHtml(t)}</span>`).join('');
   pointDetailEl.innerHTML = `<h4>${escapeHtml(pt.name)}</h4>${pt.description?`<div>${escapeHtml(pt.description)}</div>`:''}
     <div class="meta"><span>X:${escapeHtml(pt.x)}</span><span>Z:${escapeHtml(logicY)}</span><span>ID:${escapeHtml(pt.id)}</span>${pt.category?`<span>Kategoria:${escapeHtml(pt.category)}</span>`:''}</div>
     ${tags?`<div class="tags">${tags}</div>`:''}
-    <button type="button" class="klink-waypoint-btn">Dodaj/aktualizuj waypoint w grze</button>`;
+    ${klinkConnected?`<button type="button" class="klink-waypoint-btn">Dodaj/aktualizuj waypoint w grze</button>`:''}`;
   const klinkBtn = pointDetailEl.querySelector('.klink-waypoint-btn');
   if(klinkBtn){ klinkBtn.addEventListener('click', ()=> klinkAddOrUpdateWaypoint(pt)); }
 }
@@ -2885,24 +2886,87 @@ let klinkBannerEl = null;
 let klinkBannerResizeObserver = null;
 let klinkToastEl = null;
 let klinkToastTimer = null;
+let klinkConnected = false; // steruje widocznością przycisku waypointa w panelu punktu
+let klinkLastDetailPoint = null; // ostatnio wyrenderowany punkt — do odświeżenia przycisku po zmianie stanu
 
-// Zwraca Response albo null przy błędzie sieciowym (mod nieosiągalny) —
-// odróżnia to od odpowiedzi HTTP z błędem (mod działa, ale np. 409/404).
-async function klinkRequest(path, opts){
-  try { return await fetch(KLINK_BASE + path, opts); }
-  catch(_){ return null; }
+function setKlinkConnected(connected){
+  if(klinkConnected === connected) return;
+  klinkConnected = connected;
+  if(pointDetailEl && !pointDetailEl.hidden && klinkLastDetailPoint){
+    renderPointDetail(klinkLastDetailPoint);
+  }
+}
+
+// Dwa transporty do moda (patrz integracja-kobywatel.md):
+//  • zwykła przeglądarka — fetch() na loopback http://127.0.0.1:31371;
+//  • widok w grze (wbudowana przeglądarka Rinku/CEF) — natywny most
+//    window.klinkQuery, bo fetch() do loopbacku jest tam blokowany albo
+//    leci bez nagłówka Origin i mod go odrzuca.
+// Most bierzemy pod uwagę wyłącznie, gdy mod sam się ogłosił przez
+// window.__klink.embedded — sam „skin w grze" (?klinkskin=1) tego nie
+// wystawia i musi dalej chodzić po fetchu.
+function klinkUseBridge(){
+  return !!(window.__klink && window.__klink.embedded && typeof window.klinkQuery === 'function');
+}
+
+// Most CEF: jedna funkcja na wszystkie operacje, bez originu, CORS-u i kodu
+// statusu HTTP. onSuccess dostaje string JSON w tym samym kształcie, co ciało
+// odpowiedniego endpointu HTTP (błędy walidacji też tędy). onFailure jest
+// zarezerwowane dla żądań, których mod w ogóle nie zrozumiał (zły JSON,
+// brak/nieznane `op`) — traktujemy je jak brak połączenia.
+function klinkBridgeRequest(op, fields){
+  return new Promise(resolve => {
+    let request;
+    try { request = JSON.stringify({ op, ...(fields || {}) }); }
+    catch(_){ resolve(null); return; }
+    try {
+      window.klinkQuery({
+        request,
+        onSuccess: (response) => {
+          try { resolve(JSON.parse(response)); }
+          catch(_){ resolve(null); }
+        },
+        onFailure: () => resolve(null),
+      });
+    } catch(_){ resolve(null); }
+  });
+}
+
+// Wspólne wejście dla obu transportów. `op` to jedno z:
+// 'health' | 'status' | 'player' | 'waypoint.upsert' | 'waypoint.delete'.
+// Zwraca { reachable, data }: reachable=false oznacza brak połączenia (gra
+// nie działa / most niedostępny), data to zparsowany JSON odpowiedzi
+// ({ ok, status, error, ... }) — kształt identyczny dla fetcha i mostu, więc
+// dalej patrzymy już tylko na pola JSON-a, nie na kod statusu HTTP.
+async function klinkCall(op, payload){
+  if(klinkUseBridge()){
+    const data = await klinkBridgeRequest(op, payload);
+    return { reachable: data !== null, data };
+  }
+  const isWaypoint = op === 'waypoint.upsert' || op === 'waypoint.delete';
+  const path = isWaypoint ? '/waypoint' : '/' + op;
+  const method = op === 'waypoint.upsert' ? 'POST' : op === 'waypoint.delete' ? 'DELETE' : 'GET';
+  const opts = { method };
+  if(payload !== undefined){
+    opts.headers = { 'Content-Type': 'application/json' };
+    opts.body = JSON.stringify(payload);
+  }
+  let res;
+  try { res = await fetch(KLINK_BASE + path, opts); }
+  catch(_){ return { reachable: false, data: null }; }
+  let data = null;
+  try { data = await res.json(); } catch(_){ }
+  return { reachable: true, data };
 }
 
 async function klinkCheckHealth(){
-  const res = await klinkRequest('/health');
-  if(!res) return false;
-  try { const data = await res.json(); return !!(res.ok && data && data.ok); }
-  catch(_){ return false; }
+  const { data } = await klinkCall('health');
+  return !!(data && data.ok);
 }
 
 async function klinkFetchStatusRaw(){
-  const res = await klinkRequest('/status');
-  return !!res;
+  const { reachable } = await klinkCall('status');
+  return reachable;
 }
 
 // Wywoływane, gdy dowolny endpoint poza /health zgłosi błąd połączenia.
@@ -2918,11 +2982,13 @@ async function klinkHandleConnectionLoss(){
       const statusOk = await klinkFetchStatusRaw();
       if(statusOk){
         hideKlinkBanner();
+        setKlinkConnected(true);
         startKlinkPlayerPolling();
         return true;
       }
     }
     showKlinkBanner();
+    setKlinkConnected(false);
     return false;
   } finally {
     klinkRecovering = false;
@@ -2931,10 +2997,11 @@ async function klinkHandleConnectionLoss(){
 
 async function initKLink(){
   const healthy = await klinkCheckHealth();
-  if(!healthy){ showKlinkBanner(); return; }
+  if(!healthy){ showKlinkBanner(); setKlinkConnected(false); return; }
   const statusOk = await klinkFetchStatusRaw();
   if(!statusOk){ await klinkHandleConnectionLoss(); return; }
   hideKlinkBanner();
+  setKlinkConnected(true);
   startKlinkPlayerPolling();
 }
 
@@ -2950,10 +3017,8 @@ function stopKlinkPlayerPolling(){
 }
 
 async function klinkPollPlayer(){
-  const res = await klinkRequest('/player');
-  if(!res){ await klinkHandleConnectionLoss(); return; }
-  let data = null;
-  try { data = await res.json(); } catch(_){ }
+  const { reachable, data } = await klinkCall('player');
+  if(!reachable){ await klinkHandleConnectionLoss(); return; }
   if(data && data.ok && data.inGame && data.dimension === 'overworld' && isFinite(data.x) && isFinite(data.z)){
     updateKlinkPlayerMarker(data.x, data.z);
   } else {
@@ -3051,20 +3116,18 @@ function showKlinkToast(message){
 async function klinkAddOrUpdateWaypoint(pt){
   showKlinkToast('Otwórz grę, aby potwierdzić dodanie waypointa.');
   const logicZ = (pt.z !== undefined ? pt.z : pt.y) || 0;
-  const res = await klinkRequest('/waypoint', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ points: [{ x: pt.x, z: logicZ, name: pt.name, id: pt.id }] })
+  const { reachable, data } = await klinkCall('waypoint.upsert', {
+    points: [{ x: pt.x, z: logicZ, name: pt.name, id: pt.id }]
   });
-  if(!res){
+  if(!reachable){
     showKlinkToast('Nie udało się połączyć z grą. Uruchom Minecraft z modem kLink.');
     await klinkHandleConnectionLoss();
     return;
   }
-  if(res.status === 202) return; // domyślna ścieżka — toast "Otwórz grę" już wyświetlony
-  let data = null;
-  try { data = await res.json(); } catch(_){ }
-  if(res.ok && data?.ok){ showKlinkToast('Dodano waypoint w grze.'); return; }
+  // Bez kodu statusu HTTP — rozróżniamy po polach JSON-a (identycznie dla
+  // fetcha i mostu): awaiting_confirmation = 202, ok = dodane/zaktualizowane.
+  if(data?.status === 'awaiting_confirmation') return; // domyślna ścieżka — komunikat „Otwórz grę" już widoczny
+  if(data?.ok){ showKlinkToast('Dodano waypoint w grze.'); return; }
   if(data?.error === 'not_in_overworld'){ showKlinkToast('Wróć do Overworldu, aby dodać waypoint.'); return; }
   showKlinkToast('Nie udało się dodać waypointa w grze.');
 }

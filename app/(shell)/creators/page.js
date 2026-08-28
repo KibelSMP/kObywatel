@@ -26,11 +26,6 @@ const TEAM = [
     roles: ['Dane'],
     bio: 'Pomysłodawca modułu kHandel. Tworzy dla niego bazę danych.',
   },
-  {
-    name: 'Mieciaty',
-    roles: ['Dane', 'Mapy'],
-    bio: 'Tworzy bazę punktów na mapie.',
-  },
 ];
 
 export default function CreatorsPage() {
