@@ -350,6 +350,15 @@
   box-shadow: 0 2px 0 0 var(--color-koaccent), 0 8px 0 0 rgba(0, 0, 0, 0.35);
 }
 
+/* Header row goes full-bleed in-game: no auto-centring, no responsive side
+   padding — just a fixed inset at every width, wider on the right where the
+   embedded browser reserves its top-right corner. */
+:root[data-klink="embedded"] header > div {
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 96px 0 32px !important;
+}
+
 :root[data-klink="embedded"] footer {
   border-top: 2px solid var(--mc-frame);
   box-shadow: 0 -2px 0 0 var(--color-koaccent);
