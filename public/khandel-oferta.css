@@ -1,0 +1,147 @@
+/*
+  Pojedyncza oferta kHandel (/khandel/oferta/) — widok pisany pod przypięte
+  okienka kLink. Sama karta, chipy cen i badge'y pochodzą z khandel.css;
+  tutaj są wyłącznie poprawki na okno wielkości znaczka pocztowego:
+  ciaśniejsze odstępy, karta rozciągnięta na całą wysokość okienka i brak
+  efektów najechania myszą (w czasie gry nie ma czym najechać, a w widoku
+  kObywatela kursor przechodzi po oknie w drodze do jego paska tytułu).
+*/
+
+html {
+  scrollbar-width: thin;
+  overflow-x: hidden;
+}
+
+
+.offer-frame {
+  box-sizing: border-box;
+  min-height: 100vh;
+  padding: 8px;
+}
+
+.offer-frame .card {
+  min-height: calc(100vh - 16px);
+  padding: 0.7rem;
+  gap: 0.5rem;
+  border-radius: 0.75rem;
+}
+.offer-frame .card:hover {
+  transform: none;
+  border-color: var(--color-koborder);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+}
+.offer-frame .card.custom-prod:hover {
+  border-color: color-mix(in srgb, var(--color-ko-custom) 55%, var(--color-koborder));
+}
+
+/* --- Tylko w przypiętym okienku kLink ---------------------------------
+   Tło i ramkę okienka rysuje mod (PinWindow) na 85% krycia, żeby świat gry
+   był przez nie widoczny. Strona nie może wtedy malować własnego tła: druga
+   warstwa 85% zsumowałaby się z powrotem do nieprzezroczystej, a własna
+   ramka karty byłaby ramką w ramce. Zostają tekst i ikony — te mają być w
+   pełni kryjące i są, bo przezroczysta przeglądarka składa je wprost na tle
+   moda. Poza grą (zwykła karta przeglądarki) strona wygląda jak wcześniej.
+   `!important` przy body, bo skórka „w grze" w globals.css maluje tam własne
+   tło z siatką. */
+:root[data-klink='embedded'] body {
+  background: transparent !important;
+}
+:root[data-klink='embedded'] .offer-frame .card,
+:root[data-klink='embedded'] .offer-frame .card:hover {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+/* Chipy cen i badge'y zostają przy samych obramowaniach — z własnym tłem
+   byłyby nieprzezroczystymi plamami na półprzezroczystym okienku. */
+:root[data-klink='embedded'] .offer-frame .price-chip,
+:root[data-klink='embedded'] .offer-frame .card-badge {
+  background: transparent;
+}
+
+.offer-frame .title {
+  font-size: 0.95rem;
+}
+
+/* W katalogu sekcja „gdzie kupić" jest dociskana do dołu karty (margin-top:
+   auto), żeby karty w siatce kończyły się równo. Tutaj karta jest jedna i
+   wypełnia całe okienko, więc to samo zostawiałoby dziurę na pół widoku —
+   szczegóły mają iść od razu pod ceną. */
+.offer-frame .card-details {
+  margin-top: 0.55rem;
+}
+
+.offer-status {
+  padding: 0.75rem;
+  font-size: 0.78rem;
+  color: var(--color-kodim);
+}
+
+.offer-coords {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-kodim);
+}
+.offer-coords .ui-icon {
+  width: 13px;
+  height: 13px;
+}
+
+/* Waypoint do sklepu — w tym okienku jedyne wyjście „na zewnątrz" oferty,
+   więc dostaje pełną szerokość karty zamiast chować się w rogu. */
+.offer-waypoint-btn {
+  align-self: stretch;
+  justify-content: center;
+  padding: 0.35rem 0.6rem;
+  font-size: 0.72rem;
+  color: var(--color-koaccent2);
+}
+.offer-waypoint-btn .ui-icon {
+  width: 13px;
+  height: 13px;
+}
+.offer-waypoint-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.offer-waypoint-btn[hidden] {
+  display: none;
+}
+
+/* Komunikat o waypoincie — nad kartą, przy dolnej krawędzi okienka, żeby w
+   oknie wielkości znaczka nie zepchnąć samej oferty poza widok. */
+.offer-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 0.5rem;
+  z-index: 60;
+  max-width: calc(100vw - 1rem);
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--color-koborder);
+  border-radius: 0.6rem;
+  background: var(--color-koelev);
+  color: var(--color-kotext);
+  font-size: 0.7rem;
+  font-weight: 600;
+  line-height: 1.3;
+  text-align: center;
+  box-shadow: 0 10px 30px -12px rgba(0, 0, 0, 0.6);
+  opacity: 0;
+  transform: translate(-50%, 0.5rem);
+  pointer-events: none;
+  transition: opacity 0.18s, transform 0.18s;
+}
+.offer-toast.visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+/* Baner instalacji PWA (components/PwaInstall.js) jest przyklejony do dołu
+   ekranu i w tym okienku zasłoniłby całą ofertę. Poza grą też nie ma sensu:
+   to jedna karta pod bezpośrednim linkiem, nie strona do instalowania. */
+body > div[role='dialog'][aria-label='Zainstaluj aplikację'] {
+  display: none !important;
+}

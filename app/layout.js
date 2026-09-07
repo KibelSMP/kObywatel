@@ -40,8 +40,14 @@ export const viewport = {
 };
 
 export default function RootLayout({ children }) {
+  // suppressHydrationWarning dotyczy wyłącznie samego <html> (jego atrybutów
+  // i tekstu, nie dzieci): skrypt klink-embedded-skin niżej celowo dostawia
+  // tam data-klink="embedded" jeszcze przed hydracją, więc React zawsze
+  // zobaczy różnicę między HTML-em z serwera a stanem klienta. To jest
+  // zamierzone — bez tego atrybutu przed pierwszym malowaniem strona
+  // mignęłaby normalnym wyglądem, zanim wejdzie skórka „w grze".
   return (
-    <html lang="pl">
+    <html lang="pl" suppressHydrationWarning>
       <head>
         {/* Chrome can fire beforeinstallprompt before React hydrates (e.g. on a
             slower/loaded machine), which drops the event and leaves Chrome's own

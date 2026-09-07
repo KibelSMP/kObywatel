@@ -1,3 +1,7 @@
+import { createIcon } from '/khandel-item-icon.js';
+import * as klinkPins from '/klink-pins.js';
+import * as klinkWaypoints from '/klink-waypoints.js';
+
 let currentLang = (localStorage.getItem('khandelLang') || 'pl');
 let allProducts = [];
 let selectedStore = '';
@@ -121,49 +125,6 @@ function scrollToEl(el){
   window.scrollTo({ top: y, behavior: 'smooth' });
 }
 function scrollToProducts(){ scrollToEl(productsEl); }
-
-// --- Ikony Minecraft ---
-const MC_ASSETS_VERSION = '1.20.4';
-const MC_ASSETS_BASE = `https://cdn.jsdelivr.net/gh/InventivetalentDev/minecraft-assets@${MC_ASSETS_VERSION}/assets/minecraft/textures`;
-const PATH_ITEM = MC_ASSETS_BASE + '/item';
-const PATH_BLOCK = MC_ASSETS_BASE + '/block';
-const FALLBACK_ICON = PATH_ITEM + '/barrier.png';
-const LOCAL_ICON_BASE = '/mc-items';
-const localIconPath = key => `${LOCAL_ICON_BASE}/${encodeURIComponent(key)}.png`;
-const itemIconPath = key => `${PATH_ITEM}/${encodeURIComponent(key)}.png`;
-const blockIconPath = key => `${PATH_BLOCK}/${encodeURIComponent(key)}.png`;
-
-function createIcon(item, size=48, enchanted=false){
-  const wrap = document.createElement('div');
-  wrap.className = 'item-icon' + (enchanted? ' enchanted':'');
-  wrap.style.width = size+'px';
-  wrap.style.height = size+'px';
-  wrap.classList.add('loading');
-  const img = document.createElement('img');
-  img.loading='lazy'; img.decoding='async'; img.alt=item;
-  wrap.appendChild(img);
-  let overlay=null;
-  if(enchanted){
-    overlay = document.createElement('div'); overlay.className='ench-overlay'; wrap.appendChild(overlay);
-  }
-  const key = (item||'').toLowerCase();
-  const stages = [ localIconPath(key), itemIconPath(key), blockIconPath(key), FALLBACK_ICON ];
-  let stageIndex=0;
-  function applyStage(){ img.src = stages[stageIndex]; }
-  img.addEventListener('load', ()=>{
-    wrap.classList.remove('loading');
-    if(stageIndex===3){ img.style.opacity='.55'; }
-    if(enchanted && overlay){
-      const url = `url(${img.src})`;
-      overlay.style.maskImage = url; overlay.style.webkitMaskImage = url; wrap.classList.add('masked');
-    }
-  });
-  img.onerror = ()=>{
-    if(stageIndex < stages.length-1){ stageIndex++; applyStage(); } else { wrap.classList.remove('loading'); }
-  };
-  applyStage();
-  return wrap;
-}
 
 // --- Trasa handlowa: katalog przedmiotów ---
 // Klucz węzła grafu to surowy identyfikator Minecraft (item), małymi
@@ -468,6 +429,163 @@ function filterBase(mode='none'){
   return list;
 }
 
+// --- Przypinanie ofert do okienek kLink ---
+// Przycisk istnieje wyłącznie we wbudowanej przeglądarce moda kLink: to on
+// rysuje przypięte okienko nad światem gry, więc poza grą nie miałby czego
+// otworzyć (patrz /klink-pins.js i docs/integracja-kobywatel.md w repo kLink).
+// Stan trzyma mod, nie strona — każda odpowiedź pin.* niesie pełną listę
+// przypiętych ofert, a syncPinButtons() przepisuje ją na wszystkie widoczne
+// przyciski naraz (także po odpięciu okienka w samej grze).
+const PIN_MESSAGES = {
+  pl: {
+    pin: 'Przypnij', unpin: 'Odepnij',
+    pinTitle: 'Przypnij tę ofertę jako okienko w grze',
+    unpinTitle: 'Zamknij przypięte okienko z tą ofertą',
+    inactive: 'Przypinanie działa dopiero po wejściu do świata',
+    pin_limit_reached: 'Limit przypiętych ofert osiągnięty — odepnij inną, żeby zrobić miejsce.',
+    not_in_game: 'Przypinanie działa dopiero po wejściu do świata.',
+    already_pinned: 'Ta oferta jest już przypięta.',
+    unknown_pin: 'Ta oferta nie jest przypięta.',
+    browser_unavailable: 'Przypinanie wymaga moda kLink z przeglądarką w grze.',
+    failed: 'Nie udało się zmienić przypięcia oferty.',
+  },
+  en: {
+    pin: 'Pin', unpin: 'Unpin',
+    pinTitle: 'Pin this offer as an in-game window',
+    unpinTitle: 'Close the pinned window with this offer',
+    inactive: 'Pinning works once you are in a world',
+    pin_limit_reached: 'Pinned-offer limit reached — unpin another one to make room.',
+    not_in_game: 'Pinning works once you are in a world.',
+    already_pinned: 'This offer is already pinned.',
+    unknown_pin: 'This offer is not pinned.',
+    browser_unavailable: 'Pinning needs the kLink mod with the in-game browser.',
+    failed: 'Could not change this offer\u2019s pin.',
+  },
+};
+function pinText(key){ return (PIN_MESSAGES[currentLang] || PIN_MESSAGES.pl)[key]; }
+
+function createPinButton(offerId){
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'mini-btn card-pin-btn';
+  btn.dataset.offerId = offerId;
+  btn.addEventListener('click', async ()=>{
+    btn.disabled = true;
+    try {
+      const data = klinkPins.isPinned(offerId)? await klinkPins.unpin(offerId) : await klinkPins.pin(offerId);
+      if(!data.ok) showPinMessage(data.error);
+    } catch(_){
+      showPinMessage('failed');
+    }
+    syncPinButtons();
+  });
+  applyPinButtonState(btn);
+  return btn;
+}
+
+function applyPinButtonState(btn){
+  const offerId = btn.dataset.offerId;
+  const pinned = klinkPins.isPinned(offerId);
+  const status = klinkPins.snapshot();
+  const icon = pinned? 'unpin' : 'pin';
+  btn.innerHTML = `<span class="ui-icon" style="--icon:url(/icns_ui/${icon}.svg)" aria-hidden="true"></span> ${pinText(pinned? 'unpin':'pin')}`;
+  btn.setAttribute('aria-pressed', pinned? 'true':'false');
+  btn.classList.toggle('active', pinned);
+  btn.disabled = !status.active || (!pinned && status.full);
+  if(!status.active){ btn.title = pinText('inactive'); }
+  else if(!pinned && status.full){ btn.title = pinText('pin_limit_reached'); }
+  else { btn.title = pinText(pinned? 'unpinTitle':'pinTitle'); }
+}
+
+function syncPinButtons(){
+  document.querySelectorAll('.card-pin-btn').forEach(applyPinButtonState);
+}
+
+let khandelToastTimer = null;
+// Jeden toast na całą stronę — dzielą go przypinanie ofert i waypointy.
+function showKhandelToast(text){
+  let toast = document.getElementById('khandel-pin-toast');
+  if(!toast){
+    toast = document.createElement('div');
+    toast.id = 'khandel-pin-toast';
+    toast.setAttribute('role', 'status');
+    document.body.appendChild(toast);
+  }
+  toast.textContent = text;
+  toast.classList.add('visible');
+  if(khandelToastTimer) clearTimeout(khandelToastTimer);
+  khandelToastTimer = setTimeout(()=>toast.classList.remove('visible'), 3500);
+}
+
+function showPinMessage(code){
+  showKhandelToast(pinText(code) || pinText('failed'));
+}
+
+// --- Waypointy kLink dla sklepów ---
+// Odpowiednik przycisku na mapie, tylko że dla sklepu z oferty: mod dostaje
+// współrzędne oferty i stawia w Xaero's Minimap waypoint w kolorze kHandelu
+// (patrz /klink-waypoints.js). W przeciwieństwie do przypinania działa też w
+// zwykłej przeglądarce — wystarczy odpalona gra z modem — więc przycisk
+// pojawia się, dopiero gdy mod odpowie, i znika, gdy gra zniknie.
+//
+// Waypoint jest jeden na sklep, nie na ofertę: identyfikator liczymy z pary
+// lokalizacja+nazwa sklepu (tak samo jak shopMapHref identyfikuje sklep na
+// mapie), więc kliknięcie przy kolejnej ofercie tego samego sklepu
+// aktualizuje ten sam punkt, zamiast mnożyć duplikaty w tym samym miejscu.
+function shopSlug(text){
+  return String(text || '')
+    .normalize('NFD').replace(/\p{Diacritic}+/gu, '')
+    .replace(/ł/g, 'l').replace(/Ł/g, 'L')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+function shopWaypointId(listing){
+  const slug = shopSlug(`${listing.storeLocation || ''}-${listing.storeName || 'sklep'}`) || 'sklep';
+  return ('shop-' + slug).slice(0, 64); // mod przycina `id` do 64 znaków
+}
+
+function shopWaypointName(listing){
+  return [listing.storeName, listing.storeLocation].filter(Boolean).join(' • ') || 'Sklep kHandel';
+}
+
+function hasShopCoords(listing){
+  return Number.isFinite(listing?.x) && Number.isFinite(listing?.z);
+}
+
+function createWaypointButton(listing){
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'mini-btn card-waypoint-btn';
+  btn.innerHTML = `<span class="ui-icon" style="--icon:url(/icns_ui/my_location.svg)" aria-hidden="true"></span> ${escapeHtml(klinkWaypoints.message('button', currentLang))}`;
+  btn.title = klinkWaypoints.message('buttonTitle', currentLang);
+  btn.hidden = !klinkWaypoints.canAddWaypoints();
+  btn.addEventListener('click', async ()=>{
+    btn.disabled = true;
+    showKhandelToast(klinkWaypoints.message('pending', currentLang));
+    try {
+      const code = await klinkWaypoints.sendWaypoint({
+        x: listing.x,
+        z: listing.z,
+        name: shopWaypointName(listing),
+        id: shopWaypointId(listing),
+        kind: 'sklep',
+      });
+      // 'awaiting' (202) to domyślna ścieżka — komunikat „otwórz grę" już wisi.
+      if(code !== 'awaiting') showKhandelToast(klinkWaypoints.message(code, currentLang));
+    } finally {
+      btn.disabled = false;
+    }
+  });
+  return btn;
+}
+
+function syncWaypointButtons(){
+  const visible = klinkWaypoints.canAddWaypoints();
+  document.querySelectorAll('.card-waypoint-btn').forEach(btn=>{ btn.hidden = !visible; });
+}
+
 // --- Renderowanie kart ofert ---
 function createOfferCard(p, includeMeta=true){
   const card = document.createElement('div'); card.className='card fade-in';
@@ -483,7 +601,9 @@ function createOfferCard(p, includeMeta=true){
     const sub = document.createElement('p'); sub.className='subtitle'; sub.textContent = `×${p.product.qty}`;
     box.appendChild(sub);
   }
-  row.appendChild(box); card.appendChild(row);
+  row.appendChild(box);
+  if(klinkPins.isEmbedded() && p.id) row.appendChild(createPinButton(String(p.id)));
+  card.appendChild(row);
 
   // Price sits directly under the item's icon/name/qty — the primary "what &
   // how much" block the user asked to keep together.
@@ -530,6 +650,9 @@ function createOfferCard(p, includeMeta=true){
     btn.addEventListener('click', ()=>{ window.open(shopMapHref(p),'_blank','noopener'); });
     details.appendChild(btn);
   }
+  // Waypoint potrzebuje tylko X/Z — wysokość ustala mod, więc pokazujemy go
+  // także przy ofercie bez `y`, której przycisk ze współrzędnymi nie dostaje.
+  if(hasShopCoords(p)){ details.appendChild(createWaypointButton(p)); }
   if(p.notes){ details.appendChild(createNotesElement(p.notes)); }
   if(details.children.length){ card.appendChild(details); }
 
@@ -688,6 +811,9 @@ function buildRouteStepsEl(hops){
     storeLink.href = shopMapHref(hop.listing); storeLink.target = '_blank'; storeLink.rel = 'noopener';
     storeLink.textContent = [hop.listing.storeName, hop.listing.storeLocation].filter(Boolean).join(' • ') || '—';
     connector.appendChild(storeLink);
+    // Trasa handlowa to trasa do przejścia — waypoint na każdym przystanku
+    // jest tu tym samym punktem sklepu, co przy karcie oferty.
+    if(hasShopCoords(hop.listing)) connector.appendChild(createWaypointButton(hop.listing));
     if(hop.secondary){
       const sec = document.createElement('div'); sec.className = 'route-step-secondary';
       sec.title = currentLang==='en'
@@ -1079,4 +1205,19 @@ async function load(){
 }
 
 attachEvents(); load();
+
+// Stan przypięć trzyma mod — pobieramy go raz na start, a subskrypcja
+// przepisuje go na przyciski po każdej zmianie (patrz syncPinButtons wyżej).
+if(klinkPins.isEmbedded()){
+  klinkPins.subscribe(syncPinButtons);
+  klinkPins.refresh().then(syncPinButtons);
+}
+
+// Waypointy — inaczej niż przypinanie, działają też w zwykłej przeglądarce,
+// więc pytamy o mod zawsze. Przyciski są w kartach od razu, tylko ukryte;
+// odpowiedź moda (albo jej brak) je odsłania, a każda nieudana próba wysyłki
+// odświeża stan i chowa je z powrotem.
+klinkWaypoints.subscribe(syncWaypointButtons);
+klinkWaypoints.ensureConnection().then(syncWaypointButtons);
+
 document.getElementById('back-btn')?.addEventListener('click', () => { window.location.href = '/'; });

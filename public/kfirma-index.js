@@ -2,6 +2,8 @@
 // data normalization, business-type aliases, and filtering logic are unchanged;
 // injected markup reskinned to Tailwind. Globals: window.__db, window.escapeHtml.
 
+import * as klinkWaypoints from '/klink-waypoints.js';
+
 const listEl = document.getElementById('kf-list');
 const statusEl = document.getElementById('kf-status');
 const statsEl = document.getElementById('kf-stats');
@@ -155,6 +157,72 @@ function showSymbolsModal(symbols) {
   document.body.style.overflow = 'hidden';
 }
 
+// --- Waypointy kLink ---
+// Ten sam mechanizm, co przycisk waypointa na mapie i w kHandelu (patrz
+// /klink-waypoints.js): przy odpalonej grze z modem firma z adresem w
+// Overworldzie może od razu trafić do Xaero's Minimap, w kolorze kFirmy.
+// Przycisk jest w karcie od startu, tylko ukryty — odsłania go dopiero
+// odpowiedź moda, a każda nieudana wysyłka chowa go z powrotem.
+function companyWaypointId(company) {
+  const raw = String(company.knip || '').trim() ||
+    simplifyPolish(company.name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  return ('firma-' + (raw || 'bez-knip')).slice(0, 64); // mod przycina `id` do 64 znaków
+}
+
+function canPinCompany(company) {
+  const { x, y } = company.coords;
+  return company.dimension === 'Overworld' && Number.isFinite(Number(x)) && Number.isFinite(Number(y)) && x !== null && y !== null;
+}
+
+function createWaypointButton(company) {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'kf-waypoint-btn inline-flex items-center gap-1.5 rounded-lg border border-koborder bg-koelev2 px-2.5 py-1 text-xs font-semibold text-koaccent2 transition hover:border-koaccent disabled:opacity-50';
+  btn.innerHTML = '<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 1 1 18 0Z"/><circle cx="12" cy="10" r="3"/></svg>';
+  btn.appendChild(document.createTextNode(klinkWaypoints.message('button')));
+  btn.title = klinkWaypoints.message('buttonTitle');
+  btn.hidden = !klinkWaypoints.canAddWaypoints();
+  btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    showWaypointToast(klinkWaypoints.message('pending'));
+    try {
+      // `coords.y` z normalizeCompanies to logiczne Z (baza trzyma {x, z}).
+      const code = await klinkWaypoints.sendWaypoint({
+        x: Number(company.coords.x),
+        z: Number(company.coords.y),
+        name: company.name,
+        id: companyWaypointId(company),
+        kind: 'firma',
+      });
+      // 'awaiting' (202) to domyślna ścieżka — komunikat „otwórz grę" już wisi.
+      if (code !== 'awaiting') showWaypointToast(klinkWaypoints.message(code));
+    } finally {
+      btn.disabled = false;
+    }
+  });
+  return btn;
+}
+
+function syncWaypointButtons() {
+  const visible = klinkWaypoints.canAddWaypoints();
+  document.querySelectorAll('.kf-waypoint-btn').forEach((btn) => { btn.hidden = !visible; });
+}
+
+let waypointToastEl = null;
+let waypointToastTimer = null;
+function showWaypointToast(text) {
+  if (!waypointToastEl) {
+    waypointToastEl = document.createElement('div');
+    waypointToastEl.setAttribute('role', 'status');
+    waypointToastEl.className = 'fixed bottom-5 left-1/2 z-[80] max-w-[90vw] sm:max-w-md -translate-x-1/2 rounded-xl border border-koborder bg-koelev px-4 py-2 text-sm font-semibold text-kotext shadow-2xl transition-opacity';
+    document.body.appendChild(waypointToastEl);
+  }
+  waypointToastEl.textContent = text;
+  waypointToastEl.classList.remove('opacity-0');
+  if (waypointToastTimer) clearTimeout(waypointToastTimer);
+  waypointToastTimer = setTimeout(() => waypointToastEl.classList.add('opacity-0'), 3500);
+}
+
 function renderList(companies) {
   if (!listEl) return;
   listEl.innerHTML = '';
@@ -201,6 +269,12 @@ function renderList(companies) {
           <div class="flex items-center gap-2">${dimensionLabel}${mapLink ? `<a href="${mapLink}" class="text-koaccent2 underline underline-offset-2 hover:text-koaccent" target="_blank" rel="noopener">${escapeHtml(coordsLabel)}</a>` : escapeHtml(coordsLabel)}</div>
         </div>
       </div>`;
+    if (canPinCompany(c)) {
+      const actions = document.createElement('div');
+      actions.className = 'mt-3 flex flex-wrap gap-2';
+      actions.appendChild(createWaypointButton(c));
+      article.appendChild(actions);
+    }
     const btn = article.querySelector('.kf-symbol-btn');
     btn?.addEventListener('click', (e) => {
       e.preventDefault();
@@ -273,4 +347,6 @@ async function init() {
 
 bindFilters();
 bindBack();
+klinkWaypoints.subscribe(syncWaypointButtons);
+klinkWaypoints.ensureConnection().then(syncWaypointButtons);
 window.__db.loadConfig().then(init).catch((err) => setStatus(String(err.message || err), 'err'));

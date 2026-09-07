@@ -463,3 +463,87 @@
   color: var(--color-kodim);
   font-size: 0.85rem;
 }
+
+/* Przypinanie oferty jako okienka kLink. Przycisk wstrzykuje khandel-core.js
+   i tylko wtedy, gdy kHandel jest otwarty we wbudowanej przeglądarce moda —
+   w zwykłej karcie przeglądarki żadna z tych klas się nie pojawia. */
+.card-pin-btn {
+  margin-left: auto;
+  align-self: flex-start;
+  padding: 0.3rem 0.55rem;
+  font-size: 0.7rem;
+  white-space: nowrap;
+}
+.card-pin-btn .ui-icon {
+  width: 13px;
+  height: 13px;
+}
+.card-pin-btn.active {
+  border-color: var(--color-koaccent);
+  color: var(--color-koaccent);
+}
+.card-pin-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.card-pin-btn:disabled:hover {
+  border-color: var(--color-koborder);
+}
+
+/* Waypoint w grze (kLink). Ukryty, dopóki mod nie odpowie — przycisk siedzi
+   w karcie od startu, żeby po wykryciu gry nie trzeba było przerysowywać
+   całej siatki ofert (patrz syncWaypointButtons w khandel-core.js). */
+.card-waypoint-btn {
+  align-self: flex-start;
+  color: var(--color-koaccent2);
+}
+.card-waypoint-btn .ui-icon {
+  width: 14px;
+  height: 14px;
+}
+.card-waypoint-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.card-waypoint-btn[hidden] {
+  display: none;
+}
+
+/* Ten sam przycisk na przystanku trasy handlowej — obok linku do sklepu,
+   w ciaśniejszym wydaniu niż w karcie oferty. */
+.route-step-connector .card-waypoint-btn {
+  align-self: center;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.68rem;
+  white-space: nowrap;
+}
+.route-step-connector .card-waypoint-btn .ui-icon {
+  width: 12px;
+  height: 12px;
+}
+
+/* Komunikat o nieudanym przypięciu (limit okienek, gra w menu głównym…).
+   Jedyny na stronie, tworzony leniwie przy pierwszym błędzie. */
+#khandel-pin-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 1.25rem;
+  z-index: 60;
+  max-width: min(90vw, 28rem);
+  padding: 0.6rem 0.9rem;
+  border: 1px solid var(--color-koborder);
+  border-radius: 0.75rem;
+  background: var(--color-koelev);
+  color: var(--color-kotext);
+  font-size: 0.78rem;
+  font-weight: 600;
+  box-shadow: 0 10px 30px -12px rgba(0, 0, 0, 0.6);
+  opacity: 0;
+  transform: translate(-50%, 0.75rem);
+  pointer-events: none;
+  transition: opacity 0.18s, transform 0.18s;
+}
+#khandel-pin-toast.visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
