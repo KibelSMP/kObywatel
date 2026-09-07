@@ -20,7 +20,18 @@ Most pages are ordinary React/Tailwind (server) components. But several features
 - `components/IslandLoader.js` (client) exposes the globals the script expects (`window.__db`, `window.escapeHtml`, `window.markdownit`, `window.jspdf`, `window.HomeLayout`, `window.KWiedzaData`, …) from bundled modules, then appends the island script(s).
 - **Navigation is plain `<a href>` everywhere — never `next/link`.** Islands grab DOM refs and register `window` listeners at module top level; a full document reload per navigation keeps their "runs once against a fresh DOM" assumption true (and matches v1, which had no SPA behavior).
 
-Islands: `public/map.js` (+`route-search.js`, `map.css`), `public/khandel-core.js` (+`khandel.css`), `public/ksef.js`, `public/kdokumenty.js`, `public/kfirma-index.js`, `public/kfirma-register.js`, `public/kwiedza.js`, `public/settings.js`, `public/home.js`, `public/ksejm/index.js` (+`sort-utils.js`), `public/ksejm/deputy/index.js`.
+Islands: `public/map.js` (+`route-search.js`, `map.css`), `public/khandel-core.js` (+`khandel.css`, `khandel-item-icon.js`, `klink-pins.js`, `klink-waypoints.js`), `public/khandel-oferta.js` (+`khandel-oferta.css`), `public/ksef.js`, `public/kdokumenty.js`, `public/kfirma-index.js`, `public/kfirma-register.js`, `public/kwiedza.js`, `public/settings.js`, `public/home.js`, `public/ksejm/index.js` (+`sort-utils.js`), `public/ksejm/deputy/index.js`.
+
+`public/klink-waypoints.js` is a shared ES module (not an island): the transport
+to the kLink mod — `fetch()` to `http://127.0.0.1:31371` in a normal browser,
+the native `window.klinkQuery` bridge inside the mod's in-game browser — plus
+the connection state, the category→Xaero-colour palette and the user-facing
+messages. `map.js`, `khandel-core.js`, `khandel-oferta.js` and `kfirma-index.js`
+all import it for their "waypoint in game" buttons, so a map point, a kHandel
+shop and a kFirma company each land in Xaero's Minimap in their own colour.
+Waypoint ids must stay stable (the mod keys updates off them, across sessions):
+map points keep their bare db id, shops use `shop-<location>-<store>` and
+companies `firma-<knip>`.
 
 ## Data architecture
 
@@ -36,6 +47,7 @@ Bundled (in-repo, not external) data: kWiedza docs (`public/assets/docs/index.js
 |---|---|---|
 | `/` | `app/page.js` | `public/home.js` — search + `lib/homeLayout.js` tile personalization |
 | `/khandel/` | `app/(shell)/khandel/page.js` | `public/khandel-core.js` + `khandel.css` |
+| `/khandel/oferta/` | `app/khandel/oferta/page.js` | `public/khandel-oferta.js` (+`khandel-oferta.css`) — one offer by `?id=`, outside the shell; the frame the kLink mod pins as a floating in-game window |
 | `/kwiedza/` | `app/(shell)/kwiedza/page.js` | `public/kwiedza.js` (markdown docs, history deep-linking) |
 | `/kdokumenty/` | `app/(shell)/kdokumenty/page.js` | `public/kdokumenty.js` (jsPDF) |
 | `/ksef/` | `app/(shell)/ksef/page.js` | `public/ksef.js` (jsPDF + barcode font) |

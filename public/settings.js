@@ -120,6 +120,8 @@
 
   const LOCAL_ASSETS = [
     '/map/', '/map.css', '/map.js', '/route-search.js',
+    // map.js importuje ten moduł — bez niego cała wyspa mapy nie wystartuje offline.
+    '/klink-waypoints.js',
     '/db-adapter.js', '/db.config.json', '/map/political.svg',
     '/manifest.json', '/favicon.png', '/logo.png',
     '/icns_ui/company.svg', '/icns_ui/light_dark_mode.svg', '/icns_ui/link.svg',
